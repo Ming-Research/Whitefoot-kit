@@ -94,8 +94,9 @@ Whitefoot. For each project:
 4. Adapt the project to the new language and compiler without weakening any
    check.
 5. Run the project's CI (`make check`). When the compiler's code generation
-   changed, compare the project's measurements before and after as its
-   AGENTS.md says.
+   changed, compare the project's benchmarks built with the old and the new
+   compiler on the 14900K, with the benchmark command the project's AGENTS.md
+   names, and report the difference with the upgrade.
 6. Open the pull request naming both Whitefoot commits, both specification
    versions and every change the project needed.
 
