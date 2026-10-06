@@ -59,15 +59,16 @@ local_run() { run RELEASES="file://$releases" "$@"; }
 # A fake release: an archive holding an executable whitefootc, the manifest
 # and SHA256SUMS over both, as Whitefoot's release workflow publishes them.
 release() {
-  local tag=$1 commit=$2 dir="$releases/$1"
+  local tag=$1 commit=$2 llvm=${4:-} dir="$releases/$1"
   mkdir -p "$dir/content"
   printf '#!/bin/sh\necho %s\n' "$tag" > "$dir/content/whitefootc"
   chmod +x "$dir/content/whitefootc"
   # A real release's compiler keeps its build time, older than any pin.
   touch -t 202001010000 "$dir/content/whitefootc"
   tar -czf "$dir/$asset" -C "$dir/content" whitefootc
-  printf '{"tag": "%s", "commit": "%s", "spec": "v0.93", "gate_run": "1", "assets": {}}\n' \
-    "${3:-$tag}" "$commit" > "$dir/whitefoot-release.json"
+  if [ -n "$llvm" ]; then llvm="\"linux_llvm_major\": \"$llvm\", "; fi
+  printf '{"tag": "%s", "commit": "%s", "spec": "v0.93", "gate_run": "1", %s"assets": {}}\n' \
+    "${3:-$tag}" "$commit" "$llvm" > "$dir/whitefoot-release.json"
   (cd "$dir" && shasum -a 256 "$asset" whitefoot-release.json > SHA256SUMS)
 }
 
@@ -171,6 +172,27 @@ check "a manifest naming another release is refused" "$(local_run compiler)" 2
 release wf-111111111111 2222222222220000000000000000000000000000
 pin 'release = wf-111111111111\n'
 check "a manifest naming another commit is refused" "$(local_run compiler)" 2
+
+# The toolchain check: a stand-in clang reports one LLVM major.
+fake_clang() { printf '#!/bin/sh\necho %s\n' "$1" > "$project/clang"; chmod +x "$project/clang"; }
+release wf-151515151515 1515151515150000000000000000000000000000
+pin 'release = wf-151515151515\n'
+fake_clang 18.1.3
+check "a release that names no LLVM accepts any clang" "$(local_run toolchain-check HOST_CLANG="$project/clang")" 0
+release wf-161616161616 1616161616160000000000000000000000000000 "" 22
+pin 'release = wf-161616161616\n'
+fake_clang 22.1.8
+check "a release's LLVM major is accepted" "$(local_run toolchain-check HOST_CLANG="$project/clang")" 0
+fake_clang 18.1.3
+if [ "$asset" = whitefootc-linux-x86_64.tar.gz ]; then
+  check "another LLVM major is refused on Linux" "$(local_run toolchain-check HOST_CLANG="$project/clang")" 2
+  check "the refusal names make toolchain" "$(grep -c 'install LLVM 22 with: make toolchain' "$project/last.log")" 1
+else
+  check "the LLVM major is not checked on macOS" "$(local_run toolchain-check HOST_CLANG="$project/clang")" 0
+fi
+check "a local compiler skips the toolchain check" \
+  "$(local_run toolchain-check WHITEFOOTC=/bin/echo HOST_CLANG="$project/clang")" 0
+check "make compiler itself does not check the toolchain" "$(local_run compiler HOST_CLANG="$project/clang")" 0
 
 pin 'release = wf-exp-999999999999\n'
 local_run compiler > /dev/null
