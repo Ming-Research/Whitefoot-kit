@@ -7,7 +7,9 @@
 # script exits 1 when one failed.
 set -u
 kit=$(cd "$(dirname "$0")/.." && pwd)
-project="$kit/build/test/project"
+# A fresh project per run, so no earlier run's build output is mistaken for
+# this one's.
+project="$kit/build/test/project-$$-$(date +%s)"
 mkdir -p "$project"
 failures=0
 
