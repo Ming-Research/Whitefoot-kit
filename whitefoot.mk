@@ -71,7 +71,8 @@ $(PINNED_WHITEFOOTC): | pin-check
 			echo "cannot download $$file of $(RELEASE); make it with: $(RELEASE_DISPATCH)" >&2; \
 			exit 1; }; \
 	done
-	@cd $(WHITEFOOT).part && test "$$(grep -cE '  ($(ASSET)|whitefoot-release\.json)$$' SHA256SUMS)" = 2 \
+	@cd $(WHITEFOOT).part && test "$$(grep -c '  $(ASSET)$$' SHA256SUMS)" = 1 \
+		&& test "$$(grep -c '  whitefoot-release\.json$$' SHA256SUMS)" = 1 \
 		&& grep -E '  ($(ASSET)|whitefoot-release\.json)$$' SHA256SUMS | shasum -a 256 -c - \
 		|| { echo "$(RELEASE)'s compiler or manifest does not match its SHA256SUMS" >&2; exit 1; }
 	@cd $(WHITEFOOT).part && $(PY) -c 'import json, sys; m = json.load(open("whitefoot-release.json")); sys.exit(0 if m["tag"] == "$(RELEASE)" and m["commit"].startswith("$(RELEASE_COMMIT)") else "whitefoot-release.json does not describe $(RELEASE)")'

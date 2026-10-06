@@ -34,6 +34,13 @@ out: \$(BUILD)/out
 
 \$(BUILD)/out: \$(PIN) \$(WHITEFOOTC)
 	@mkdir -p \$(BUILD) && touch \$@ && echo built
+
+# Depends on the compiler alone, to see that a fresh download is newer than
+# what was built before it.
+compiled: \$(BUILD)/compiled
+
+\$(BUILD)/compiled: \$(WHITEFOOTC)
+	@mkdir -p \$(BUILD) && touch \$@ && echo compiled
 EOF
 
 check() {
@@ -126,6 +133,26 @@ release wf-bbbbbbbbbbbb bbbbbbbbbbbb0000000000000000000000000000
 touch -t 202601010000 "$project/build/out"
 pin 'release = wf-bbbbbbbbbbbb\n'
 check "a moved pin rebuilds the project" "$(local_run out)$(grep -c built "$project/last.log")" 01
+
+release wf-121212121212 1212121212120000000000000000000000000000
+pin 'release = wf-121212121212\n'
+mkdir -p "$project/build"
+touch -t 202101010000 "$project/build/compiled"
+local_run compiler > /dev/null
+check "an output older than the download, newer than its archive, is rebuilt" \
+  "$(local_run compiled)$(grep -c '^compiled' "$project/last.log")" 01
+
+release wf-131313131313 1313131313130000000000000000000000000000
+(cd "$releases/wf-131313131313" && shasum -a 256 "$asset" "$asset" > SHA256SUMS)
+printf ' ' >> "$releases/wf-131313131313/whitefoot-release.json"
+pin 'release = wf-131313131313\n'
+check "SHA256SUMS listing the archive twice and no manifest is refused" "$(local_run compiler)" 2
+
+release wf-141414141414 1414141414140000000000000000000000000000
+(cd "$releases/wf-141414141414" && shasum -a 256 whitefoot-release.json whitefoot-release.json > SHA256SUMS)
+printf 'x' >> "$releases/wf-141414141414/$asset"
+pin 'release = wf-141414141414\n'
+check "SHA256SUMS listing the manifest twice and no archive is refused" "$(local_run compiler)" 2
 
 release wf-cccccccccccc cccccccccccc0000000000000000000000000000
 printf ' ' >> "$releases/wf-cccccccccccc/whitefoot-release.json"
