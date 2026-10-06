@@ -31,8 +31,10 @@ $(BUILD)/app: $(PIN) $(WHITEFOOTC) $(SOURCES)
 	$(WHITEFOOTC) --graph $(ROOT)/app/modules.wfg --entry app -o $@
 ```
 
-A project's AGENTS.md links to [downstream.md](downstream.md) and its
-readiness workflow runs `make pin-ready`.
+Including the kit leaves the project's default goal as it was, so `make`
+alone still builds the project's first target. A project's AGENTS.md links to
+[downstream.md](downstream.md) and its readiness workflow runs
+`make pin-ready`.
 
 ## Changing it
 
