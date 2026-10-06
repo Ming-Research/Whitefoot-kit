@@ -22,6 +22,19 @@ is its own. The decisions behind them are Whitefoot's
   `whitefoot-release.json` names the pinned release and commit. The
   compiler builds programs with `/usr/bin/clang`, and on Linux links them
   with `ld.lld`, so a host installs both.
+- On Linux, `/usr/bin/clang` must be the LLVM major the release's compiler
+  was built with, which the manifest names as `linux_llvm_major`. The
+  compiler fixes the forms its build's clang accepts, and another major can
+  refuse them: clang 22 refuses the `llvm.coro.end` of a compiler built
+  against clang 18.
+  - A CI job on a hosted runner runs `make toolchain` before it builds. That
+    installs the major from apt.llvm.org and makes it `/usr/bin/clang` and
+    `ld.lld`.
+  - A host that keeps its own toolchain, such as the shared 14900K runner,
+    runs `make toolchain-check`, which refuses another major.
+  - A release from before Whitefoot pinned its LLVM names no major, and any
+    clang passes. Moving the pin to a release with another major moves the
+    project's clang in the same change.
 - Every target the compiler builds depends on `whitefoot.pin` as well as on
   the compiler, so moving the pin rebuilds it.
 - A release is removed 30 days after it is published unless it is the newest

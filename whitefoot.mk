@@ -7,8 +7,17 @@
 # and makes every target the compiler builds depend on $(PIN) and
 # $(WHITEFOOTC): a downloaded compiler keeps its archive's timestamp, which
 # can be older than an output built before the pin moved. This file defines
-# the targets compiler, pin-check and pin-ready and the variables PIN,
-# RELEASE, RELEASE_COMMIT and WHITEFOOTC.
+# the targets compiler, pin-check, pin-ready, toolchain-check and toolchain
+# and the variables PIN, RELEASE, RELEASE_COMMIT and WHITEFOOTC.
+#
+# A release's Linux compiler is built with one LLVM major, which its
+# manifest names as linux_llvm_major, and it fixes the forms that clang
+# accepts into the executable, so on Linux the clang it runs, /usr/bin/clang,
+# must be that same major (Whitefoot's compiler/downstream-releases).
+# A CI job on a hosted runner runs `make toolchain`, which installs it from
+# apt.llvm.org, before building; a host that keeps its own toolchain runs
+# `make toolchain-check`, which refuses another major. A release from before
+# the pin names none, and any clang passes.
 #
 # whitefoot.pin holds exactly one line, `release = wf-<12 hex digits>`
 # naming a release of a commit on Whitefoot's main, or
@@ -35,21 +44,50 @@ RELEASES ?= https://github.com/Ming-Research/Whitefoot/releases/download
 # The command that makes (or makes again) the pinned release.
 RELEASE_DISPATCH := gh workflow run compiler-release.yml -R Ming-Research/Whitefoot -f commit=$(RELEASE_COMMIT)$(if $(findstring wf-exp-,$(RELEASE)), -f experiment=true)
 HOST := $(shell uname -s)-$(shell uname -m)
+# The clang Whitefoot's driver runs on this host; the kit's own test points
+# it at a stand-in.
+HOST_CLANG ?= /usr/bin/clang
 ASSET := $(if $(filter Linux-x86_64,$(HOST)),whitefootc-linux-x86_64.tar.gz,$(if $(filter Darwin-arm64,$(HOST)),whitefootc-macos-arm64.tar.gz))
 WHITEFOOT := $(BUILD)/whitefoot/$(RELEASE)
 PINNED_WHITEFOOTC := $(WHITEFOOT)/whitefootc
 
-.PHONY: compiler pin-check pin-ready
+.PHONY: compiler pin-check pin-ready toolchain-check toolchain
 
 ifneq ($(filter command line environment,$(origin WHITEFOOTC)),)
 # A locally built compiler, to try an unmerged Whitefoot change.
 compiler:
 	@test -x "$(WHITEFOOTC)" || { echo "WHITEFOOTC=$(WHITEFOOTC) is not an executable file" >&2; exit 1; }
 	@echo "whitefootc from WHITEFOOTC=$(WHITEFOOTC), not the pinned release"
+
+# A locally built compiler was built against this host's own clang.
+toolchain-check toolchain:
+	@echo "whitefootc from WHITEFOOTC=$(WHITEFOOTC) uses this host's clang as built"
 else
 WHITEFOOTC := $(PINNED_WHITEFOOTC)
 
 compiler: $(PINNED_WHITEFOOTC)
+
+# The LLVM major the pinned release's Linux compiler was built with, or
+# nothing for a release from before the pin or on another host. On Linux an
+# unreadable manifest fails the recipe rather than reading as no major.
+RELEASE_LLVM = $$(if [ "$(HOST)" = Linux-x86_64 ]; then $(PY) -c 'import json; print(json.load(open("$(WHITEFOOT)/whitefoot-release.json")).get("linux_llvm_major") or "")'; fi)
+RELEASE_LLVM_UNREADABLE = { echo "cannot read the LLVM major from $(WHITEFOOT)/whitefoot-release.json; remove $(WHITEFOOT) to download $(RELEASE) again" >&2; exit 1; }
+
+toolchain-check: $(PINNED_WHITEFOOTC)
+	@major=$(RELEASE_LLVM) || $(RELEASE_LLVM_UNREADABLE); \
+	if [ -n "$$major" ]; then \
+		found=$$($(HOST_CLANG) -dumpversion 2>/dev/null | cut -d. -f1); \
+		test "$$found" = "$$major" || { echo "$(RELEASE) was built with LLVM $$major, but $(HOST_CLANG) is $${found:-missing}; install LLVM $$major with: make toolchain" >&2; exit 1; }; \
+	fi
+
+toolchain: $(PINNED_WHITEFOOTC)
+	@major=$(RELEASE_LLVM) || $(RELEASE_LLVM_UNREADABLE); \
+	if [ -z "$$major" ]; then echo "$(RELEASE) names no LLVM major for $(HOST); nothing to install"; exit 0; fi; \
+	curl -fsSL --retry 3 -o $(BUILD)/llvm.sh https://apt.llvm.org/llvm.sh \
+		&& sudo bash $(BUILD)/llvm.sh $$major \
+		&& sudo ln -sf /usr/bin/clang-$$major /usr/bin/clang \
+		&& sudo ln -sf /usr/bin/ld.lld-$$major /usr/bin/ld.lld \
+		&& echo "LLVM $$major is $(HOST_CLANG): $$($(HOST_CLANG) --version | head -n 1)"
 endif
 
 $(PIN):
