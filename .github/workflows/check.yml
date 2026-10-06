@@ -1,0 +1,39 @@
+# Every push runs make check on both hosts a Whitefoot release serves; the
+# Linux job also downloads and checks the newest release of Whitefoot's main,
+# which compiler-release-cleanup.yml always keeps.
+name: check
+
+on:
+  push:
+  workflow_dispatch:
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: make check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pick the newest Whitefoot main release
+        if: runner.os == 'Linux'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(gh api repos/Ming-Research/Whitefoot/releases --paginate \
+            --jq '.[] | select(.tag_name | test("^wf-[0-9a-f]{12}$")) | [.published_at, .tag_name] | @tsv' \
+            | LC_ALL=C sort -r | head -n 1 | cut -f 2)
+          test -n "$tag"
+          echo "KIT_DOWNLOAD_RELEASE=$tag" >> "$GITHUB_ENV"
+          echo "newest release: $tag"
+
+      - name: Check
+        run: make check
