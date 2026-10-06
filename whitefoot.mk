@@ -68,18 +68,20 @@ WHITEFOOTC := $(PINNED_WHITEFOOTC)
 compiler: $(PINNED_WHITEFOOTC)
 
 # The LLVM major the pinned release's Linux compiler was built with, or
-# nothing for a release from before the pin or on another host.
-RELEASE_LLVM = $$( [ "$(HOST)" = Linux-x86_64 ] && $(PY) -c 'import json; print(json.load(open("$(WHITEFOOT)/whitefoot-release.json")).get("linux_llvm_major") or "")')
+# nothing for a release from before the pin or on another host. On Linux an
+# unreadable manifest fails the recipe rather than reading as no major.
+RELEASE_LLVM = $$(if [ "$(HOST)" = Linux-x86_64 ]; then $(PY) -c 'import json; print(json.load(open("$(WHITEFOOT)/whitefoot-release.json")).get("linux_llvm_major") or "")'; fi)
+RELEASE_LLVM_UNREADABLE = { echo "cannot read the LLVM major from $(WHITEFOOT)/whitefoot-release.json; remove $(WHITEFOOT) to download $(RELEASE) again" >&2; exit 1; }
 
 toolchain-check: $(PINNED_WHITEFOOTC)
-	@major=$(RELEASE_LLVM); \
+	@major=$(RELEASE_LLVM) || $(RELEASE_LLVM_UNREADABLE); \
 	if [ -n "$$major" ]; then \
 		found=$$($(HOST_CLANG) -dumpversion 2>/dev/null | cut -d. -f1); \
 		test "$$found" = "$$major" || { echo "$(RELEASE) was built with LLVM $$major, but $(HOST_CLANG) is $${found:-missing}; install LLVM $$major with: make toolchain" >&2; exit 1; }; \
 	fi
 
 toolchain: $(PINNED_WHITEFOOTC)
-	@major=$(RELEASE_LLVM); \
+	@major=$(RELEASE_LLVM) || $(RELEASE_LLVM_UNREADABLE); \
 	if [ -z "$$major" ]; then echo "$(RELEASE) names no LLVM major for $(HOST); nothing to install"; exit 0; fi; \
 	curl -fsSL --retry 3 -o $(BUILD)/llvm.sh https://apt.llvm.org/llvm.sh \
 		&& sudo bash $(BUILD)/llvm.sh $$major \

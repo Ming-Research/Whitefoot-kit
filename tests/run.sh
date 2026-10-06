@@ -66,7 +66,11 @@ release() {
   # A real release's compiler keeps its build time, older than any pin.
   touch -t 202001010000 "$dir/content/whitefootc"
   tar -czf "$dir/$asset" -C "$dir/content" whitefootc
-  if [ -n "$llvm" ]; then llvm="\"linux_llvm_major\": \"$llvm\", "; fi
+  case "$llvm" in
+    '') ;;
+    null) llvm='"linux_llvm_major": null, ' ;;
+    *) llvm="\"linux_llvm_major\": \"$llvm\", " ;;
+  esac
   printf '{"tag": "%s", "commit": "%s", "spec": "v0.93", "gate_run": "1", %s"assets": {}}\n' \
     "${3:-$tag}" "$commit" "$llvm" > "$dir/whitefoot-release.json"
   (cd "$dir" && shasum -a 256 "$asset" whitefoot-release.json > SHA256SUMS)
@@ -189,6 +193,17 @@ if [ "$asset" = whitefootc-linux-x86_64.tar.gz ]; then
   check "the refusal names make toolchain" "$(grep -c 'install LLVM 22 with: make toolchain' "$project/last.log")" 1
 else
   check "the LLVM major is not checked on macOS" "$(local_run toolchain-check HOST_CLANG="$project/clang")" 0
+fi
+release wf-171717171717 1717171717170000000000000000000000000000 "" null
+pin 'release = wf-171717171717\n'
+check "a manifest whose LLVM major is null accepts any clang" "$(local_run toolchain-check HOST_CLANG="$project/clang")" 0
+pin 'release = wf-161616161616\n'
+rm "$project/build/whitefoot/wf-161616161616/whitefoot-release.json"
+if [ "$asset" = whitefootc-linux-x86_64.tar.gz ]; then
+  check "an unreadable manifest fails the check on Linux" "$(local_run toolchain-check HOST_CLANG="$project/clang")" 2
+  check "the failure names the manifest" "$(grep -c 'cannot read the LLVM major' "$project/last.log")" 1
+else
+  check "an unreadable manifest is not read on macOS" "$(local_run toolchain-check HOST_CLANG="$project/clang")" 0
 fi
 check "a local compiler skips the toolchain check" \
   "$(local_run toolchain-check WHITEFOOTC=/bin/echo HOST_CLANG="$project/clang")" 0
