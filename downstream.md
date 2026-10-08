@@ -69,14 +69,12 @@ pull requests and on `main`, after its design-tree check.
 
 A change the project needs in Whitefoot is made in Whitefoot, under
 Whitefoot's AGENTS.md, as a branch and pull request there. While that pull
-request is open, a project work branch tries it:
-
-- in CI, by pinning an experiment release of the pull request's head,
-  `release = wf-exp-<12 hex>`, published with
-  `gh workflow run compiler-release.yml -R Ming-Research/Whitefoot -f commit=<hash> -f experiment=true`;
-  the commit's own gate run must have passed;
-- or locally, with a compiler built from it: `make WHITEFOOTC=<path> <target>`
-  uses that compiler and downloads nothing.
+request is open, a project work branch tries it in CI, by pinning an
+experiment release of the pull request's head, `release = wf-exp-<12 hex>`,
+published with
+`gh workflow run compiler-release.yml -R Ming-Research/Whitefoot -f commit=<hash> -f experiment=true`;
+the commit's own gate run must have passed. Agents never build the compiler
+or run the project's checks on the owner's computer.
 
 Before the branch is ready, the change is on Whitefoot's `main` and the pin
 names its release.
