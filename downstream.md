@@ -84,8 +84,9 @@ names its release.
 When a missing Whitefoot feature would bend the project's implementation or
 architecture, add the feature to Whitefoot instead of working around it.
 State the gap as its minimal semantic example, apart from the code that
-exposed it, and record it as a backlog item on the status board, in the
-Whitefoot area that owns that work, until Whitefoot resolves it. A problem
+exposed it, and record it as a backlog item with a priority on the status
+board, in the Whitefoot area that owns that work and linked from the
+project's item it blocks, until Whitefoot resolves it. A problem
 that belongs to the project alone is fixed in the project, not by
 generalizing the language.
 
