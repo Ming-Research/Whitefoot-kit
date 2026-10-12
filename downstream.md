@@ -69,14 +69,12 @@ pull requests and on `main`, after its design-tree check.
 
 A change the project needs in Whitefoot is made in Whitefoot, under
 Whitefoot's AGENTS.md, as a branch and pull request there. While that pull
-request is open, a project work branch tries it:
-
-- in CI, by pinning an experiment release of the pull request's head,
-  `release = wf-exp-<12 hex>`, published with
-  `gh workflow run compiler-release.yml -R Ming-Research/Whitefoot -f commit=<hash> -f experiment=true`;
-  the commit's own gate run must have passed;
-- or locally, with a compiler built from it: `make WHITEFOOTC=<path> <target>`
-  uses that compiler and downloads nothing.
+request is open, a project work branch tries it in CI, by pinning an
+experiment release of the pull request's head, `release = wf-exp-<12 hex>`,
+published with
+`gh workflow run compiler-release.yml -R Ming-Research/Whitefoot -f commit=<hash> -f experiment=true`;
+the commit's own gate run must have passed. Nothing is built or checked on a
+developer's own machine.
 
 Before the branch is ready, the change is on Whitefoot's `main` and the pin
 names its release.
@@ -110,8 +108,8 @@ Whitefoot. For each project:
    check.
 5. Run the project's CI (`make check`). When the compiler's code generation
    changed, compare the project's benchmarks built with the old and the new
-   compiler on the 14900K, with the benchmark command the project's AGENTS.md
-   names, and report the difference with the upgrade.
+   compiler on the 14900K through CI, with the benchmark command the
+   project's AGENTS.md names, and report the difference with the upgrade.
 6. Open the pull request naming both Whitefoot commits, both specification
    versions and every change the project needed.
 

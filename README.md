@@ -7,7 +7,7 @@ that Snowghost-wf, Halo-wf, Firn-wf and later projects change it once:
 - [whitefoot.mk](whitefoot.mk): reads the project's `whitefoot.pin`,
   downloads that release's `whitefootc` and checks it, refuses an
   experiment pin on its way to `main` (`make pin-ready`), and lets
-  `make WHITEFOOTC=<path>` use a locally built compiler.
+  `make WHITEFOOTC=<path>` use another compiler, such as one a CI job built.
 - [downstream.md](downstream.md): the rules a project follows, the pin,
   reading the language at the pinned commit, trying an unmerged Whitefoot
   change, upgrading Whitefoot, and the review items they add.
@@ -40,7 +40,8 @@ alone still builds the project's first target. A project's AGENTS.md links to
 
 `make check` runs [tests/run.sh](tests/run.sh), which uses `whitefoot.mk` as a
 project does; CI runs it on Linux and macOS and, on Linux, downloads the
-newest Whitefoot release. A change merges into `main` with the owner's
+newest Whitefoot release. The check runs only in CI, never on a developer's
+machine. A change merges into `main` with the owner's
 approval of the exact revision, after its `make check` passes; each project
 then moves its submodule to it.
 
