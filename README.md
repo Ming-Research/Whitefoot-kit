@@ -7,7 +7,7 @@ that Snowghost-wf, Halo-wf, Firn-wf and later projects change it once:
 - [whitefoot.mk](whitefoot.mk): reads the project's `whitefoot.pin`,
   downloads that release's `whitefootc` and checks it, refuses an
   experiment pin on its way to `main` (`make pin-ready`), and lets
-  `make WHITEFOOTC=<path>` use a locally built compiler.
+  `make WHITEFOOTC=<path>` use another compiler, such as one a CI job built.
 - [downstream.md](downstream.md): the rules a project follows, the pin,
   reading the language at the pinned commit, trying an unmerged Whitefoot
   change, upgrading Whitefoot, and the review items they add.

@@ -26,7 +26,7 @@
 # it). `make compiler` downloads the release's whitefootc for this host into
 # $(BUILD)/whitefoot/<release>/, checked against the release's SHA256SUMS and
 # manifest; `make WHITEFOOTC=<path> ...`, or WHITEFOOTC in the environment,
-# uses a locally built compiler instead and downloads nothing. Including this
+# uses that compiler instead and downloads nothing. Including this
 # file leaves the project's default goal as it would be without it.
 
 # The project's default goal is restored at the end of this file.
