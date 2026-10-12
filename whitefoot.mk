@@ -54,14 +54,16 @@ PINNED_WHITEFOOTC := $(WHITEFOOT)/whitefootc
 .PHONY: compiler pin-check pin-ready toolchain-check toolchain
 
 ifneq ($(filter command line environment,$(origin WHITEFOOTC)),)
-# A locally built compiler, to try an unmerged Whitefoot change.
+# A compiler named by WHITEFOOTC, such as one a CI job built, to try an
+# unmerged Whitefoot change.
 compiler:
 	@test -x "$(WHITEFOOTC)" || { echo "WHITEFOOTC=$(WHITEFOOTC) is not an executable file" >&2; exit 1; }
 	@echo "whitefootc from WHITEFOOTC=$(WHITEFOOTC), not the pinned release"
 
-# A locally built compiler was built against this host's own clang.
+# A compiler named by WHITEFOOTC was built against whatever clang its builder
+# used, so the pinned release's LLVM major does not apply to it.
 toolchain-check toolchain:
-	@echo "whitefootc from WHITEFOOTC=$(WHITEFOOTC) uses this host's clang as built"
+	@echo "whitefootc from WHITEFOOTC=$(WHITEFOOTC) is not checked against the pinned release's LLVM major"
 else
 WHITEFOOTC := $(PINNED_WHITEFOOTC)
 

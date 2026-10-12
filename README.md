@@ -40,7 +40,8 @@ alone still builds the project's first target. A project's AGENTS.md links to
 
 `make check` runs [tests/run.sh](tests/run.sh), which uses `whitefoot.mk` as a
 project does; CI runs it on Linux and macOS and, on Linux, downloads the
-newest Whitefoot release. A change merges into `main` with the owner's
+newest Whitefoot release. The check runs only in CI, never on a developer's
+machine. A change merges into `main` with the owner's
 approval of the exact revision, after its `make check` passes; each project
 then moves its submodule to it.
 

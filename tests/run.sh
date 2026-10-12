@@ -1,7 +1,7 @@
 #!/bin/bash
 # Checks whitefoot.mk as a project uses it, in a fresh scratch project under
-# build/test/: the pin's parsing and one-line form, pin-ready, the local
-# compiler override, the default goal, and the download against local fake
+# build/test/: the pin's parsing and one-line form, pin-ready, the WHITEFOOTC
+# override, the default goal, and the download against local fake
 # releases (RELEASES=file://...): its checks of the archive, the manifest and
 # their checksums, the reuse of a downloaded compiler, and the rebuild after a
 # pin move. With KIT_DOWNLOAD_RELEASE=wf-<12 hex> it also downloads that real
@@ -114,7 +114,7 @@ check "the project's first target is the default goal" \
   "$(make --no-print-directory -C "$project")" \
   "wf-648338c31240|648338c31240|gh workflow run compiler-release.yml -R Ming-Research/Whitefoot -f commit=648338c31240"
 
-# The local compiler override, on the command line or in the environment.
+# The WHITEFOOTC override, on the command line or in the environment.
 check "WHITEFOOTC on the command line accepts an executable" "$(local_run compiler WHITEFOOTC=/bin/echo)" 0
 check "WHITEFOOTC in the environment accepts an executable" \
   "$(WHITEFOOTC=/bin/echo make --no-print-directory -C "$project" RELEASES="file://$releases" compiler > "$project/last.log" 2>&1; echo $?)" 0
@@ -205,7 +205,7 @@ if [ "$asset" = whitefootc-linux-x86_64.tar.gz ]; then
 else
   check "an unreadable manifest is not read on macOS" "$(local_run toolchain-check HOST_CLANG="$project/clang")" 0
 fi
-check "a local compiler skips the toolchain check" \
+check "a WHITEFOOTC override skips the toolchain check" \
   "$(local_run toolchain-check WHITEFOOTC=/bin/echo HOST_CLANG="$project/clang")" 0
 check "make compiler itself does not check the toolchain" "$(local_run compiler HOST_CLANG="$project/clang")" 0
 
