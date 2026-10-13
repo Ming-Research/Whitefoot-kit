@@ -1,0 +1,4 @@
+fn add_saturating(left: Coordinate, right: Coordinate) -> result: Coordinate pure {
+  let sum = left.value +sat right.value;
+  return Coordinate(value: sum);
+}

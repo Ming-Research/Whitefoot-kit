@@ -1,131 +1,177 @@
-alias HandleFactory = std::io::HandleFactory;
-alias Instant = std::time::Instant;
-alias CancelWatch = std::time::CancelWatch;
 alias ExitStatus = std::process::ExitStatus;
+alias exit_status = std::process::exit_status;
 alias Inputs = std::process::Inputs;
+alias Args = std::text::Args;
+alias HandleFactory = std::io::HandleFactory;
+alias TcpConnection = std::net::TcpConnection;
+alias AcceptedConnection = std::net::AcceptedConnection;
+alias Instant = std::time::Instant;
 
-fn decimal_to_u16(bytes: &[u8]) -> result: u16 reads(bytes) {
-  let port = 0_u64;
-  let i = 0_u64;
-  let len = bytes^.len;
-  loop {
-    if i < len {
-    } else {
-      break;
-    }
-    let byte = bytes^[i];
-    let check_low = byte >= 48_u8;
-    let check_high = byte <= 57_u8;
-    let is_digit = band(check_low, check_high);
-    if is_digit {
-      let digit = byte - 48_u8;
-      let port_times_10 = port * 10_u64;
-      let digit_u64 = cvt::<u8, u64>(digit);
-      set port = port_times_10 + digit_u64;
-    }
-    set i = i + 1_u64;
-  }
-  let result = cvt.wrap::<u64, u16>(port);
-  return result;
-}
-
-fn get_port_from_args(args: &std::text::Args) -> result: u16 reads(args) {
-  let count = std::text::args_count(args: args);
-  if count < 2_u64 {
-    return 8080_u16;
-  }
-  let arg_result = std::text::arg_get(args: args, position: 1_u64);
-  let port = match arg_result {
-    Ok(value: host_string) => {
-      let len = std::text::host_bytes_len(value: &host_string);
-      let buffer = array_filled::<u8, 20>(value: 0_u8);
-      let copy_result = std::text::host_copy_bytes(value: &host_string, destination: &buffer[0_u64..20_u64], start: 0_u64, end: 20_u64);
-      let num_copied = match copy_result {
-        Ok(value: n) => {
-          give n;
-        }
-        Err(error: e) => {
-          give 0_u64;
-        }
-      }
-      let slice = &buffer[0_u64..num_copied];
-      let parsed_port = decimal_to_u16(bytes: slice);
-      give parsed_port;
-    }
-    Err(error: e) => {
-      give 8080_u16;
-    }
-  }
-  return port;
-}
-
-fn handle_connection(factory: &HandleFactory, recv: std::net::TcpReceive, send: std::net::TcpSend) -> result: unit writes(factory) waits {
-  let buffer = array_filled::<u8, 512>(value: 0_u8);
-  let no_deadline = None<Instant>();
-  let cancel = std::time::cancel_never();
-  loop {
-    let window = &buffer[0_u64..512_u64];
-    match std::net::receive_next(receive: &recv, destination: window, start: 0_u64, end: 512_u64, deadline: no_deadline, cancel: &cancel) {
-      Ok(value: received) => {
-        let to_send = &buffer[0_u64..received];
+fn echo_connection(connection: TcpConnection, factory: HandleFactory) -> result: unit pure waits {
+  let TcpConnection(receive: receive_handle, send: send_handle) = move connection;
+  let buffer = array_filled::<u8, 256>(value: 0_u8);
+  loop @echo_loop {
+    let no_deadline = None<Instant>();
+    let cancel = std::time::cancel_never();
+    let read_result = std::net::receive_next(receive: &receive_handle, destination: &buffer[0_u64..256_u64], start: 0_u64, end: 256_u64, deadline: no_deadline, cancel: &cancel);
+    std::time::close_cancel_watch(watch: move cancel);
+    match read_result {
+      Ok(value: read_count) => {
         let sent = 0_u64;
         loop {
-          if sent < received {
-          } else {
+          if sent >= read_count {
             break;
           }
-          match std::net::send_once(send: &send, source: to_send, start: sent, end: received, deadline: no_deadline, cancel: &cancel) {
-            Ok(value: next) => {
-              set sent = next;
+          let no_deadline_send = None<Instant>();
+          let cancel_send = std::time::cancel_never();
+          let send_result = std::net::send_once(send: &send_handle, source: &buffer[0_u64..read_count], start: sent, end: read_count, deadline: no_deadline_send, cancel: &cancel_send);
+          std::time::close_cancel_watch(watch: move cancel_send);
+          match send_result {
+            Ok(value: sent_count) => {
+              set sent = sent_count;
             }
-            Err(error: io_err) => {
-              break;
+            Err(error: problem) => {
+              break @echo_loop;
             }
           }
         }
       }
-      Err(error: read_error) => {
-        break;
+      Err(error: stop) => {
+        break @echo_loop;
       }
     }
   }
-  std::time::close_cancel_watch(watch: move cancel);
-  let recv_result = std::net::close_receive(factory: factory, receive: move recv);
-  let send_result = std::net::close_send(factory: factory, send: move send);
+  match std::net::close_receive(factory: &factory, receive: move receive_handle) {
+    Ok(value: unused_closed) => {
+    }
+    Err(error: unused_close_error) => {
+    }
+  }
+  match std::net::close_send(factory: &factory, send: move send_handle) {
+    Ok(value: unused_closed) => {
+    }
+    Err(error: unused_close_error) => {
+    }
+  }
   return unit;
 }
 
+fn parse_port(args: &Args) -> result: Result<u16, unit> reads(args) {
+  let count = std::text::args_count(args: args);
+  if count < 2_u64 {
+    return Err<u16, unit>(error: unit);
+  }
+  let port_arg = match std::text::arg_get(args: args, position: 1_u64) {
+    Ok(value: arg) => {
+      give arg;
+    }
+    Err(error: problem) => {
+      return Err<u16, unit>(error: unit);
+    }
+  };
+  let port_bytes_len = std::text::host_bytes_len(value: &port_arg);
+  if port_bytes_len > 5_u64 {
+    return Err<u16, unit>(error: unit);
+  }
+  let port_buffer = array_filled::<u8, 5>(value: 0_u8);
+  let copy_result = std::text::host_copy_bytes(value: &port_arg, destination: &port_buffer[0_u64..5_u64], start: 0_u64, end: port_bytes_len);
+  match copy_result {
+    Ok(value: copied) => {
+    }
+    Err(error: problem) => {
+      return Err<u16, unit>(error: unit);
+    }
+  };
+  let port = 0_u16;
+  let index = 0_u64;
+  loop {
+    if index >= port_bytes_len {
+      break;
+    }
+    let digit_byte = port_buffer[index];
+    let is_low = digit_byte < 48_u8;
+    let is_high = digit_byte > 57_u8;
+    let is_invalid = bor(is_low, is_high);
+    if is_invalid {
+      return Err<u16, unit>(error: unit);
+    }
+    let digit = digit_byte - 48_u8;
+    let digit_u16 = cvt::<u8, u16>(digit);
+    let new_port = port *wrap 10_u16;
+    set port = new_port +wrap digit_u16;
+    set index = index + 1_u64;
+  }
+  if port == 0_u16 {
+    return Err<u16, unit>(error: unit);
+  }
+  return Ok<u16, unit>(value: port);
+}
+
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(args: args_obj, drivers: unused_drivers, cwd: cwd_dir, stdout: unused_stdout, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
-  let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_dir;
-  std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
-  std::fs::close_directory(factory: &factory, directory: move cwd_read);
-  let port = get_port_from_args(args: &args_obj);
+  let Inputs(args: args_handle, drivers: unused_drivers, cwd: cwd_directory, stdout: unused_stdout, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let std::fs::Directory(read: cwd, write: cwd_write) = move cwd_directory;
+  match std::fs::close_directory_write(factory: &factory, directory: move cwd_write) {
+    Ok(value: unused_write_closed) => {
+    }
+    Err(error: unused_write_error) => {
+    }
+  }
+  match std::fs::close_directory(factory: &factory, directory: move cwd) {
+    Ok(value: unused_read_closed) => {
+    }
+    Err(error: unused_read_error) => {
+    }
+  }
+
+  let port_result = parse_port(args: &args_handle);
+  let port = match port_result {
+    Ok(value: p) => {
+      give p;
+    }
+    Err(error: problem) => {
+      return exit_status(code: 1_u8);
+    }
+  };
+
   let address = std::net::socket_address_v4(a: 127_u8, b: 0_u8, c: 0_u8, d: 1_u8, port: port);
-  let no_deadline = None<Instant>();
-  let cancel = std::time::cancel_never();
-  let listen_result = std::net::tcp_listen(factory: &factory, address: &address);
-  let listener = match listen_result {
+  let listener_result = std::net::tcp_listen(factory: &factory, address: &address);
+  let listener = match listener_result {
     Ok(value: l) => {
       give l;
     }
-    Err(error: e) => {
-      return std::process::exit_status(code: 1_u8);
+    Err(error: problem) => {
+      return exit_status(code: 1_u8);
     }
-  }
+  };
+
+  let connections = slots_new::<AcceptedConnection, 12>();
   for (i in 0_u64..12_u64) {
+    let no_deadline = None<Instant>();
+    let cancel = std::time::cancel_never();
     let accept_result = std::net::tcp_accept(factory: &factory, listener: &listener, deadline: no_deadline, cancel: &cancel);
+    std::time::close_cancel_watch(watch: move cancel);
     match accept_result {
       Ok(value: accepted) => {
-        let std::net::AcceptedConnection(connection: conn, peer: peer_addr) = move accepted;
-        let std::net::TcpConnection(receive: recv, send: send) = move conn;
-        spawn handle_connection(factory: &factory, recv: move recv, send: move send);
+        place_back(window: &connections, value: accepted);
       }
-      Err(error: err) => {
+      Err(error: problem) => {
+        return exit_status(code: 1_u8);
       }
     }
   }
-  let listener_close_result = std::net::close_listener(factory: &factory, listener: move listener);
-  std::time::close_cancel_watch(watch: move cancel);
-  return std::process::exit_status(code: 0_u8);
+
+  match std::net::close_listener(factory: &factory, listener: move listener) {
+    Ok(value: unused_closed) => {
+    }
+    Err(error: unused_close_error) => {
+    }
+  }
+
+  for (i in 0_u64..12_u64) {
+    let accepted_conn = take_back(window: &connections);
+    let factory_copy = std::io::factory_share(factory: &factory);
+    spawn echo_connection(connection: move accepted_conn.connection, factory: move factory_copy);
+  }
+
+  return exit_status(code: 0_u8);
 }

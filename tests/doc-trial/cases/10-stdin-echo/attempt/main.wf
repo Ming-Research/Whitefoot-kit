@@ -4,86 +4,59 @@ alias Inputs = std::process::Inputs;
 alias HandleFactory = std::io::HandleFactory;
 alias InputStream = std::io::InputStream;
 alias OutputStream = std::io::OutputStream;
+alias IoError = std::io::IoError;
 alias ReadStop = std::io::ReadStop;
+alias Instant = std::time::Instant;
+alias CancelWatch = std::time::CancelWatch;
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: output, stderr: unused_stderr, handles: factory, stdin: input, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
-  let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
-  let close_write_result = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
-  let close_read_result = std::fs::close_directory(factory: &factory, directory: move cwd_read);
-  let code = 0_u8;
-  match close_write_result {
-    Ok(value: unused_ok) => {
-    }
-    Err(error: unused_err) => {
-      set code = 1_u8;
-    }
-  }
-  match close_read_result {
-    Ok(value: unused_ok2) => {
-    }
-    Err(error: unused_err2) => {
-      set code = 1_u8;
-    }
-  }
-  if code == 0_u8 {
-    let exit_code = run_echo(factory: &factory, input: &input, output: &output);
-    return exit_status(code: exit_code);
-  }
-  return exit_status(code: code);
-}
-
-fn run_echo(factory: &HandleFactory, input: &InputStream, output: &OutputStream) -> result: u8 writes(factory), writes(input), writes(output) waits {
+  let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: output, stderr: unused_stderr, handles: factory, stdin: input, ..) = move inputs;
+  let std::fs::Directory(read: dir_read, write: dir_write) = move cwd_directory;
+  std::fs::close_directory_write(factory: &factory, directory: move dir_write);
+  std::fs::close_directory(factory: &factory, directory: move dir_read);
   let buffer = array_filled::<u8, 4096>(value: 0_u8);
-  let buffer_slice = &buffer[0_u64..4096_u64];
-  loop @main_loop {
-    let no_deadline = None<std::time::Instant>();
+  let exit_code = 0_u8;
+  let no_deadline = None<std::time::Instant>();
+  loop @read_loop {
+    let window_read = &buffer[0_u64..4096_u64];
     let cancel = std::time::cancel_never();
-    let read_result = std::io::read_next(factory: factory, input: input, destination: buffer_slice, start: 0_u64, end: 4096_u64, deadline: no_deadline, cancel: &cancel);
+    let read_result = std::io::read_next(factory: &factory, input: &input, destination: window_read, start: 0_u64, end: 4096_u64, deadline: no_deadline, cancel: &cancel);
     std::time::close_cancel_watch(watch: move cancel);
     match read_result {
       Ok(value: bytes_read) => {
-        if bytes_read > 0_u64 {
-          let write_ok = write_bytes(factory: factory, output: output, buffer: buffer_slice, bytes_read: bytes_read);
-          if bnot(write_ok) {
-            return 4_u8;
+        let full_buffer = &buffer[0_u64..4096_u64];
+        let sent = 0_u64;
+        loop @write_loop {
+          if sent < bytes_read {
+          } else {
+            break @write_loop;
+          }
+          let cancel2 = std::time::cancel_never();
+          let write_result = std::io::write_once(factory: &factory, output: &output, source: full_buffer, start: sent, end: bytes_read, deadline: no_deadline, cancel: &cancel2);
+          std::time::close_cancel_watch(watch: move cancel2);
+          match write_result {
+            Ok(value: next) => {
+              set sent = next;
+            }
+            Err(error: problem) => {
+              set exit_code = 4_u8;
+              break @read_loop;
+            }
           }
         }
       }
       Err(error: stop) => {
         match stop {
           ReadEnd() => {
-            return 0_u8;
+            break @read_loop;
           }
-          ReadFailed(error: unused_io_error) => {
-            return 3_u8;
+          ReadFailed(error: problem) => {
+            set exit_code = 3_u8;
+            break @read_loop;
           }
         }
       }
     }
   }
-}
-
-fn write_bytes(factory: &HandleFactory, output: &OutputStream, buffer: &[u8], bytes_read: u64) -> result: Bool reads(buffer), writes(factory), writes(output) waits contract {
-  requires bytes_read <= buffer^.len;
-} {
-  let written = 0_u64;
-  loop @write_loop {
-    if written >= bytes_read {
-      break @write_loop;
-    }
-    let no_deadline = None<std::time::Instant>();
-    let cancel = std::time::cancel_never();
-    let write_result = std::io::write_once(factory: factory, output: output, source: buffer, start: written, end: bytes_read, deadline: no_deadline, cancel: &cancel);
-    std::time::close_cancel_watch(watch: move cancel);
-    match write_result {
-      Ok(value: next) => {
-        set written = next;
-      }
-      Err(error: unused_io_error) => {
-        return False();
-      }
-    }
-  }
-  return True();
+  return exit_status(code: exit_code);
 }

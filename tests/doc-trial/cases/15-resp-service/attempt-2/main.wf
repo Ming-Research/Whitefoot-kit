@@ -1,0 +1,563 @@
+alias ExitStatus = std::process::ExitStatus;
+alias Inputs = std::process::Inputs;
+alias exit_status = std::process::exit_status;
+alias HandleFactory = std::io::HandleFactory;
+alias IoError = std::io::IoError;
+alias ReadStop = std::io::ReadStop;
+alias Instant = std::time::Instant;
+alias CancelWatch = std::time::CancelWatch;
+alias TcpListener = std::net::TcpListener;
+alias TcpReceive = std::net::TcpReceive;
+alias TcpSend = std::net::TcpSend;
+alias SocketAddress = std::net::SocketAddress;
+alias Args = std::text::Args;
+
+struct Value {
+  data: Box<Array<u8>>;
+}
+
+struct KeyEnv {
+}
+
+struct BytesEq {
+}
+
+fn hash_bytes(env: &KeyEnv, key: &[u8]) -> result: u64 reads(key) {
+  let hash = 0_u64;
+  let i = 0_u64;
+  loop (
+    invariant idx: i <= key^.len
+  ) {
+    if i < key^.len {
+      let byte = key^[i];
+      let byte_val = cvt::<u8, u64>(byte);
+      set hash = hash *wrap 31_u64;
+      set hash = hash +wrap byte_val;
+      let next_i = i + 1_u64;
+      set i = next_i;
+      continue;
+    }
+    break;
+  }
+  return hash;
+}
+
+fn equal_bytes(env: &BytesEq, left: &[u8], right: &[u8]) -> result: Bool reads(left), reads(right) {
+  let left_len = left^.len;
+  let right_len = right^.len;
+  if left_len != right_len {
+    return False();
+  }
+  let i = 0_u64;
+  loop {
+    if i < left_len {
+      if left^[i] != right^[i] {
+        return False();
+      }
+      let next_i = i + 1_u64;
+      set i = next_i;
+      continue;
+    }
+    break;
+  }
+  return True();
+}
+
+fn parse_resp_array(buffer: &[u8], pos: u64) -> result: Option<(u64, u64)> reads(buffer) contract {
+  requires pos <= buffer^.len;
+} {
+  if pos >= buffer^.len {
+    return None<(u64, u64)>();
+  }
+  if buffer^[pos] != 42_u8 {
+    return None<(u64, u64)>();
+  }
+  let idx = pos + 1_u64;
+  let num = 0_u64;
+  loop {
+    if idx >= buffer^.len {
+      return None<(u64, u64)>();
+    }
+    let byte = buffer^[idx];
+    if byte == 13_u8 {
+      break;
+    }
+    if byte >= 48_u8 {
+      let digit = byte - 48_u8;
+      let digit_val = cvt::<u8, u64>(digit);
+      set num = num *wrap 10_u64;
+      set num = num +wrap digit_val;
+    }
+    let next_idx = idx + 1_u64;
+    set idx = next_idx;
+    continue;
+  }
+  if idx + 1_u64 >= buffer^.len {
+    return None<(u64, u64)>();
+  }
+  let after_crlf = idx + 2_u64;
+  let result = (num, after_crlf);
+  return Some<(u64, u64)>(value: result);
+}
+
+fn parse_bulk_string(buffer: &[u8], pos: u64) -> result: Option<(Box<Array<u8>>, u64)> reads(buffer) contract {
+  requires pos <= buffer^.len;
+} {
+  if pos >= buffer^.len {
+    return None<(Box<Array<u8>>, u64)>();
+  }
+  if buffer^[pos] != 36_u8 {
+    return None<(Box<Array<u8>>, u64)>();
+  }
+  let idx = pos + 1_u64;
+  let len = 0_u64;
+  loop {
+    if idx >= buffer^.len {
+      return None<(Box<Array<u8>>, u64)>();
+    }
+    let byte = buffer^[idx];
+    if byte == 13_u8 {
+      break;
+    }
+    if byte >= 48_u8 {
+      let digit = byte - 48_u8;
+      let digit_val = cvt::<u8, u64>(digit);
+      set len = len *wrap 10_u64;
+      set len = len +wrap digit_val;
+    }
+    let next_idx = idx + 1_u64;
+    set idx = next_idx;
+    continue;
+  }
+  if idx + 1_u64 >= buffer^.len {
+    return None<(Box<Array<u8>>, u64)>();
+  }
+  let data_start = idx + 2_u64;
+  if data_start + len + 2_u64 > buffer^.len {
+    return None<(Box<Array<u8>>, u64)>();
+  }
+  let data = array_filled::<u8, 0>(value: 0_u8);
+  let mut_data = box_array_filled::<u8>(count: len, value: 0_u8);
+  let i = 0_u64;
+  loop (
+    invariant copied: i <= len
+  ) {
+    if i < len {
+      let src_idx = data_start +wrap i;
+      let byte = buffer^[src_idx];
+      set mut_data.inner[i] = byte;
+      let next_i = i + 1_u64;
+      set i = next_i;
+      continue;
+    }
+    break;
+  }
+  let after = data_start +wrap len +wrap 2_u64;
+  let result = (move mut_data, after);
+  return Some<(Box<Array<u8>>, u64)>(value: result);
+}
+
+fn send_resp(send: &TcpSend, factory: &HandleFactory, response: &[u8]) -> result: Result<unit, IoError> reads(response), reads(send), writes(send), writes(factory) waits {
+  let sent = 0_u64;
+  let len = response^.len;
+  loop {
+    if sent < len {
+      let deadline = None<Instant>();
+      let cancel = std::time::cancel_never();
+      match std::net::send_once(send: send, source: response, start: sent, end: len, deadline: deadline, cancel: &cancel) {
+        Ok(value: next) => {
+          std::time::close_cancel_watch(watch: move cancel);
+          set sent = next;
+          continue;
+        }
+        Err(error: err) => {
+          std::time::close_cancel_watch(watch: move cancel);
+          return Err<unit, IoError>(error: err);
+        }
+      }
+    }
+    break;
+  }
+  return Ok<unit, IoError>(value: unit);
+}
+
+fn recv_data(receive: &TcpReceive, factory: &HandleFactory, buffer: &[u8]) -> result: Result<u64, ReadStop> reads(receive), writes(receive), writes(buffer), writes(factory) waits {
+  let end = buffer^.len;
+  let deadline = None<Instant>();
+  let cancel = std::time::cancel_never();
+  match std::net::receive_next(receive: receive, destination: buffer, start: 0_u64, end: end, deadline: deadline, cancel: &cancel) {
+    Ok(value: next) => {
+      std::time::close_cancel_watch(watch: move cancel);
+      return Ok<u64, ReadStop>(value: next);
+    }
+    Err(error: err) => {
+      std::time::close_cancel_watch(watch: move cancel);
+      return Err<u64, ReadStop>(error: err);
+    }
+  }
+}
+
+fn handle_client(receive: TcpReceive, send: TcpSend, factory: HandleFactory, store: Shared<std::collections::ConcurrentHashMap<[u8], Value>>) -> result: unit pure waits {
+  let buffer = array_filled::<u8, 4096>(value: 0_u8);
+  let accumulated = 0_u64;
+  let key_env = KeyEnv();
+  let bytes_eq = BytesEq();
+  loop @client_loop {
+    let recv_buffer = &buffer[accumulated..4096_u64];
+    match recv_data(receive: &receive, factory: &factory, buffer: recv_buffer) {
+      Ok(value: received) => {
+        set accumulated = accumulated +wrap received;
+        let process_pos = 0_u64;
+        loop @parse_loop {
+          if process_pos < accumulated {
+            let buffer_view = &buffer[0_u64..accumulated];
+            match parse_resp_array(buffer: buffer_view, pos: process_pos) {
+              Some(value: result) => {
+                let array_count = result.0;
+                let after_array_header = result.1;
+                if array_count > 0_u64 {
+                  let cmd_pos = after_array_header;
+                  match parse_bulk_string(buffer: buffer_view, pos: cmd_pos) {
+                    Some(value: cmd_result) => {
+                      let cmd = move cmd_result.0;
+                      let after_cmd = cmd_result.1;
+                      let cmd_len = cmd.inner.len;
+                      if cmd_len == 4_u64 {
+                        if cmd.inner[0_u8] == 80_u8 {
+                          if cmd.inner[1_u8] == 73_u8 {
+                            if cmd.inner[2_u8] == 78_u8 {
+                              if cmd.inner[3_u8] == 71_u8 {
+                                let pong = array_filled::<u8, 7>(value: 0_u8);
+                                set pong[0_u64] = 43_u8;
+                                set pong[1_u64] = 80_u8;
+                                set pong[2_u64] = 79_u8;
+                                set pong[3_u64] = 78_u8;
+                                set pong[4_u64] = 71_u8;
+                                set pong[5_u64] = 13_u8;
+                                set pong[6_u64] = 10_u8;
+                                let pong_view = &pong[0_u64..7_u64];
+                                let _ = send_resp(send: &send, factory: &factory, response: pong_view);
+                                release::<Box<Array<u8>>>(value: move cmd);
+                                set process_pos = after_cmd;
+                                continue @parse_loop;
+                              }
+                            }
+                          }
+                        }
+                      }
+                      if cmd_len == 3_u64 {
+                        if cmd.inner[0_u8] == 71_u8 {
+                          if cmd.inner[1_u8] == 69_u8 {
+                            if cmd.inner[2_u8] == 84_u8 {
+                              if array_count >= 2_u64 {
+                                match parse_bulk_string(buffer: buffer_view, pos: after_cmd) {
+                                  Some(value: key_result) => {
+                                    let key = move key_result.0;
+                                    let key_slice = &key.inner[0_u64..key.inner.len];
+                                    let not_found_resp = array_filled::<u8, 5>(value: 0_u8);
+                                    set not_found_resp[0_u64] = 36_u8;
+                                    set not_found_resp[1_u64] = 45_u8;
+                                    set not_found_resp[2_u64] = 49_u8;
+                                    set not_found_resp[3_u64] = 13_u8;
+                                    set not_found_resp[4_u64] = 10_u8;
+                                    let found_value = 0_u8;
+                                    let got_value = False();
+                                    atomic store_ref = &store {
+                                    }
+                                    release::<Box<Array<u8>>>(value: move key);
+                                    release::<Box<Array<u8>>>(value: move cmd);
+                                    set process_pos = key_result.1;
+                                    continue @parse_loop;
+                                  }
+                                  None() => {
+                                    release::<Box<Array<u8>>>(value: move cmd);
+                                    break @parse_loop;
+                                  }
+                                }
+                              }
+                              release::<Box<Array<u8>>>(value: move cmd);
+                              set process_pos = after_cmd;
+                              continue @parse_loop;
+                            }
+                          }
+                        }
+                      }
+                      if cmd_len == 3_u64 {
+                        if cmd.inner[0_u8] == 68_u8 {
+                          if cmd.inner[1_u8] == 69_u8 {
+                            if cmd.inner[2_u8] == 76_u8 {
+                              if array_count >= 2_u64 {
+                                match parse_bulk_string(buffer: buffer_view, pos: after_cmd) {
+                                  Some(value: key_result) => {
+                                    let key = move key_result.0;
+                                    let not_found = array_filled::<u8, 4>(value: 0_u8);
+                                    set not_found[0_u64] = 58_u8;
+                                    set not_found[1_u64] = 48_u8;
+                                    set not_found[2_u64] = 13_u8;
+                                    set not_found[3_u64] = 10_u8;
+                                    release::<Box<Array<u8>>>(value: move key);
+                                    release::<Box<Array<u8>>>(value: move cmd);
+                                    set process_pos = key_result.1;
+                                    continue @parse_loop;
+                                  }
+                                  None() => {
+                                    release::<Box<Array<u8>>>(value: move cmd);
+                                    break @parse_loop;
+                                  }
+                                }
+                              }
+                              release::<Box<Array<u8>>>(value: move cmd);
+                              set process_pos = after_cmd;
+                              continue @parse_loop;
+                            }
+                          }
+                        }
+                      }
+                      if cmd_len == 3_u64 {
+                        if cmd.inner[0_u8] == 83_u8 {
+                          if cmd.inner[1_u8] == 69_u8 {
+                            if cmd.inner[2_u8] == 84_u8 {
+                              if array_count >= 3_u64 {
+                                match parse_bulk_string(buffer: buffer_view, pos: after_cmd) {
+                                  Some(value: key_result) => {
+                                    let key = move key_result.0;
+                                    let after_key = key_result.1;
+                                    match parse_bulk_string(buffer: buffer_view, pos: after_key) {
+                                      Some(value: val_result) => {
+                                        let val = move val_result.0;
+                                        let ok_resp = array_filled::<u8, 5>(value: 0_u8);
+                                        set ok_resp[0_u64] = 43_u8;
+                                        set ok_resp[1_u64] = 79_u8;
+                                        set ok_resp[2_u64] = 75_u8;
+                                        set ok_resp[3_u64] = 13_u8;
+                                        set ok_resp[4_u64] = 10_u8;
+                                        let ok_view = &ok_resp[0_u64..5_u64];
+                                        let _ = send_resp(send: &send, factory: &factory, response: ok_view);
+                                        release::<Box<Array<u8>>>(value: move key);
+                                        release::<Box<Array<u8>>>(value: move val);
+                                        release::<Box<Array<u8>>>(value: move cmd);
+                                        set process_pos = val_result.1;
+                                        continue @parse_loop;
+                                      }
+                                      None() => {
+                                        release::<Box<Array<u8>>>(value: move key);
+                                        release::<Box<Array<u8>>>(value: move cmd);
+                                        break @parse_loop;
+                                      }
+                                    }
+                                  }
+                                  None() => {
+                                    release::<Box<Array<u8>>>(value: move cmd);
+                                    break @parse_loop;
+                                  }
+                                }
+                              }
+                              release::<Box<Array<u8>>>(value: move cmd);
+                              set process_pos = after_cmd;
+                              continue @parse_loop;
+                            }
+                          }
+                        }
+                      }
+                      if cmd_len == 4_u64 {
+                        if cmd.inner[0_u8] == 73_u8 {
+                          if cmd.inner[1_u8] == 78_u8 {
+                            if cmd.inner[2_u8] == 67_u8 {
+                              if cmd.inner[3_u8] == 82_u8 {
+                                if array_count >= 2_u64 {
+                                  match parse_bulk_string(buffer: buffer_view, pos: after_cmd) {
+                                    Some(value: key_result) => {
+                                      let key = move key_result.0;
+                                      let err_resp = array_filled::<u8, 41>(value: 0_u8);
+                                      set err_resp[0_u64] = 45_u8;
+                                      set err_resp[1_u64] = 69_u8;
+                                      set err_resp[2_u64] = 82_u8;
+                                      set err_resp[3_u64] = 82_u8;
+                                      set err_resp[4_u64] = 32_u8;
+                                      set err_resp[5_u64] = 118_u8;
+                                      set err_resp[6_u64] = 97_u8;
+                                      set err_resp[7_u64] = 108_u8;
+                                      set err_resp[8_u64] = 117_u8;
+                                      set err_resp[9_u64] = 101_u8;
+                                      set err_resp[10_u64] = 32_u8;
+                                      set err_resp[11_u64] = 105_u8;
+                                      set err_resp[12_u64] = 115_u8;
+                                      set err_resp[13_u64] = 32_u8;
+                                      set err_resp[14_u64] = 110_u8;
+                                      set err_resp[15_u64] = 111_u8;
+                                      set err_resp[16_u64] = 116_u8;
+                                      set err_resp[17_u64] = 32_u8;
+                                      set err_resp[18_u64] = 97_u8;
+                                      set err_resp[19_u64] = 110_u8;
+                                      set err_resp[20_u64] = 32_u8;
+                                      set err_resp[21_u64] = 105_u8;
+                                      set err_resp[22_u64] = 110_u8;
+                                      set err_resp[23_u64] = 116_u8;
+                                      set err_resp[24_u64] = 101_u8;
+                                      set err_resp[25_u64] = 103_u8;
+                                      set err_resp[26_u64] = 101_u8;
+                                      set err_resp[27_u64] = 114_u8;
+                                      set err_resp[28_u64] = 32_u8;
+                                      set err_resp[29_u64] = 111_u8;
+                                      set err_resp[30_u64] = 114_u8;
+                                      set err_resp[31_u64] = 32_u8;
+                                      set err_resp[32_u64] = 111_u8;
+                                      set err_resp[33_u64] = 117_u8;
+                                      set err_resp[34_u64] = 116_u8;
+                                      set err_resp[35_u64] = 32_u8;
+                                      set err_resp[36_u64] = 111_u8;
+                                      set err_resp[37_u64] = 102_u8;
+                                      set err_resp[38_u64] = 32_u8;
+                                      set err_resp[39_u64] = 13_u8;
+                                      set err_resp[40_u64] = 10_u8;
+                                      let err_view = &err_resp[0_u64..41_u64];
+                                      let _ = send_resp(send: &send, factory: &factory, response: err_view);
+                                      release::<Box<Array<u8>>>(value: move key);
+                                      release::<Box<Array<u8>>>(value: move cmd);
+                                      set process_pos = key_result.1;
+                                      continue @parse_loop;
+                                    }
+                                    None() => {
+                                      release::<Box<Array<u8>>>(value: move cmd);
+                                      break @parse_loop;
+                                    }
+                                  }
+                                }
+                                release::<Box<Array<u8>>>(value: move cmd);
+                                set process_pos = after_cmd;
+                                continue @parse_loop;
+                              }
+                            }
+                          }
+                        }
+                      }
+                      release::<Box<Array<u8>>>(value: move cmd);
+                      set process_pos = after_cmd;
+                      continue @parse_loop;
+                    }
+                    None() => {
+                      break @parse_loop;
+                    }
+                  }
+                }
+                set process_pos = after_array_header;
+                continue @parse_loop;
+              }
+              None() => {
+                break @parse_loop;
+              }
+            }
+          }
+          break;
+        }
+        let remaining = accumulated - process_pos;
+        if remaining > 0_u64 {
+          let i = 0_u64;
+          loop (
+            invariant copied: i <= remaining
+          ) {
+            if i < remaining {
+              let src = process_pos +wrap i;
+              let dst = i;
+              set buffer[dst] = buffer[src];
+              let next_i = i + 1_u64;
+              set i = next_i;
+              continue;
+            }
+            break;
+          }
+        }
+        set accumulated = remaining;
+        continue @client_loop;
+      }
+      Err(error: stop) => {
+        match stop {
+          ReadEnd() => {
+            break @client_loop;
+          }
+          ReadFailed(error: err) => {
+            break @client_loop;
+          }
+        }
+      }
+    }
+  }
+  let _ = std::net::close_receive(factory: &factory, receive: move receive);
+  let _ = std::net::close_send(factory: &factory, send: move send);
+  return unit;
+}
+
+fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+  let Inputs(args: args, drivers: unused_drivers, cwd: cwd_dir, stdout: unused_stdout, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_dir;
+  let _ = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
+  let _ = std::fs::close_directory(factory: &factory, directory: move cwd_read);
+  let arg_count = std::text::args_count(args: &args);
+  if arg_count < 4_u64 {
+    return exit_status(code: 1_u8);
+  }
+  let port_arg = std::text::arg_get(args: &args, position: 1_u64);
+  let port_num = 0_u16;
+  match port_arg {
+    Ok(value: port_str) => {
+      let port_len = std::text::host_bytes_len(value: &port_str);
+      let port_buf = array_filled::<u8, 16>(value: 0_u8);
+      let _ = std::text::host_copy_bytes(value: &port_str, destination: &port_buf[0_u64..16_u64], start: 0_u64, end: 16_u64);
+      let port_parsed = 0_u16;
+      let i = 0_u64;
+      loop {
+        if i < port_len {
+          let byte = port_buf[i];
+          if byte >= 48_u8 {
+            let digit = byte - 48_u8;
+            let digit_val = cvt::<u8, u16>(digit);
+            set port_parsed = port_parsed *wrap 10_u16;
+            set port_parsed = port_parsed +wrap digit_val;
+          }
+          let next_i = i + 1_u64;
+          set i = next_i;
+          continue;
+        }
+        break;
+      }
+      set port_num = port_parsed;
+    }
+    Err(error: err) => {
+      return exit_status(code: 1_u8);
+    }
+  }
+  let addr = std::net::socket_address_v4(a: 127_u8, b: 0_u8, c: 0_u8, d: 1_u8, port: port_num);
+  match std::net::tcp_listen(factory: &factory, address: &addr) {
+    Ok(value: listener) => {
+      let store = shared_new::<std::collections::ConcurrentHashMap<[u8], Value>>(value: std::collections::hash_map_new::<[u8], Value, 1024>(capacity: 256_u64));
+      let count = 0_u64;
+      loop {
+        if count < 9_u64 {
+          let deadline = None<Instant>();
+          let cancel = std::time::cancel_never();
+          match std::net::tcp_accept(factory: &factory, listener: &listener, deadline: deadline, cancel: &cancel) {
+            Ok(value: accepted) => {
+              std::time::close_cancel_watch(watch: move cancel);
+              let conn = accepted.connection;
+              let shared_store = shared_share::<std::collections::ConcurrentHashMap<[u8], Value>>(shared: &store);
+              spawn handle_client(receive: move conn.receive, send: move conn.send, factory: factory_share(factory: &factory), store: move shared_store);
+              let next_count = count + 1_u64;
+              set count = next_count;
+              continue;
+            }
+            Err(error: err) => {
+              std::time::close_cancel_watch(watch: move cancel);
+              break;
+            }
+          }
+        }
+        break;
+      }
+      let _ = std::net::close_listener(factory: &factory, listener: move listener);
+    }
+    Err(error: err) => {
+      return exit_status(code: 1_u8);
+    }
+  }
+  return exit_status(code: 0_u8);
+}

@@ -1,114 +1,99 @@
 alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
 alias exit_status = std::process::exit_status;
-alias Directory = std::fs::Directory;
-alias HandleFactory = std::io::HandleFactory;
-alias OutputStream = std::io::OutputStream;
 alias Instant = std::time::Instant;
 
-fn f64_to_bytes(value: f64) -> result: Array<u8, 8> pure {
-  let as_u64 = reinterpret::<f64, u64>(value);
-  let bytes = array_filled::<u8, 8>(value: 0_u8);
-  set bytes[0_u64] = cvt.wrap::<u64, u8>(as_u64);
-  let s1 = ishr(as_u64, 8_u32);
-  set bytes[1_u64] = cvt.wrap::<u64, u8>(s1);
-  let s2 = ishr(as_u64, 16_u32);
-  set bytes[2_u64] = cvt.wrap::<u64, u8>(s2);
-  let s3 = ishr(as_u64, 24_u32);
-  set bytes[3_u64] = cvt.wrap::<u64, u8>(s3);
-  let s4 = ishr(as_u64, 32_u32);
-  set bytes[4_u64] = cvt.wrap::<u64, u8>(s4);
-  let s5 = ishr(as_u64, 40_u32);
-  set bytes[5_u64] = cvt.wrap::<u64, u8>(s5);
-  let s6 = ishr(as_u64, 48_u32);
-  set bytes[6_u64] = cvt.wrap::<u64, u8>(s6);
-  let s7 = ishr(as_u64, 56_u32);
-  set bytes[7_u64] = cvt.wrap::<u64, u8>(s7);
-  return bytes;
-}
-
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_dir, stdout: output, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
-  let Directory(read: cwd_read, write: cwd_write) = move cwd_dir;
-  let close_write_result = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
-  let close_read_result = std::fs::close_directory(factory: &factory, directory: move cwd_read);
-  match close_write_result {
-    Ok(value: unused_ok1) => {
-    }
-    Err(error: unused_err1) => {
-    }
-  }
-  match close_read_result {
-    Ok(value: unused_ok2) => {
-    }
-    Err(error: unused_err2) => {
-    }
-  }
-  let history = slots_new::<f64, 7>();
-  let outputs = slots_new::<f64, 64>();
-  let sum = 0.0_f64;
-  for (
-    sample_index in 0_u64..64_u64,
-    invariant outputs_position: outputs.len == sample_index
-  ) {
-    let current = if sample_index == 0_u64 {
+  let Inputs(cwd: cwd_dir, handles: factory, stdout: output, ..) = move inputs;
+  let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_dir;
+  std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
+  std::fs::close_directory(factory: &factory, directory: move cwd_read);
+  let outputs = array_filled::<f64, 64>(value: 0.0_f64);
+  let history = slots_new::<f64, 8>();
+  for (i in 0_u64..64_u64) {
+    let sample = if i == 0_u64 {
       give 8.0_f64;
     } else {
       give 0.0_f64;
     }
-    let out_val = fmul.strict(current, 0.125_f64);
-    for (hist_idx in 0_u64..history.len) {
-      let hist = history[hist_idx];
-      let contrib = fmul.strict(hist, 0.125_f64);
-      set out_val = fadd.strict(out_val, contrib);
+    if history.len == 8_u64 {
+      let removed = take_front(window: &history);
     }
-    place_back(window: &outputs, value: out_val);
-    set sum = fadd.strict(sum, out_val);
-    if history.len < 7_u64 {
-      insert_at(window: &history, index: 0_u64, value: current);
-    } else {
-      let old = take_back(window: &history);
-      insert_at(window: &history, index: 0_u64, value: current);
+    place_back(window: &history, value: sample);
+    let sum = 0.0_f64;
+    for (j in 0_u64..history.len) {
+      set sum = sum +strict history[j];
     }
+    let coeff = 0.125_f64;
+    let output_val = fmul.strict(sum, coeff);
+    set outputs[i] = output_val;
   }
-  if outputs.len != 64_u64 {
-    return exit_status(code: 1_u8);
+  let total = 0.0_f64;
+  for (i in 0_u64..64_u64) {
+    set total = total +strict outputs[i];
   }
-  let sum_valid = feq(sum, 8.0_f64);
-  if sum_valid {
+  if feq(total, 8.0_f64) {
   } else {
     return exit_status(code: 1_u8);
   }
   let buffer = array_filled::<u8, 520>(value: 0_u8);
-  for (out_idx in 0_u64..64_u64) {
-    let out_val = outputs[out_idx];
-    let out_bytes = f64_to_bytes(value: out_val);
-    let base_idx = out_idx *wrap 8_u64;
-    for (byte_idx in 0_u64..8_u64) {
-      let buf_idx = base_idx +wrap byte_idx;
-      set buffer[buf_idx] = out_bytes[byte_idx];
+  for (i in 0_u64..64_u64) {
+    let offset = i * 8_u64;
+    let value = outputs[i];
+    let bits = reinterpret::<f64, u64>(value);
+    let b0 = iand(bits, 255_u64);
+    let b1 = iand(ishr(bits, 8_u32), 255_u64);
+    let b2 = iand(ishr(bits, 16_u32), 255_u64);
+    let b3 = iand(ishr(bits, 24_u32), 255_u64);
+    let b4 = iand(ishr(bits, 32_u32), 255_u64);
+    let b5 = iand(ishr(bits, 40_u32), 255_u64);
+    let b6 = iand(ishr(bits, 48_u32), 255_u64);
+    let b7 = iand(ishr(bits, 56_u32), 255_u64);
+    set buffer[offset] = cvt::<u64, u8>(b0);
+    set buffer[offset + 1_u64] = cvt::<u64, u8>(b1);
+    set buffer[offset + 2_u64] = cvt::<u64, u8>(b2);
+    set buffer[offset + 3_u64] = cvt::<u64, u8>(b3);
+    set buffer[offset + 4_u64] = cvt::<u64, u8>(b4);
+    set buffer[offset + 5_u64] = cvt::<u64, u8>(b5);
+    set buffer[offset + 6_u64] = cvt::<u64, u8>(b6);
+    set buffer[offset + 7_u64] = cvt::<u64, u8>(b7);
+  }
+  let bits = reinterpret::<f64, u64>(total);
+  let b0 = iand(bits, 255_u64);
+  let b1 = iand(ishr(bits, 8_u32), 255_u64);
+  let b2 = iand(ishr(bits, 16_u32), 255_u64);
+  let b3 = iand(ishr(bits, 24_u32), 255_u64);
+  let b4 = iand(ishr(bits, 32_u32), 255_u64);
+  let b5 = iand(ishr(bits, 40_u32), 255_u64);
+  let b6 = iand(ishr(bits, 48_u32), 255_u64);
+  let b7 = iand(ishr(bits, 56_u32), 255_u64);
+  set buffer[512_u64] = cvt::<u64, u8>(b0);
+  set buffer[513_u64] = cvt::<u64, u8>(b1);
+  set buffer[514_u64] = cvt::<u64, u8>(b2);
+  set buffer[515_u64] = cvt::<u64, u8>(b3);
+  set buffer[516_u64] = cvt::<u64, u8>(b4);
+  set buffer[517_u64] = cvt::<u64, u8>(b5);
+  set buffer[518_u64] = cvt::<u64, u8>(b6);
+  set buffer[519_u64] = cvt::<u64, u8>(b7);
+  let full_buffer = &buffer[0_u64..520_u64];
+  let sent = 0_u64;
+  loop @publish {
+    if sent < 520_u64 {
+    } else {
+      break @publish;
     }
-  }
-  let sum_bytes = f64_to_bytes(value: sum);
-  let sum_base = 512_u64;
-  for (byte_idx in 0_u64..8_u64) {
-    let buf_idx = sum_base +wrap byte_idx;
-    set buffer[buf_idx] = sum_bytes[byte_idx];
-  }
-  let no_deadline = None<Instant>();
-  let cancel_watch = std::time::cancel_never();
-  let write_result = std::io::write_once(factory: &factory, output: &output, source: &buffer[0_u64..520_u64], start: 0_u64, end: 520_u64, deadline: no_deadline, cancel: &cancel_watch);
-  std::time::close_cancel_watch(watch: move cancel_watch);
-  match write_result {
-    Ok(value: written) => {
-      if written == 520_u64 {
-        return exit_status(code: 0_u8);
-      } else {
+    let no_deadline = None<Instant>();
+    let cancel = std::time::cancel_never();
+    let outcome = std::io::write_once(factory: &factory, output: &output, source: full_buffer, start: sent, end: 520_u64, deadline: no_deadline, cancel: &cancel);
+    std::time::close_cancel_watch(watch: move cancel);
+    match outcome {
+      Ok(value: next) => {
+        set sent = next;
+      }
+      Err(error: problem) => {
         return exit_status(code: 250_u8);
       }
     }
-    Err(error: write_error) => {
-      return exit_status(code: 250_u8);
-    }
   }
+  return exit_status(code: 0_u8);
 }

@@ -1,0 +1,23 @@
+fn contains_point(rect: Rect, point: Point) -> result: Bool pure {
+  let x_min = rect.x;
+  let x_max = rect.x +sat rect.width;
+  let y_min = rect.y;
+  let y_max = rect.y +sat rect.height;
+  let x_in = band(point.x >= x_min, point.x < x_max);
+  let y_in = band(point.y >= y_min, point.y < y_max);
+  return band(x_in, y_in);
+}
+
+fn rectangles_intersect(rect1: Rect, rect2: Rect) -> result: Bool pure {
+  let x_min1 = rect1.x;
+  let x_max1 = rect1.x +sat rect1.width;
+  let y_min1 = rect1.y;
+  let y_max1 = rect1.y +sat rect1.height;
+  let x_min2 = rect2.x;
+  let x_max2 = rect2.x +sat rect2.width;
+  let y_min2 = rect2.y;
+  let y_max2 = rect2.y +sat rect2.height;
+  let x_intersect = band(x_min1 < x_max2, x_min2 < x_max1);
+  let y_intersect = band(y_min1 < y_max2, y_min2 < y_max1);
+  return band(x_intersect, y_intersect);
+}

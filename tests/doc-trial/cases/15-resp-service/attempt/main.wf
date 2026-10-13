@@ -1,9 +1,9 @@
 alias ExitStatus = std::process::ExitStatus;
-alias exit_status = std::process::exit_status;
 alias Inputs = std::process::Inputs;
+alias exit_status = std::process::exit_status;
 alias HandleFactory = std::io::HandleFactory;
-alias Directory = std::fs::Directory;
 alias IoError = std::io::IoError;
+alias ReadStop = std::io::ReadStop;
 alias Instant = std::time::Instant;
 alias CancelWatch = std::time::CancelWatch;
 alias SocketAddress = std::net::SocketAddress;
@@ -11,681 +11,933 @@ alias TcpListener = std::net::TcpListener;
 alias TcpConnection = std::net::TcpConnection;
 alias TcpReceive = std::net::TcpReceive;
 alias TcpSend = std::net::TcpSend;
+alias Args = std::text::Args;
+alias HostString = std::text::HostString;
 
-const pong_response: Array<u8, 7> = "+PONG\r\n";
-const ok_response: Array<u8, 5> = "+OK\r\n";
-const null_response: Array<u8, 5> = "$-1\r\n";
-const del_yes: Array<u8, 4> = ":1\r\n";
-const del_no: Array<u8, 4> = ":0\r\n";
-const error_response: Array<u8, 46> = "-ERR value is not an integer or out of range\r\n";
-
-struct Value {
+struct StoreValue {
   bytes: Box<Slots<u8>>;
 }
 
-struct ParseResult {
-  success: Bool;
-  position: u64;
-  value_start: u64;
-  value_len: u64;
-}
-
-struct CountResult {
-  count: u64;
-  next_pos: u64;
-}
-
-fn send_all(send: &TcpSend, source: &[u8], length: u64, deadline: Option<Instant>, cancel: &CancelWatch) -> result: Result<unit, IoError> reads(source), reads(cancel), writes(send) waits contract {
-  requires length <= source^.len;
-} {
-  let sent = 0_u64;
-  loop @sending {
-    if sent < length {
-    } else {
-      break @sending;
-    }
-    let outcome = std::net::send_once(send: send, source: source, start: sent, end: length, deadline: deadline, cancel: cancel);
-    match outcome {
-      Ok(value: next) => {
-        set sent = next;
-      }
-      Err(error: problem) => {
-        return Err<unit, IoError>(error: problem);
-      }
-    }
+fn parse_port(args: &Args) -> result: Result<u16, unit> reads(args) {
+  let count = std::text::args_count(args: args);
+  if count < 2_u64 {
+    return Err<u16, unit>(error: unit);
   }
-  return Ok<unit, IoError>(value: unit);
-}
-
-fn find_crlf(buffer: &[u8], start: u64) -> result: Result<u64, u64> reads(buffer) {
-  let pos = start;
-  loop @search {
-    let next_check = pos + 1_u64;
-    if next_check >= buffer^.len {
-      return Err<u64, u64>(error: 0_u64);
-    }
-    let byte = buffer^[pos];
-    if byte == 13_u8 {
-      let next_byte = buffer^[next_check];
-      if next_byte == 10_u8 {
-        return Ok<u64, u64>(value: pos);
-      }
-    }
-    let next_pos = pos + 1_u64;
-    if next_pos >= buffer^.len {
-      return Err<u64, u64>(error: 0_u64);
-    }
-    set pos = next_pos;
-  }
-}
-
-fn parse_decimal(buffer: &[u8], start: u64, end: u64) -> result: Result<u64, u64> reads(buffer) {
-  let value = 0_u64;
-  let pos = start;
-  loop @parse {
-    if pos >= end {
-      break @parse;
-    }
-    let byte = buffer^[pos];
-    if byte >= 48_u8 {
-    } else {
-      return Err<u64, u64>(error: 0_u64);
-    }
-    if byte <= 57_u8 {
-    } else {
-      return Err<u64, u64>(error: 0_u64);
-    }
-    let digit = byte - 48_u8;
-    let digit_u64 = cvt::<u8, u64>(digit);
-    set value = value *wrap 10_u64;
-    set value = value +wrap digit_u64;
-    set pos = pos + 1_u64;
-  }
-  return Ok<u64, u64>(value: value);
-}
-
-fn parse_bulk_string(buffer: &[u8], pos: u64) -> result: ParseResult reads(buffer) {
-  let false_val = False();
-  let true_val = True();
-  if pos >= buffer^.len {
-    return ParseResult(success: false_val, position: pos, value_start: 0_u64, value_len: 0_u64);
-  }
-  let first = buffer^[pos];
-  if first != 36_u8 {
-    return ParseResult(success: false_val, position: pos, value_start: 0_u64, value_len: 0_u64);
-  }
-  let crlf_start = pos + 1_u64;
-  let crlf_result = find_crlf(buffer: buffer, start: crlf_start);
-  match crlf_result {
-    Ok(value: crlf_pos) => {
-      let len_start = pos + 1_u64;
-      let len_end = crlf_pos;
-      let len_parse = parse_decimal(buffer: buffer, start: len_start, end: len_end);
-      match len_parse {
-        Ok(value: length) => {
-          let data_start = crlf_pos + 2_u64;
-          let data_end = data_start + length;
-          let check1 = data_end > buffer^.len;
-          if check1 {
-            return ParseResult(success: false_val, position: pos, value_start: 0_u64, value_len: 0_u64);
-          }
-          let after_data = data_end + 2_u64;
-          let check2 = after_data > buffer^.len;
-          if check2 {
-            return ParseResult(success: false_val, position: pos, value_start: 0_u64, value_len: 0_u64);
-          }
-          let cr_check = buffer^[data_end];
-          let lf_idx = data_end + 1_u64;
-          let lf_check = buffer^[lf_idx];
-          let cr_ok = cr_check == 13_u8;
-          let lf_ok = lf_check == 10_u8;
-          let both_ok = band(cr_ok, lf_ok);
-          if both_ok {
-            return ParseResult(success: true_val, position: after_data, value_start: data_start, value_len: length);
-          }
-          return ParseResult(success: false_val, position: pos, value_start: 0_u64, value_len: 0_u64);
-        }
-        Err(error: e) => {
-          return ParseResult(success: false_val, position: pos, value_start: 0_u64, value_len: 0_u64);
-        }
-      }
-    }
-    Err(error: e) => {
-      return ParseResult(success: false_val, position: pos, value_start: 0_u64, value_len: 0_u64);
-    }
-  }
-}
-
-fn parse_array_count(buffer: &[u8], pos: u64) -> result: Result<CountResult, u64> reads(buffer) {
-  if pos >= buffer^.len {
-    let error_val = 0_u64;
-    return Err<CountResult, u64>(error: error_val);
-  }
-  let first = buffer^[pos];
-  if first != 42_u8 {
-    let error_val = 0_u64;
-    return Err<CountResult, u64>(error: error_val);
-  }
-  let start_pos = pos + 1_u64;
-  let crlf_result = find_crlf(buffer: buffer, start: start_pos);
-  match crlf_result {
-    Ok(value: crlf_pos) => {
-      let count_start = pos + 1_u64;
-      let count_end = crlf_pos;
-      let count_parse = parse_decimal(buffer: buffer, start: count_start, end: count_end);
-      match count_parse {
-        Ok(value: count) => {
-          let next_pos = crlf_pos + 2_u64;
-          let result_val = CountResult(count: count, next_pos: next_pos);
-          return Ok<CountResult, u64>(value: result_val);
-        }
-        Err(error: e) => {
-          let error_val = 0_u64;
-          return Err<CountResult, u64>(error: error_val);
-        }
-      }
-    }
-    Err(error: e) => {
-      let error_val = 0_u64;
-      return Err<CountResult, u64>(error: error_val);
-    }
-  }
-}
-
-fn to_upper(byte: u8) -> result: u8 pure {
-  if byte >= 97_u8 {
-    if byte <= 122_u8 {
-      return byte - 32_u8;
-    }
-  }
-  return byte;
-}
-
-fn bytes_to_i64(data: &[u8]) -> result: Result<i64, u64> reads(data) {
-  if data^.len == 0_u64 {
-    return Err<i64, u64>(error: 0_u64);
-  }
-  let first_byte = data^[0_u64];
-  let is_negative = False();
-  let start_idx = 0_u64;
-  if first_byte == 45_u8 {
-    set is_negative = True();
-    set start_idx = 1_u64;
-    if start_idx >= data^.len {
-      return Err<i64, u64>(error: 0_u64);
-    }
-  }
-  let value = 0_i64;
-  for (i in start_idx..data^.len) {
-    let byte = data^[i];
-    if byte >= 48_u8 {
-    } else {
-      return Err<i64, u64>(error: 0_u64);
-    }
-    if byte <= 57_u8 {
-    } else {
-      return Err<i64, u64>(error: 0_u64);
-    }
-    let digit = byte - 48_u8;
-    let digit_i64 = cvt::<u8, i64>(digit);
-    set value = value *wrap 10_i64;
-    set value = value +wrap digit_i64;
-  }
-  if is_negative {
-    set value = 0_i64 - value;
-  }
-  return Ok<i64, u64>(value: value);
-}
-
-fn i64_to_bytes(value: i64) -> result: Box<Slots<u8>> pure {
-  let buffer = box_slots_new::<u8>(capacity: 32_u64);
-  let num = value;
-  let is_negative = False();
-  if num < 0_i64 {
-    set is_negative = True();
-    set num = 0_i64 - num;
-  }
-  let digits = slots_new::<u8, 32>();
-  if num == 0_i64 {
-    place_back(window: &digits, value: 48_u8);
-  } else {
-    let temp = num;
-    loop @count_digits {
-      if temp == 0_i64 {
-        break @count_digits;
-      }
-      let remainder_result = temp %checked 10_i64;
-      match remainder_result {
-        Ok(value: remainder) => {
-          let remainder_u8 = cvt::<i64, u8>(remainder);
-          let digit_byte = remainder_u8 + 48_u8;
-          place_back(window: &digits, value: digit_byte);
-          let div_result = temp /checked 10_i64;
-          match div_result {
-            Ok(value: quotient) => {
-              set temp = quotient;
-            }
-            Err(error: e) => {
-              break @count_digits;
-            }
-          }
-        }
-        Err(error: e) => {
-          break @count_digits;
-        }
-      }
-    }
-  }
-  if is_negative {
-    place_back(window: &buffer.inner, value: 45_u8);
-  }
-  let idx = digits.len;
-  loop @reverse {
-    if idx == 0_u64 {
-      break @reverse;
-    }
-    let digit_idx = idx - 1_u64;
-    let digit = digits[digit_idx];
-    place_back(window: &buffer.inner, value: digit);
-    set idx = digit_idx;
-  }
-  return move buffer;
-}
-
-fn handle_client(factory: &HandleFactory, receive: TcpReceive, send: TcpSend, store: Shared<ConcurrentHashMap<Value>>, deadline: Option<Instant>, cancel: &CancelWatch) -> result: unit reads(cancel), writes(factory) waits {
-  let buffer = array_filled::<u8, 4096>(value: 0_u8);
-  let response_buffer = array_filled::<u8, 4096>(value: 0_u8);
-  let filled = 0_u64;
-  loop @client_loop {
-    let remaining = 4096_u64 - filled;
-    if remaining == 0_u64 {
-      break @client_loop;
-    }
-    let outcome = std::net::receive_next(receive: &receive, destination: &buffer[0_u64..4096_u64], start: filled, end: 4096_u64, deadline: deadline, cancel: cancel);
-    match outcome {
-      Ok(value: received) => {
-        if received == filled {
-          break @client_loop;
-        }
-        set filled = received;
-      }
-      Err(error: stop) => {
-        break @client_loop;
-      }
-    }
-    let parsed_pos = 0_u64;
-    loop @parse_loop {
-      if parsed_pos >= filled {
-        set filled = 0_u64;
-        break @parse_loop;
-      }
-      let array_result = parse_array_count(buffer: &buffer[0_u64..4096_u64], pos: parsed_pos);
-      match array_result {
-        Ok(value: counts) => {
-          let count = counts.count;
-          let next_pos = counts.next_pos;
-          if count == 0_u64 {
-            set parsed_pos = next_pos;
-            continue @parse_loop;
-          }
-          let cmd_parse = parse_bulk_string(buffer: &buffer[0_u64..4096_u64], pos: next_pos);
-          if cmd_parse.success {
-          } else {
-            break @parse_loop;
-          }
-          let cmd_start = cmd_parse.value_start;
-          let after_cmd = cmd_parse.position;
-          let first_byte = buffer^[cmd_start];
-          let upper_first = to_upper(byte: first_byte);
-          let handled = False();
-          if upper_first == 80_u8 {
-            if count == 1_u64 {
-              let send_outcome = send_all(send: &send, source: &pong_response[0_u64..7_u64], length: 7_u64, deadline: deadline, cancel: cancel);
-              match send_outcome {
-                Ok(value: unit) => {
-                  set parsed_pos = after_cmd;
-                  set handled = True();
-                }
-                Err(error: e) => {
-                  break @client_loop;
-                }
+  let port_arg = std::text::arg_get(args: args, position: 1_u64);
+  let port_result = match port_arg {
+    Ok(value: port_str) => {
+      let len = std::text::host_bytes_len(value: &port_str);
+      if len > 5_u64 {
+        Err<u16, unit>(error: unit)
+      } else {
+        let bytes = array_filled::<u8, 5>(value: 0_u8);
+        let window = &bytes[0_u64..len];
+        let copy_result = std::text::host_copy_bytes(value: &port_str, destination: &bytes, start: 0_u64, end: len);
+        match copy_result {
+          Ok(value: copied) => {
+            let port = parse_u16_decimal(digits: &bytes, length: len);
+            match port {
+              Some(value: p) => {
+                Ok<u16, unit>(value: p)
+              }
+              None() => {
+                Err<u16, unit>(error: unit)
               }
             }
           }
-          if upper_first == 71_u8 {
-            if count == 2_u64 {
-              let key_parse = parse_bulk_string(buffer: &buffer[0_u64..4096_u64], pos: after_cmd);
-              if key_parse.success {
-                let key_start = key_parse.value_start;
-                let key_len = key_parse.value_len;
-                let key_end = key_start + key_len;
-                let key_slice = &buffer[key_start..key_end];
-                let found_val = False();
-                let val_len = 0_u64;
-                atomic slot = &store[key_slice] {
-                  match slot^ {
-                    Some(value: v) => {
-                      set found_val = True();
-                      set val_len = v^.bytes.inner.len;
+          Err(error: err) => {
+            Err<u16, unit>(error: unit)
+          }
+        }
+      }
+    }
+    Err(error: err) => {
+      Err<u16, unit>(error: unit)
+    }
+  };
+  return port_result;
+}
+
+fn parse_u16_decimal(digits: &[u8], length: u64) -> result: Option<u16> reads(digits) {
+  if length == 0_u64 {
+    return None<u16>();
+  }
+  let value = 0_u64;
+  for (i in 0_u64..length) {
+    let digit = digits^[i];
+    let is_digit = band(digit >= 48_u8, digit <= 57_u8);
+    if is_digit {
+      let d = digit - 48_u8;
+      let d_u64 = cvt::<u8, u64>(d);
+      let scaled = value *wrap 10_u64;
+      set value = scaled +wrap d_u64;
+    } else {
+      return None<u16>();
+    }
+  }
+  if value <= 65535_u64 {
+    let port = cvt::<u64, u16>(value);
+    return Some<u16>(value: port);
+  }
+  return None<u16>();
+}
+
+fn bytes_equal(left: &[u8], right: &[u8]) -> result: Bool reads(left), reads(right) {
+  let left_len = left^.len;
+  let right_len = right^.len;
+  if left_len != right_len {
+    return False();
+  }
+  for (i in 0_u64..left_len) {
+    if left^[i] != right^[i] {
+      return False();
+    }
+  }
+  return True();
+}
+
+fn parse_crlf(buffer: &[u8], offset: u64) -> result: Option<u64> reads(buffer) {
+  let len = buffer^.len;
+  let search_end = len - 1_u64;
+  if offset > search_end {
+    return None<u64>();
+  }
+  for (i in offset..search_end) {
+    let current = buffer^[i];
+    let next_idx = i + 1_u64;
+    if next_idx < len {
+      let next = buffer^[next_idx];
+      if current == 13_u8 {
+        if next == 10_u8 {
+          return Some<u64>(value: next_idx);
+        }
+      }
+    }
+  }
+  return None<u64>();
+}
+
+enum RespValue {
+  RespSimpleString(bytes: Box<Slots<u8>>);
+  RespError(bytes: Box<Slots<u8>>);
+  RespInteger(value: i64);
+  RespBulkString(bytes: Option<Box<Slots<u8>>>);
+  RespArray(elements: Box<Slots<RespValue>>);
+}
+
+struct ParseState {
+  buffer: Box<Slots<u8>>;
+  offset: u64;
+}
+
+fn try_parse_resp(state: &ParseState) -> result: Option<RespValue> reads(state) {
+  let buffer = &state^.buffer.inner;
+  let offset = state^.offset;
+  let len = buffer^.len;
+  if offset >= len {
+    return None<RespValue>();
+  }
+  let first = buffer^[offset];
+  if first == 42_u8 {
+    let array_result = try_parse_array(state: state);
+    return array_result;
+  }
+  return None<RespValue>();
+}
+
+fn try_parse_array(state: &ParseState) -> result: Option<RespValue> reads(state) {
+  let buffer = &state^.buffer.inner;
+  let offset = state^.offset;
+  let len = buffer^.len;
+  if offset >= len {
+    return None<RespValue>();
+  }
+  let crlf_pos = parse_crlf(buffer: buffer, offset: offset + 1_u64);
+  let array_count = match crlf_pos {
+    Some(value: end) => {
+      let digits_end = end - 1_u64;
+      let count = parse_integer_from_bytes(buffer: buffer, start: offset + 1_u64, end: digits_end);
+      match count {
+        Some(value: c) => {
+          if c >= 0_i64 {
+            let array_len = cvt::<i64, u64>(c);
+            Some<u64>(value: array_len)
+          } else {
+            None<u64>()
+          }
+        }
+        None() => {
+          None<u64>()
+        }
+      }
+    }
+    None() => {
+      None<u64>()
+    }
+  };
+  match array_count {
+    Some(value: count) => {
+      let crlf_end = parse_crlf(buffer: buffer, offset: offset + 1_u64);
+      match crlf_end {
+        Some(value: first_crlf_end) => {
+          let parse_result = parse_array_elements(state: state, offset: first_crlf_end + 1_u64, count: count, elements: slots_new::<RespValue, 10>());
+          return parse_result;
+        }
+        None() => {
+          return None<RespValue>();
+        }
+      }
+    }
+    None() => {
+      return None<RespValue>();
+    }
+  };
+}
+
+fn parse_array_elements(state: &ParseState, offset: u64, count: u64, elements: Slots<RespValue, 10>) -> result: Option<RespValue> reads(state) {
+  let buffer = &state^.buffer.inner;
+  let len = buffer^.len;
+  let mut_elements = elements;
+  let current_offset = offset;
+  let current_count = 0_u64;
+  loop (
+    invariant remaining: current_count <= count
+  ) {
+    if current_count == count {
+      let element_array = RespValue::RespArray(elements: box_new::<Slots<RespValue, 10>>(value: move mut_elements));
+      return Some<RespValue>(value: element_array);
+    }
+    if current_offset >= len {
+      return None<RespValue>();
+    }
+    let elem = buffer^[current_offset];
+    if elem == 36_u8 {
+      let bulk_parse = try_parse_bulk_string(state: state, offset: current_offset);
+      match bulk_parse {
+        Some(value: parsed_bulk) => {
+          let parsed = match parsed_bulk {
+            (value: bulk_val, next_offset: next_off) => {
+              (value: bulk_val, next_offset: next_off)
+            }
+          };
+          let parsed_value = parsed.value;
+          let next_off = parsed.next_offset;
+          place_back(window: &mut_elements, value: move parsed_value);
+          set current_offset = next_off;
+          set current_count = current_count + 1_u64;
+          continue;
+        }
+        None() => {
+          return None<RespValue>();
+        }
+      }
+    } else {
+      return None<RespValue>();
+    }
+  };
+}
+
+fn try_parse_bulk_string(state: &ParseState, offset: u64) -> result: Option<(value: RespValue, next_offset: u64)> reads(state) {
+  let buffer = &state^.buffer.inner;
+  let len = buffer^.len;
+  if offset >= len {
+    return None<(value: RespValue, next_offset: u64)>();
+  }
+  if buffer^[offset] != 36_u8 {
+    return None<(value: RespValue, next_offset: u64)>();
+  }
+  let crlf_pos = parse_crlf(buffer: buffer, offset: offset + 1_u64);
+  match crlf_pos {
+    Some(value: crlf_end) => {
+      let length_str_end = crlf_end - 1_u64;
+      let length_val = parse_integer_from_bytes(buffer: buffer, start: offset + 1_u64, end: length_str_end);
+      match length_val {
+        Some(value: length) => {
+          if length < 0_i64 {
+            let nil_bulk = RespValue::RespBulkString(bytes: None<Box<Slots<u8>>>());
+            return Some<(value: RespValue, next_offset: u64)>(value: (value: nil_bulk, next_offset: crlf_end + 1_u64));
+          } else {
+            let data_length = cvt::<i64, u64>(length);
+            let string_start = crlf_end + 1_u64;
+            let string_end = string_start +wrap data_length;
+            if string_end > len {
+              return None<(value: RespValue, next_offset: u64)>();
+            }
+            let final_crlf = parse_crlf(buffer: buffer, offset: string_end);
+            match final_crlf {
+              Some(value: final_crlf_end) => {
+                let bytes_window = &buffer^[string_start..string_end];
+                let bytes_copy = box_slots_new::<u8>(capacity: data_length);
+                let copy_result = copy_bytes(source: bytes_window, destination: &bytes_copy.inner);
+                match copy_result {
+                  Ok(value: copied) => {
+                    let bulk_string = RespValue::RespBulkString(bytes: Some<Box<Slots<u8>>>(value: move bytes_copy));
+                    return Some<(value: RespValue, next_offset: u64)>(value: (value: bulk_string, next_offset: final_crlf_end + 1_u64));
+                  }
+                  Err(error: err) => {
+                    return None<(value: RespValue, next_offset: u64)>();
+                  }
+                }
+              }
+              None() => {
+                return None<(value: RespValue, next_offset: u64)>();
+              }
+            }
+          }
+        }
+        None() => {
+          return None<(value: RespValue, next_offset: u64)>();
+        }
+      }
+    }
+    None() => {
+      return None<(value: RespValue, next_offset: u64)>();
+    }
+  };
+}
+
+fn copy_bytes(source: &[u8], destination: &Slots<u8>) -> result: Result<unit, unit> reads(source), writes(destination) {
+  let len = source^.len;
+  let dest_cap = destination^.cap;
+  if len > dest_cap {
+    return Err<unit, unit>(error: unit);
+  }
+  for (i in 0_u64..len) {
+    place_back(window: destination, value: source^[i]);
+  }
+  return Ok<unit, unit>(value: unit);
+}
+
+fn parse_integer_from_bytes(buffer: &[u8], start: u64, end: u64) -> result: Option<i64> reads(buffer) {
+  if start > end {
+    return None<i64>();
+  }
+  if start == end {
+    return None<i64>();
+  }
+  let value = 0_i64;
+  let is_negative = False();
+  let first = buffer^[start];
+  let offset = start;
+  let neg = False();
+  if first == 45_u8 {
+    set neg = True();
+    set offset = start + 1_u64;
+  }
+  if offset >= end {
+    return None<i64>();
+  }
+  for (i in offset..end) {
+    let digit = buffer^[i];
+    let is_digit = band(digit >= 48_u8, digit <= 57_u8);
+    if is_digit {
+      let d = digit - 48_u8;
+      let d_i64 = cvt::<u8, i64>(d);
+      let scaled = value *wrap 10_i64;
+      set value = scaled +wrap d_i64;
+    } else {
+      return None<i64>();
+    }
+  }
+  if neg {
+    set value = 0_i64 - value;
+  }
+  return Some<i64>(value: value);
+}
+
+fn execute_command(map: &Shared<ConcurrentHashMap<Box<Slots<u8>>, StoreValue>>, command: &RespValue) -> result: RespValue pure waits {
+  match command {
+    RespArray(elements: elems) => {
+      let count = elems^.len;
+      if count == 0_u64 {
+        let error_msg = box_slots_new::<u8>(capacity: 8_u64);
+        place_back(window: &error_msg.inner, value: 69_u8);
+        place_back(window: &error_msg.inner, value: 82_u8);
+        place_back(window: &error_msg.inner, value: 82_u8);
+        place_back(window: &error_msg.inner, value: 79_u8);
+        place_back(window: &error_msg.inner, value: 82_u8);
+        return RespValue::RespError(bytes: move error_msg);
+      }
+      let first = &elems^[0_u64];
+      let cmd_name = match first {
+        RespBulkString(bytes: maybe_bytes) => {
+          maybe_bytes
+        }
+        _ => {
+          None<Box<Slots<u8>>>()
+        }
+      };
+      match cmd_name {
+        Some(value: cmd) => {
+          let cmd_view = &cmd.inner;
+          let ping_name = array_filled::<u8, 4>(value: 0_u8);
+          set ping_name[0_u64] = 80_u8;
+          set ping_name[1_u64] = 73_u8;
+          set ping_name[2_u64] = 78_u8;
+          set ping_name[3_u64] = 71_u8;
+          let ping_view = &ping_name[0_u64..4_u64];
+          let is_ping = bytes_equal(left: cmd_view, right: ping_view);
+          if is_ping {
+            let pong_msg = box_slots_new::<u8>(capacity: 4_u64);
+            place_back(window: &pong_msg.inner, value: 80_u8);
+            place_back(window: &pong_msg.inner, value: 79_u8);
+            place_back(window: &pong_msg.inner, value: 78_u8);
+            place_back(window: &pong_msg.inner, value: 71_u8);
+            return RespValue::RespSimpleString(bytes: move pong_msg);
+          }
+          let set_name = array_filled::<u8, 3>(value: 0_u8);
+          set set_name[0_u64] = 83_u8;
+          set set_name[1_u64] = 69_u8;
+          set set_name[2_u64] = 84_u8;
+          let set_view = &set_name[0_u64..3_u64];
+          let is_set = bytes_equal(left: cmd_view, right: set_view);
+          if is_set {
+            if count == 3_u64 {
+              let key_elem = &elems^[1_u64];
+              let val_elem = &elems^[2_u64];
+              let key_val = match key_elem {
+                RespBulkString(bytes: maybe_key) => {
+                  maybe_key
+                }
+                _ => {
+                  None<Box<Slots<u8>>>()
+                }
+              };
+              let val_val = match val_elem {
+                RespBulkString(bytes: maybe_val) => {
+                  maybe_val
+                }
+                _ => {
+                  None<Box<Slots<u8>>>()
+                }
+              };
+              match key_val {
+                Some(value: key_box) => {
+                  match val_val {
+                    Some(value: val_box) => {
+                      atomic slot = &map[&key_box.inner] {
+                        set slot^ = Some<StoreValue>(value: StoreValue(bytes: move val_box));
+                      }
+                      let ok_msg = box_slots_new::<u8>(capacity: 2_u64);
+                      place_back(window: &ok_msg.inner, value: 79_u8);
+                      place_back(window: &ok_msg.inner, value: 75_u8);
+                      return RespValue::RespSimpleString(bytes: move ok_msg);
                     }
                     None() => {
+                      let error = box_slots_new::<u8>(capacity: 20_u64);
+                      return RespValue::RespError(bytes: move error);
                     }
                   }
                 }
-                if found_val {
-                  let resp_pos = 0_u64;
-                  set response_buffer[resp_pos] = 36_u8;
-                  let len_str = i64_to_bytes(value: cvt::<u64, i64>(val_len));
-                  let len_bytes = &len_str.inner[0_u64..len_str.inner.len];
-                  let resp_pos2 = resp_pos + 1_u64;
-                  let len_bytes_len = len_bytes^.len;
-                  let resp_pos2_end = resp_pos2 + len_bytes_len;
-                  let ci = 0_u64;
-                  for (i in resp_pos2..resp_pos2_end) {
-                    set response_buffer[i] = len_bytes^[ci];
-                    set ci = ci + 1_u64;
-                  }
-                  let resp_pos3 = resp_pos2 + len_bytes_len;
-                  set response_buffer[resp_pos3] = 13_u8;
-                  let resp_pos3_1 = resp_pos3 + 1_u64;
-                  set response_buffer[resp_pos3_1] = 10_u8;
-                  let resp_pos4 = resp_pos3 + 2_u64;
-                  atomic slot = &store[key_slice] {
+                None() => {
+                  let error = box_slots_new::<u8>(capacity: 20_u64);
+                  return RespValue::RespError(bytes: move error);
+                }
+              }
+            } else {
+              let error_msg = box_slots_new::<u8>(capacity: 5_u64);
+              return RespValue::RespError(bytes: move error_msg);
+            }
+          }
+          let get_name = array_filled::<u8, 3>(value: 0_u8);
+          set get_name[0_u64] = 71_u8;
+          set get_name[1_u64] = 69_u8;
+          set get_name[2_u64] = 84_u8;
+          let get_view = &get_name[0_u64..3_u64];
+          let is_get = bytes_equal(left: cmd_view, right: get_view);
+          if is_get {
+            if count == 2_u64 {
+              let key_elem = &elems^[1_u64];
+              let key_val = match key_elem {
+                RespBulkString(bytes: maybe_key) => {
+                  maybe_key
+                }
+                _ => {
+                  None<Box<Slots<u8>>>()
+                }
+              };
+              match key_val {
+                Some(value: key_box) => {
+                  let found = False();
+                  let result_value = None<Box<Slots<u8>>>();
+                  atomic slot = &map[&key_box.inner] {
                     match slot^ {
-                      Some(value: v) => {
-                        let vi = 0_u64;
-                        let resp_pos4_end = resp_pos4 + val_len;
-                        for (i in resp_pos4..resp_pos4_end) {
-                          set response_buffer[i] = v^.bytes.inner[vi];
-                          set vi = vi + 1_u64;
-                        }
+                      Some(value: stored) => {
+                        set found = True();
+                        set result_value = Some<Box<Slots<u8>>>(value: move stored.bytes);
                       }
                       None() => {
                       }
                     }
                   }
-                  let resp_pos5 = resp_pos4 + val_len;
-                  set response_buffer[resp_pos5] = 13_u8;
-                  let resp_pos5_1 = resp_pos5 + 1_u64;
-                  set response_buffer[resp_pos5_1] = 10_u8;
-                  let final_pos = resp_pos5 + 2_u64;
-                  let send_outcome = send_all(send: &send, source: &response_buffer[0_u64..4096_u64], length: final_pos, deadline: deadline, cancel: cancel);
-                  match send_outcome {
-                    Ok(value: unit) => {
-                      set parsed_pos = key_parse.position;
-                      set handled = True();
-                    }
-                    Err(error: e) => {
-                      break @client_loop;
-                    }
-                  }
-                } else {
-                  let send_outcome = send_all(send: &send, source: &null_response[0_u64..5_u64], length: 5_u64, deadline: deadline, cancel: cancel);
-                  match send_outcome {
-                    Ok(value: unit) => {
-                      set parsed_pos = key_parse.position;
-                      set handled = True();
-                    }
-                    Err(error: e) => {
-                      break @client_loop;
-                    }
-                  }
+                  return RespValue::RespBulkString(bytes: move result_value);
                 }
-              } else {
-                break @parse_loop;
+                None() => {
+                  return RespValue::RespBulkString(bytes: None<Box<Slots<u8>>>());
+                }
               }
+            } else {
+              let error_msg = box_slots_new::<u8>(capacity: 5_u64);
+              return RespValue::RespError(bytes: move error_msg);
             }
           }
-          if upper_first == 83_u8 {
-            if count == 3_u64 {
-              let key_parse = parse_bulk_string(buffer: &buffer[0_u64..4096_u64], pos: after_cmd);
-              if key_parse.success {
-                let key_start = key_parse.value_start;
-                let key_len = key_parse.value_len;
-                let key_end = key_start + key_len;
-                let key_slice = &buffer[key_start..key_end];
-                let val_parse = parse_bulk_string(buffer: &buffer[0_u64..4096_u64], pos: key_parse.position);
-                if val_parse.success {
-                  let val_start = val_parse.value_start;
-                  let val_len = val_parse.value_len;
-                  let val_end = val_start + val_len;
-                  let val_slice = &buffer[val_start..val_end];
-                  let new_value = box_slots_new::<u8>(capacity: val_len);
-                  let vi = 0_u64;
-                  for (i in 0_u64..val_len) {
-                    place_back(window: &new_value.inner, value: val_slice^[i]);
-                  }
-                  let new_val = Value(bytes: move new_value);
-                  atomic slot = &store[key_slice] {
-                    set slot^ = Some<Value>(value: move new_val);
-                  }
-                  let send_outcome = send_all(send: &send, source: &ok_response[0_u64..5_u64], length: 5_u64, deadline: deadline, cancel: cancel);
-                  match send_outcome {
-                    Ok(value: unit) => {
-                      set parsed_pos = val_parse.position;
-                      set handled = True();
-                    }
-                    Err(error: e) => {
-                      break @client_loop;
-                    }
-                  }
-                } else {
-                  break @parse_loop;
-                }
-              } else {
-                break @parse_loop;
-              }
-            }
-          }
-          if upper_first == 68_u8 {
+          let del_name = array_filled::<u8, 3>(value: 0_u8);
+          set del_name[0_u64] = 68_u8;
+          set del_name[1_u64] = 69_u8;
+          set del_name[2_u64] = 76_u8;
+          let del_view = &del_name[0_u64..3_u64];
+          let is_del = bytes_equal(left: cmd_view, right: del_view);
+          if is_del {
             if count == 2_u64 {
-              let key_parse = parse_bulk_string(buffer: &buffer[0_u64..4096_u64], pos: after_cmd);
-              if key_parse.success {
-                let key_start = key_parse.value_start;
-                let key_len = key_parse.value_len;
-                let key_end = key_start + key_len;
-                let key_slice = &buffer[key_start..key_end];
-                let existed = False();
-                atomic slot = &store[key_slice] {
-                  match slot^ {
-                    Some(value: v) => {
-                      set slot^ = None<Value>();
-                      set existed = True();
+              let key_elem = &elems^[1_u64];
+              let key_val = match key_elem {
+                RespBulkString(bytes: maybe_key) => {
+                  maybe_key
+                }
+                _ => {
+                  None<Box<Slots<u8>>>()
+                }
+              };
+              match key_val {
+                Some(value: key_box) => {
+                  let existed = False();
+                  atomic slot = &map[&key_box.inner] {
+                    match slot^ {
+                      Some(value: val) => {
+                        set existed = True();
+                        set slot^ = None<StoreValue>();
+                      }
+                      None() => {
+                      }
                     }
-                    None() => {
-                    }
                   }
+                  let result = if existed {
+                    give 1_i64;
+                  } else {
+                    give 0_i64;
+                  };
+                  return RespValue::RespInteger(value: result);
                 }
-                let response = if existed {
-                  give del_yes;
-                } else {
-                  give del_no;
+                None() => {
+                  return RespValue::RespInteger(value: 0_i64);
                 }
-                let send_outcome = send_all(send: &send, source: &response[0_u64..4_u64], length: 4_u64, deadline: deadline, cancel: cancel);
-                match send_outcome {
-                  Ok(value: unit) => {
-                    set parsed_pos = key_parse.position;
-                    set handled = True();
-                  }
-                  Err(error: e) => {
-                    break @client_loop;
-                  }
-                }
-              } else {
-                break @parse_loop;
               }
+            } else {
+              let error_msg = box_slots_new::<u8>(capacity: 5_u64);
+              return RespValue::RespError(bytes: move error_msg);
             }
           }
-          if upper_first == 73_u8 {
+          let incr_name = array_filled::<u8, 4>(value: 0_u8);
+          set incr_name[0_u64] = 73_u8;
+          set incr_name[1_u64] = 78_u8;
+          set incr_name[2_u64] = 67_u8;
+          set incr_name[3_u64] = 82_u8;
+          let incr_view = &incr_name[0_u64..4_u64];
+          let is_incr = bytes_equal(left: cmd_view, right: incr_view);
+          if is_incr {
             if count == 2_u64 {
-              let key_parse = parse_bulk_string(buffer: &buffer[0_u64..4096_u64], pos: after_cmd);
-              if key_parse.success {
-                let key_start = key_parse.value_start;
-                let key_len = key_parse.value_len;
-                let key_end = key_start + key_len;
-                let key_slice = &buffer[key_start..key_end];
-                let new_value = 0_i64;
-                let error_occurred = False();
-                atomic slot = &store[key_slice] {
-                  match slot^ {
-                    Some(value: v) => {
-                      let v_bytes_len = v^.bytes.inner.len;
-                      let v_bytes_slice = &v^.bytes.inner[0_u64..v_bytes_len];
-                      let parse_result = bytes_to_i64(data: v_bytes_slice);
-                      match parse_result {
-                        Ok(value: int_val) => {
-                          let next = int_val +wrap 1_i64;
-                          set new_value = next;
-                          let new_bytes = i64_to_bytes(value: next);
-                          let new_val = Value(bytes: move new_bytes);
-                          set slot^ = Some<Value>(value: move new_val);
+              let key_elem = &elems^[1_u64];
+              let key_val = match key_elem {
+                RespBulkString(bytes: maybe_key) => {
+                  maybe_key
+                }
+                _ => {
+                  None<Box<Slots<u8>>>()
+                }
+              };
+              match key_val {
+                Some(value: key_box) => {
+                  let result = 0_i64;
+                  let error = False();
+                  atomic slot = &map[&key_box.inner] {
+                    match slot^ {
+                      Some(value: stored) => {
+                        let int_result = parse_i64_from_bytes(bytes: &stored.bytes.inner);
+                        match int_result {
+                          Some(value: current) => {
+                            let incremented = current +wrap 1_i64;
+                            let incremented_bytes = box_slots_new::<u8>(capacity: 20_u64);
+                            let format_ok = format_i64(value: incremented, output: &incremented_bytes.inner);
+                            if format_ok {
+                              set slot^ = Some<StoreValue>(value: StoreValue(bytes: move incremented_bytes));
+                              set result = incremented;
+                            } else {
+                              set error = True();
+                            }
+                          }
+                          None() => {
+                            set error = True();
+                          }
                         }
-                        Err(error: e) => {
-                          set error_occurred = True();
+                      }
+                      None() => {
+                        let incremented_bytes = box_slots_new::<u8>(capacity: 20_u64);
+                        let format_ok = format_i64(value: 1_i64, output: &incremented_bytes.inner);
+                        if format_ok {
+                          set slot^ = Some<StoreValue>(value: StoreValue(bytes: move incremented_bytes));
+                          set result = 1_i64;
+                        } else {
+                          set error = True();
                         }
                       }
                     }
-                    None() => {
-                      set new_value = 1_i64;
-                      let new_bytes = i64_to_bytes(value: 1_i64);
-                      let new_val = Value(bytes: move new_bytes);
-                      set slot^ = Some<Value>(value: move new_val);
-                    }
+                  }
+                  if error {
+                    let err_msg = box_slots_new::<u8>(capacity: 50_u64);
+                    place_back(window: &err_msg.inner, value: 69_u8);
+                    place_back(window: &err_msg.inner, value: 82_u8);
+                    place_back(window: &err_msg.inner, value: 82_u8);
+                    place_back(window: &err_msg.inner, value: 32_u8);
+                    place_back(window: &err_msg.inner, value: 118_u8);
+                    place_back(window: &err_msg.inner, value: 97_u8);
+                    place_back(window: &err_msg.inner, value: 108_u8);
+                    place_back(window: &err_msg.inner, value: 117_u8);
+                    place_back(window: &err_msg.inner, value: 101_u8);
+                    place_back(window: &err_msg.inner, value: 32_u8);
+                    place_back(window: &err_msg.inner, value: 105_u8);
+                    place_back(window: &err_msg.inner, value: 115_u8);
+                    place_back(window: &err_msg.inner, value: 32_u8);
+                    place_back(window: &err_msg.inner, value: 110_u8);
+                    place_back(window: &err_msg.inner, value: 111_u8);
+                    place_back(window: &err_msg.inner, value: 116_u8);
+                    place_back(window: &err_msg.inner, value: 32_u8);
+                    place_back(window: &err_msg.inner, value: 97_u8);
+                    place_back(window: &err_msg.inner, value: 110_u8);
+                    place_back(window: &err_msg.inner, value: 32_u8);
+                    place_back(window: &err_msg.inner, value: 105_u8);
+                    place_back(window: &err_msg.inner, value: 110_u8);
+                    place_back(window: &err_msg.inner, value: 116_u8);
+                    place_back(window: &err_msg.inner, value: 101_u8);
+                    place_back(window: &err_msg.inner, value: 103_u8);
+                    place_back(window: &err_msg.inner, value: 101_u8);
+                    place_back(window: &err_msg.inner, value: 114_u8);
+                    place_back(window: &err_msg.inner, value: 32_u8);
+                    place_back(window: &err_msg.inner, value: 111_u8);
+                    place_back(window: &err_msg.inner, value: 114_u8);
+                    place_back(window: &err_msg.inner, value: 32_u8);
+                    place_back(window: &err_msg.inner, value: 111_u8);
+                    place_back(window: &err_msg.inner, value: 117_u8);
+                    place_back(window: &err_msg.inner, value: 116_u8);
+                    place_back(window: &err_msg.inner, value: 32_u8);
+                    place_back(window: &err_msg.inner, value: 111_u8);
+                    place_back(window: &err_msg.inner, value: 102_u8);
+                    place_back(window: &err_msg.inner, value: 32_u8);
+                    place_back(window: &err_msg.inner, value: 114_u8);
+                    place_back(window: &err_msg.inner, value: 97_u8);
+                    place_back(window: &err_msg.inner, value: 110_u8);
+                    place_back(window: &err_msg.inner, value: 103_u8);
+                    place_back(window: &err_msg.inner, value: 101_u8);
+                    return RespValue::RespError(bytes: move err_msg);
+                  }
+                  return RespValue::RespInteger(value: result);
+                }
+                None() => {
+                  let incremented_bytes = box_slots_new::<u8>(capacity: 20_u64);
+                  let format_ok = format_i64(value: 1_i64, output: &incremented_bytes.inner);
+                  if format_ok {
+                    return RespValue::RespInteger(value: 1_i64);
+                  } else {
+                    let err_msg = box_slots_new::<u8>(capacity: 50_u64);
+                    return RespValue::RespError(bytes: move err_msg);
                   }
                 }
-                if error_occurred {
-                  let send_outcome = send_all(send: &send, source: &error_response[0_u64..46_u64], length: 46_u64, deadline: deadline, cancel: cancel);
-                  match send_outcome {
-                    Ok(value: unit) => {
-                      set parsed_pos = key_parse.position;
-                      set handled = True();
-                    }
-                    Err(error: e) => {
-                      break @client_loop;
-                    }
-                  }
-                } else {
-                  let int_str = i64_to_bytes(value: new_value);
-                  let int_str_len = int_str.inner.len;
-                  let int_bytes = &int_str.inner[0_u64..int_str_len];
-                  let resp_pos = 0_u64;
-                  set response_buffer[resp_pos] = 58_u8;
-                  let resp_pos2 = resp_pos + 1_u64;
-                  let int_bytes_len = int_bytes^.len;
-                  let resp_pos2_end = resp_pos2 + int_bytes_len;
-                  let ci = 0_u64;
-                  for (i in resp_pos2..resp_pos2_end) {
-                    set response_buffer[i] = int_bytes^[ci];
-                    set ci = ci + 1_u64;
-                  }
-                  let resp_pos3 = resp_pos2 + int_bytes_len;
-                  set response_buffer[resp_pos3] = 13_u8;
-                  let resp_pos3_1 = resp_pos3 + 1_u64;
-                  set response_buffer[resp_pos3_1] = 10_u8;
-                  let final_pos = resp_pos3 + 2_u64;
-                  let send_outcome = send_all(send: &send, source: &response_buffer[0_u64..4096_u64], length: final_pos, deadline: deadline, cancel: cancel);
-                  match send_outcome {
-                    Ok(value: unit) => {
-                      set parsed_pos = key_parse.position;
-                      set handled = True();
-                    }
-                    Err(error: e) => {
-                      break @client_loop;
-                    }
-                  }
-                }
-              } else {
-                break @parse_loop;
               }
+            } else {
+              let error_msg = box_slots_new::<u8>(capacity: 5_u64);
+              return RespValue::RespError(bytes: move error_msg);
             }
           }
-          if bnot(handled) {
-            set parsed_pos = after_cmd;
-          }
-          continue @parse_loop;
+          let error_msg = box_slots_new::<u8>(capacity: 5_u64);
+          return RespValue::RespError(bytes: move error_msg);
         }
-        Err(error: e) => {
-          break @parse_loop;
+        None() => {
+          let error_msg = box_slots_new::<u8>(capacity: 5_u64);
+          return RespValue::RespError(bytes: move error_msg);
         }
       }
     }
+    _ => {
+      let error_msg = box_slots_new::<u8>(capacity: 5_u64);
+      return RespValue::RespError(bytes: move error_msg);
+    }
+  };
+}
+
+fn parse_i64_from_bytes(bytes: &Slots<u8>) -> result: Option<i64> reads(bytes) {
+  let len = bytes^.len;
+  if len == 0_u64 {
+    return None<i64>();
   }
-  let close_recv = std::net::close_receive(factory: factory, receive: move receive);
-  let close_send = std::net::close_send(factory: factory, send: move send);
+  let value = 0_i64;
+  let is_negative = False();
+  let first = bytes^[0_u64];
+  let offset = 0_u64;
+  let neg = False();
+  if first == 45_u8 {
+    set neg = True();
+    set offset = 1_u64;
+  }
+  if offset >= len {
+    return None<i64>();
+  }
+  for (i in offset..len) {
+    let digit = bytes^[i];
+    let is_digit = band(digit >= 48_u8, digit <= 57_u8);
+    if is_digit {
+      let d = digit - 48_u8;
+      let d_i64 = cvt::<u8, i64>(d);
+      let scaled = value *wrap 10_i64;
+      set value = scaled +wrap d_i64;
+    } else {
+      return None<i64>();
+    }
+  }
+  if neg {
+    set value = 0_i64 - value;
+  }
+  return Some<i64>(value: value);
+}
+
+fn format_i64(value: i64, output: &Slots<u8>) -> result: Bool writes(output) {
+  let to_format = value;
+  let is_negative = to_format < 0_i64;
+  let abs_val = if is_negative {
+    give 0_i64 - to_format;
+  } else {
+    give to_format;
+  };
+  let digits = array_filled::<u8, 20>(value: 0_u8);
+  let digit_count = 0_u64;
+  let temp = abs_val;
+  loop (
+    invariant bounded: digit_count <= 20_u64
+  ) {
+    if temp == 0_i64 {
+      break;
+    }
+    let remainder = temp %wrap 10_i64;
+    let digit = cvt::<i64, u8>(remainder);
+    let digit_char = digit + 48_u8;
+    set digits[digit_count] = digit_char;
+    set digit_count = digit_count + 1_u64;
+    set temp = temp / 10_i64;
+  }
+  if digit_count == 0_u64 {
+    if output^.cap >= 1_u64 {
+      place_back(window: output, value: 48_u8);
+      return True();
+    } else {
+      return False();
+    }
+  }
+  let total_len = if is_negative {
+    give digit_count + 1_u64;
+  } else {
+    give digit_count;
+  };
+  if output^.cap < total_len {
+    return False();
+  }
+  if is_negative {
+    place_back(window: output, value: 45_u8);
+  }
+  for (i in 0_u64..digit_count) {
+    let idx = digit_count - 1_u64 - i;
+    place_back(window: output, value: digits[idx]);
+  }
+  return True();
+}
+
+fn resp_to_bytes(value: &RespValue) -> result: Box<Slots<u8>> reads(value) {
+  match value {
+    RespSimpleString(bytes: msg) => {
+      let result = box_slots_new::<u8>(capacity: msg^.inner.len + 2_u64);
+      place_back(window: &result.inner, value: 43_u8);
+      for (i in 0_u64..msg^.inner.len) {
+        place_back(window: &result.inner, value: msg^.inner[i]);
+      }
+      place_back(window: &result.inner, value: 13_u8);
+      place_back(window: &result.inner, value: 10_u8);
+      return move result;
+    }
+    RespError(bytes: msg) => {
+      let result = box_slots_new::<u8>(capacity: msg^.inner.len + 2_u64);
+      place_back(window: &result.inner, value: 45_u8);
+      for (i in 0_u64..msg^.inner.len) {
+        place_back(window: &result.inner, value: msg^.inner[i]);
+      }
+      place_back(window: &result.inner, value: 13_u8);
+      place_back(window: &result.inner, value: 10_u8);
+      return move result;
+    }
+    RespInteger(value: num) => {
+      let result = box_slots_new::<u8>(capacity: 25_u64);
+      place_back(window: &result.inner, value: 58_u8);
+      let format_ok = format_i64(value: num, output: &result.inner);
+      place_back(window: &result.inner, value: 13_u8);
+      place_back(window: &result.inner, value: 10_u8);
+      return move result;
+    }
+    RespBulkString(bytes: maybe_bytes) => {
+      match maybe_bytes {
+        Some(value: bytes_box) => {
+          let len = bytes_box^.inner.len;
+          let len_str = format_u64_to_bytes(value: len);
+          let result = box_slots_new::<u8>(capacity: len + 6_u64 + len_str.inner.len);
+          place_back(window: &result.inner, value: 36_u8);
+          for (i in 0_u64..len_str.inner.len) {
+            place_back(window: &result.inner, value: len_str.inner[i]);
+          }
+          place_back(window: &result.inner, value: 13_u8);
+          place_back(window: &result.inner, value: 10_u8);
+          for (i in 0_u64..len) {
+            place_back(window: &result.inner, value: bytes_box^.inner[i]);
+          }
+          place_back(window: &result.inner, value: 13_u8);
+          place_back(window: &result.inner, value: 10_u8);
+          return move result;
+        }
+        None() => {
+          let result = box_slots_new::<u8>(capacity: 5_u64);
+          place_back(window: &result.inner, value: 36_u8);
+          place_back(window: &result.inner, value: 45_u8);
+          place_back(window: &result.inner, value: 49_u8);
+          place_back(window: &result.inner, value: 13_u8);
+          place_back(window: &result.inner, value: 10_u8);
+          return move result;
+        }
+      }
+    }
+    RespArray(elements: elems) => {
+      let result = box_slots_new::<u8>(capacity: 1024_u64);
+      return move result;
+    }
+  };
+}
+
+fn format_u64_to_bytes(value: u64) -> result: Box<Slots<u8>> pure {
+  let digits = array_filled::<u8, 20>(value: 0_u8);
+  let digit_count = 0_u64;
+  let temp = value;
+  loop (
+    invariant bounded: digit_count <= 20_u64
+  ) {
+    if temp == 0_u64 {
+      break;
+    }
+    let remainder = temp %wrap 10_u64;
+    let digit = cvt::<u64, u8>(remainder);
+    let digit_char = digit + 48_u8;
+    set digits[digit_count] = digit_char;
+    set digit_count = digit_count + 1_u64;
+    set temp = temp / 10_u64;
+  }
+  let result = box_slots_new::<u8>(capacity: digit_count);
+  if digit_count == 0_u64 {
+    place_back(window: &result.inner, value: 48_u8);
+  } else {
+    for (i in 0_u64..digit_count) {
+      let idx = digit_count - 1_u64 - i;
+      place_back(window: &result.inner, value: digits[idx]);
+    }
+  }
+  return move result;
+}
+
+fn handle_connection(factory: &HandleFactory, connection: TcpConnection, map: Shared<ConcurrentHashMap<Box<Slots<u8>>, StoreValue>>, cancel: &CancelWatch) -> result: unit reads(cancel), writes(factory) waits {
+  let receive = move connection.receive;
+  let send = move connection.send;
+  let buffer = box_slots_new::<u8>(capacity: 4096_u64);
+  let parse_offset = 0_u64;
+  loop @receive_loop {
+    let deadline = None<Instant>();
+    let read_result = std::net::receive_next(receive: &receive, destination: &buffer.inner, start: buffer.inner.len, end: 4096_u64, deadline: deadline, cancel: cancel);
+    match read_result {
+      Ok(value: next) => {
+        set parse_offset = 0_u64;
+        loop @parse_loop {
+          let state = ParseState(buffer: move buffer, offset: parse_offset);
+          let parse_result = try_parse_resp(state: &state);
+          match parse_result {
+            Some(value: parsed_command) => {
+              set buffer = move state.buffer;
+              let response = execute_command(map: &map, command: &parsed_command);
+              let response_bytes = resp_to_bytes(value: &response);
+              let send_result = std::net::send_once(send: &send, source: &response_bytes.inner, start: 0_u64, end: response_bytes.inner.len, deadline: None<Instant>(), cancel: cancel);
+              match send_result {
+                Ok(value: sent) => {
+                }
+                Err(error: err) => {
+                  break @receive_loop;
+                }
+              }
+              set parse_offset = state.offset;
+              continue @parse_loop;
+            }
+            None() => {
+              set buffer = move state.buffer;
+              break @parse_loop;
+            }
+          }
+        }
+      }
+      Err(error: stop) => {
+        break @receive_loop;
+      }
+    }
+  }
+  let close_recv_result = std::net::close_receive(factory: factory, receive: move receive);
+  let close_send_result = std::net::close_send(factory: factory, send: move send);
   return unit;
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(args: arg_list, drivers: unused_drivers, cwd: cwd_directory, stdout: unused_stdout, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
-  let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
+  let Inputs(args: program_args, drivers: driver_count, cwd: cwd_dir, stdout: unused_stdout, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_dir;
   std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
   std::fs::close_directory(factory: &factory, directory: move cwd_read);
-  let count = std::text::args_count(args: &arg_list);
-  if count < 4_u64 {
-    return exit_status(code: 1_u8);
-  }
-  let port_arg = std::text::arg_get(args: &arg_list, position: 1_u64);
-  let port_u16 = 0_u16;
-  match port_arg {
-    Ok(value: port_str) => {
-      let port_buffer = array_filled::<u8, 32>(value: 0_u8);
-      let copy_result = std::text::host_copy_bytes(value: &port_str, destination: &port_buffer[0_u64..32_u64], start: 0_u64, end: 32_u64);
-      match copy_result {
-        Ok(value: port_len) => {
-          let port_parse = parse_decimal(buffer: &port_buffer[0_u64..32_u64], start: 0_u64, end: port_len);
-          match port_parse {
-            Ok(value: port_val) => {
-              set port_u16 = cvt::<u64, u16>(port_val);
-            }
-            Err(error: e) => {
-              return exit_status(code: 1_u8);
+  let port_result = parse_port(args: &program_args);
+  match port_result {
+    Ok(value: port) => {
+      let addr = std::net::socket_address_v4(a: 127_u8, b: 0_u8, c: 0_u8, d: 1_u8, port: port);
+      let listen_result = std::net::tcp_listen(factory: &factory, address: &addr);
+      match listen_result {
+        Ok(value: listener) => {
+          let kv_map = shared_new::<ConcurrentHashMap<Box<Slots<u8>>, StoreValue>>(value: hash_map_new::<Box<Slots<u8>>, StoreValue, 256>(capacity: 64_u64));
+          let client_count = 0_u64;
+          let cancel = std::time::cancel_never();
+          loop @accept_loop {
+            if client_count < 9_u64 {
+              let accept_result = std::net::tcp_accept(factory: &factory, listener: &listener, deadline: None<Instant>(), cancel: &cancel);
+              match accept_result {
+                Ok(value: accepted) => {
+                  let connection = accepted.connection;
+                  let shared_map = shared_share::<ConcurrentHashMap<Box<Slots<u8>>, StoreValue>>(shared: &kv_map);
+                  spawn handle_connection(factory: &factory, connection: move connection, map: move shared_map, cancel: &cancel);
+                  set client_count = client_count + 1_u64;
+                  continue @accept_loop;
+                }
+                Err(error: err) => {
+                  break @accept_loop;
+                }
+              }
+            } else {
+              break @accept_loop;
             }
           }
+          std::time::close_cancel_watch(watch: move cancel);
+          let close_listener_result = std::net::close_listener(factory: &factory, listener: move listener);
         }
-        Err(error: e) => {
+        Err(error: err) => {
+          std::time::close_cancel_watch(watch: std::time::cancel_never());
           return exit_status(code: 1_u8);
         }
       }
     }
-    Err(error: e) => {
+    Err(error: err) => {
+      std::time::close_cancel_watch(watch: std::time::cancel_never());
       return exit_status(code: 1_u8);
     }
   }
-  let addr = std::net::socket_address_v4(a: 127_u8, b: 0_u8, c: 0_u8, d: 1_u8, port: port_u16);
-  let listener_result = std::net::tcp_listen(factory: &factory, address: &addr);
-  match listener_result {
-    Ok(value: listener) => {
-      let store = shared_map_new::<Value>(capacity: 256_u64);
-      let connection_count = 0_u64;
-      let no_deadline = None<Instant>();
-      let cancel = std::time::cancel_never();
-      loop @accept_loop {
-        if connection_count >= 9_u64 {
-          break @accept_loop;
-        }
-        let accept_result = std::net::tcp_accept(factory: &factory, listener: &listener, deadline: no_deadline, cancel: &cancel);
-        match accept_result {
-          Ok(value: accepted) => {
-            let connection = accepted.connection;
-            let store_share = shared_share::<ConcurrentHashMap<Value>>(shared: &store);
-            let receive = connection.receive;
-            let send = connection.send;
-            spawn handle_client(factory: &factory, receive: move receive, send: move send, store: move store_share, deadline: no_deadline, cancel: &cancel);
-            set connection_count = connection_count + 1_u64;
-            continue @accept_loop;
-          }
-          Err(error: e) => {
-            break @accept_loop;
-          }
-        }
-      }
-      let close_result = std::net::close_listener(factory: &factory, listener: move listener);
-      std::time::close_cancel_watch(watch: move cancel);
-      return exit_status(code: 0_u8);
-    }
-    Err(error: e) => {
-      std::time::close_cancel_watch(watch: move cancel);
-      return exit_status(code: 1_u8);
-    }
-  }
+  return exit_status(code: 0_u8);
 }

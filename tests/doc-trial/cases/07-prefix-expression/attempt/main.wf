@@ -1,255 +1,247 @@
 alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
 alias exit_status = std::process::exit_status;
-alias OutputStream = std::io::OutputStream;
-alias HandleFactory = std::io::HandleFactory;
-alias IoError = std::io::IoError;
-alias CancelWatch = std::time::CancelWatch;
+alias close_directory = std::fs::close_directory;
+alias close_directory_write = std::fs::close_directory_write;
+alias write_once = std::io::write_once;
+alias cancel_never = std::time::cancel_never;
+alias close_cancel_watch = std::time::close_cancel_watch;
 alias Instant = std::time::Instant;
-
-enum Expression {
-  Digit(value: u8);
-  Plus(left: Box<Expression>, right: Box<Expression>);
-}
+alias CancelWatch = std::time::CancelWatch;
 
 enum ParseError {
   Truncated();
   InvalidToken();
 }
 
-enum ParseResult {
-  Success(expr: Expression, next: u64);
-  Error(error: ParseError);
+nocopy struct Expression {
+  kind: ExprKind;
 }
 
-fn parse(bytes: &[u8], pos: u64) -> result: ParseResult reads(bytes) contract {
-  requires pos <= bytes^.len;
-} {
-  if pos >= bytes^.len {
-    let truncated_error = ParseError::Truncated();
-    return ParseResult::Error(error: truncated_error);
+enum ExprKind {
+  Digit(value: u8);
+  Add(left: Box<Expression>, right: Box<Expression>);
+}
+
+struct ParseResult {
+  success: Bool;
+  expr: Option<Box<Expression>>;
+  next: u64;
+  error: Option<ParseError>;
+}
+
+fn parse_expression(bytes: &[u8], at: u64) -> r: ParseResult reads(bytes) {
+  if at >= bytes^.len {
+    return ParseResult(success: False(), expr: None<Box<Expression>>(), next: at, error: Some<ParseError>(value: ParseError::Truncated()));
   }
-  let byte = bytes^[pos];
-  let plus = 43_u8;
-  let zero = 48_u8;
-  let nine = 57_u8;
-  let is_plus = byte == plus;
-  let byte_ge_zero = byte >= zero;
-  let byte_le_nine = byte <= nine;
-  let is_digit = band(byte_ge_zero, byte_le_nine);
-  if is_plus {
-    let first_pos = pos + 1_u64;
-    let first_result = parse(bytes: bytes, pos: first_pos);
-    match first_result {
-      Success(expr: first_expr, next: after_first) => {
-        let second_result = parse(bytes: bytes, pos: after_first);
-        match second_result {
-          Success(expr: second_expr, next: after_second) => {
-            let left_box = box_new::<Expression>(value: move first_expr);
-            let right_box = box_new::<Expression>(value: move second_expr);
-            let plus_expr = Expression::Plus(left: move left_box, right: move right_box);
-            let success_result = ParseResult::Success(expr: plus_expr, next: after_second);
-            return success_result;
-          }
-          Error(error: err) => {
-            let error_result = ParseResult::Error(error: move err);
-            return error_result;
+
+  let byte = bytes^[at];
+  if byte == 43_u8 {
+    let first_parse = parse_expression(bytes: bytes, at: at + 1_u64);
+    if first_parse.success {
+      match move first_parse.expr {
+        Some(value: first_expr) => {
+          let second_parse = parse_expression(bytes: bytes, at: first_parse.next);
+          if second_parse.success {
+            match move second_parse.expr {
+              Some(value: second_expr) => {
+                let add_kind = ExprKind::Add(left: move first_expr, right: move second_expr);
+                let add_expr = Expression(kind: move add_kind);
+                let result_box = box_new::<Expression>(value: move add_expr);
+                return ParseResult(success: True(), expr: Some<Box<Expression>>(value: move result_box), next: second_parse.next, error: None<ParseError>());
+              }
+              None() => {
+                return ParseResult(success: False(), expr: None<Box<Expression>>(), next: at, error: None<ParseError>());
+              }
+            }
+          } else {
+            return ParseResult(success: False(), expr: None<Box<Expression>>(), next: at, error: move second_parse.error);
           }
         }
+        None() => {
+          return ParseResult(success: False(), expr: None<Box<Expression>>(), next: at, error: None<ParseError>());
+        }
       }
-      Error(error: err) => {
-        let error_result = ParseResult::Error(error: move err);
-        return error_result;
-      }
+    } else {
+      return ParseResult(success: False(), expr: None<Box<Expression>>(), next: at, error: move first_parse.error);
     }
-  } else if is_digit {
-    let digit_value = byte - zero;
-    let digit_expr = Expression::Digit(value: digit_value);
-    let next_pos = pos + 1_u64;
-    return ParseResult::Success(expr: digit_expr, next: next_pos);
-  } else {
-    let invalid_error = ParseError::InvalidToken();
-    return ParseResult::Error(error: invalid_error);
+  } else if byte >= 48_u8 {
+    if byte <= 57_u8 {
+      let digit = byte - 48_u8;
+      let digit_kind = ExprKind::Digit(value: digit);
+      let digit_expr = Expression(kind: move digit_kind);
+      let result_box = box_new::<Expression>(value: move digit_expr);
+      return ParseResult(success: True(), expr: Some<Box<Expression>>(value: move result_box), next: at + 1_u64, error: None<ParseError>());
+    }
   }
+
+  return ParseResult(success: False(), expr: None<Box<Expression>>(), next: at, error: Some<ParseError>(value: ParseError::InvalidToken()));
 }
 
-enum EvalResult {
-  Ok(value: u64);
-  Overflow();
-}
-
-fn eval(expr: &Expression) -> result: EvalResult reads(expr) {
-  match expr^ {
-    Digit(value: d) => {
-      let d_u64 = cvt::<u8, u64>(d);
-      let ok_result = EvalResult::Ok(value: d_u64);
-      return ok_result;
+fn evaluate(expr: &Expression) -> result: Option<u64> reads(expr) {
+  match expr.kind {
+    ExprKind::Digit(value: d) => {
+      let value = cvt::<u8, u64>(d);
+      return Some<u64>(value: value);
     }
-    Plus(left: left_box, right: right_box) => {
-      let left_result = eval(expr: &left_box^.inner);
+    ExprKind::Add(left: left_box, right: right_box) => {
+      let left_result = evaluate(expr: &left_box.inner);
       match left_result {
-        Ok(value: left_val) => {
-          let right_result = eval(expr: &right_box^.inner);
+        Some(value: left_val) => {
+          let right_result = evaluate(expr: &right_box.inner);
           match right_result {
-            Ok(value: right_val) => {
-              let sum_result = left_val +checked right_val;
-              match sum_result {
-                Ok(value: sum) => {
-                  let eval_ok = EvalResult::Ok(value: sum);
-                  return eval_ok;
+            Some(value: right_val) => {
+              let sum = left_val +checked right_val;
+              match sum {
+                Ok(value: total) => {
+                  return Some<u64>(value: total);
                 }
-                Err(error: unused_overflow) => {
-                  let eval_overflow = EvalResult::Overflow();
-                  return eval_overflow;
+                Err(error: overflow) => {
+                  return None<u64>();
                 }
               }
             }
-            Overflow() => {
-              let eval_overflow = EvalResult::Overflow();
-              return eval_overflow;
+            None() => {
+              return None<u64>();
             }
           }
         }
-        Overflow() => {
-          let eval_overflow = EvalResult::Overflow();
-          return eval_overflow;
+        None() => {
+          return None<u64>();
         }
       }
     }
   }
 }
 
-fn write_bytes(factory: &HandleFactory, output: &OutputStream, source: &[u8], length: u64) -> result: Result<unit, IoError> reads(source), writes(factory), writes(output) waits {
-  let sent = 0_u64;
-  loop @publish {
-    let continue_loop = sent < length;
-    if continue_loop {
-    } else {
-      break @publish;
-    }
-    let no_deadline = None<Instant>();
-    let cancel = std::time::cancel_never();
-    let outcome = std::io::write_once(factory: factory, output: output, source: source, start: sent, end: length, deadline: no_deadline, cancel: &cancel);
-    std::time::close_cancel_watch(watch: move cancel);
-    match outcome {
-      Ok(value: next) => {
-        set sent = next;
-      }
-      Err(error: problem) => {
-        let write_err = Err<unit, IoError>(error: problem);
-        return write_err;
-      }
-    }
-  }
-  let write_ok = Ok<unit, IoError>(value: unit);
-  return write_ok;
-}
-
-fn u64_to_le_bytes(value: u64, buffer: &[u8]) -> result: unit writes(buffer) {
-  let b0 = cvt::<u64, u8>(value);
-  let shifted1 = ishr(value, 8_u32);
-  let b1 = cvt::<u64, u8>(shifted1);
-  let shifted2 = ishr(value, 16_u32);
-  let b2 = cvt::<u64, u8>(shifted2);
-  let shifted3 = ishr(value, 24_u32);
-  let b3 = cvt::<u64, u8>(shifted3);
-  let shifted4 = ishr(value, 32_u32);
-  let b4 = cvt::<u64, u8>(shifted4);
-  let shifted5 = ishr(value, 40_u32);
-  let b5 = cvt::<u64, u8>(shifted5);
-  let shifted6 = ishr(value, 48_u32);
-  let b6 = cvt::<u64, u8>(shifted6);
-  let shifted7 = ishr(value, 56_u32);
-  let b7 = cvt::<u64, u8>(shifted7);
-  set buffer[0_u64] = b0;
-  set buffer[1_u64] = b1;
-  set buffer[2_u64] = b2;
-  set buffer[3_u64] = b3;
-  set buffer[4_u64] = b4;
-  set buffer[5_u64] = b5;
-  set buffer[6_u64] = b6;
-  set buffer[7_u64] = b7;
+fn u64_to_le_bytes(value: u64, buffer: &[u8], offset: u64) -> result: unit writes(buffer) contract {
+  requires offset + 8_u64 <= buffer^.len;
+} {
+  let byte0 = cvt.wrap::<u64, u8>(value);
+  set buffer^[offset] = byte0;
+  let shift1 = ishr(value, 8_u32);
+  let byte1 = cvt.wrap::<u64, u8>(shift1);
+  set buffer^[offset + 1_u64] = byte1;
+  let shift2 = ishr(value, 16_u32);
+  let byte2 = cvt.wrap::<u64, u8>(shift2);
+  set buffer^[offset + 2_u64] = byte2;
+  let shift3 = ishr(value, 24_u32);
+  let byte3 = cvt.wrap::<u64, u8>(shift3);
+  set buffer^[offset + 3_u64] = byte3;
+  let shift4 = ishr(value, 32_u32);
+  let byte4 = cvt.wrap::<u64, u8>(shift4);
+  set buffer^[offset + 4_u64] = byte4;
+  let shift5 = ishr(value, 40_u32);
+  let byte5 = cvt.wrap::<u64, u8>(shift5);
+  set buffer^[offset + 5_u64] = byte5;
+  let shift6 = ishr(value, 48_u32);
+  let byte6 = cvt.wrap::<u64, u8>(shift6);
+  set buffer^[offset + 6_u64] = byte6;
+  let shift7 = ishr(value, 56_u32);
+  let byte7 = cvt.wrap::<u64, u8>(shift7);
+  set buffer^[offset + 7_u64] = byte7;
   return unit;
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(cwd: cwd_directory, handles: factory, stdout: output, ..) = move inputs;
-  let std::fs::Directory(read: cwd, write: cwd_write) = move cwd_directory;
-  std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
-  std::fs::close_directory(factory: &factory, directory: move cwd);
+  let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: stdout_stream, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+
+  let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
+  close_directory(factory: &factory, directory: move cwd_read);
+  close_directory_write(factory: &factory, directory: move cwd_write);
+
   let input_bytes = array_filled::<u8, 5>(value: 0_u8);
   set input_bytes[0_u64] = 43_u8;
   set input_bytes[1_u64] = 50_u8;
   set input_bytes[2_u64] = 43_u8;
   set input_bytes[3_u64] = 51_u8;
   set input_bytes[4_u64] = 52_u8;
-  let input_slice = &input_bytes[0_u64..5_u64];
-  let parse_result = parse(bytes: input_slice, pos: 0_u64);
+
+  let input_view = &input_bytes[0_u64..5_u64];
+  let parse_result = parse_expression(bytes: input_view, at: 0_u64);
+
+  let parse1_ok = False();
+  let eval_value = 0_u64;
+
+  if parse_result.success {
+    if parse_result.next == 5_u64 {
+      match move parse_result.expr {
+        Some(value: expr_box) => {
+          let eval_result = evaluate(expr: &expr_box.inner);
+          match eval_result {
+            Some(value: val) => {
+              if val == 9_u64 {
+                set parse1_ok = True();
+                set eval_value = val;
+              }
+            }
+            None() => {
+            }
+          }
+        }
+        None() => {
+        }
+      }
+    }
+  }
+
   let incomplete_bytes = array_filled::<u8, 2>(value: 0_u8);
   set incomplete_bytes[0_u64] = 43_u8;
   set incomplete_bytes[1_u64] = 50_u8;
-  let incomplete_slice = &incomplete_bytes[0_u64..2_u64];
-  let incomplete_result = parse(bytes: incomplete_slice, pos: 0_u64);
-  let output_buffer = array_filled::<u8, 24>(value: 0_u8);
-  let incomplete_is_truncated = match incomplete_result {
-    Success(expr: unused_expr, next: unused_next) => {
-      give False();
-    }
-    Error(error: incomplete_err) => {
-      let inner = match incomplete_err {
-        Truncated() => {
-          give True();
-        }
-        InvalidToken() => {
-          give False();
+
+  let incomplete_view = &incomplete_bytes[0_u64..2_u64];
+  let incomplete_parse = parse_expression(bytes: incomplete_view, at: 0_u64);
+
+  let error_marker = 0_u8;
+  let parse2_ok = False();
+
+  if incomplete_parse.success {
+  } else {
+    match incomplete_parse.error {
+      Some(value: err) => {
+        match err {
+          ParseError::Truncated() => {
+            set error_marker = 1_u8;
+            set parse2_ok = True();
+          }
+          ParseError::InvalidToken() => {
+          }
         }
       }
-      give inner;
+      None() => {
+      }
     }
   }
-  if incomplete_is_truncated {
-    match parse_result {
-      Success(expr: parsed_expr, next: parsed_next) => {
-        let eval_result = eval(expr: &parsed_expr);
-        match eval_result {
-          Ok(value: value_check) => {
-            let next_ok = parsed_next == 5_u64;
-            let value_ok = value_check == 9_u64;
-            let both_ok = band(next_ok, value_ok);
-            if both_ok {
-              u64_to_le_bytes(value: parsed_next, buffer: &output_buffer[0_u64..8_u64]);
-              u64_to_le_bytes(value: value_check, buffer: &output_buffer[8_u64..16_u64]);
-              u64_to_le_bytes(value: 1_u64, buffer: &output_buffer[16_u64..24_u64]);
-              let write_outcome = write_bytes(factory: &factory, output: &output, source: &output_buffer[0_u64..24_u64], length: 24_u64);
-              match write_outcome {
-                Ok(value: unused_ok) => {
-                  return exit_status(code: 0_u8);
-                }
-                Err(error: unused_err) => {
-                  return exit_status(code: 250_u8);
-                }
-              }
-            } else {
-              return exit_status(code: 1_u8);
-            }
-          }
-          Overflow() => {
-            return exit_status(code: 1_u8);
+
+  let output = array_filled::<u8, 24>(value: 0_u8);
+  u64_to_le_bytes(value: 5_u64, buffer: &output[0_u64..24_u64], offset: 0_u64);
+  u64_to_le_bytes(value: eval_value, buffer: &output[0_u64..24_u64], offset: 8_u64);
+  let error_u64 = cvt::<u8, u64>(error_marker);
+  u64_to_le_bytes(value: error_u64, buffer: &output[0_u64..24_u64], offset: 16_u64);
+
+  let cancel = cancel_never();
+  let write_result = write_once(factory: &factory, output: &stdout_stream, source: &output[0_u64..24_u64], start: 0_u64, end: 24_u64, deadline: None<Instant>(), cancel: &cancel);
+  close_cancel_watch(watch: move cancel);
+
+  let final_code = 0_u8;
+  if parse1_ok {
+    if parse2_ok {
+      match write_result {
+        Ok(value: written) => {
+          if written != 24_u64 {
+            set final_code = 1_u8;
           }
         }
-      }
-      Error(error: parse_err) => {
-        match parse_err {
-          Truncated() => {
-            return exit_status(code: 1_u8);
-          }
-          InvalidToken() => {
-            return exit_status(code: 1_u8);
-          }
+        Err(error: err) => {
+          set final_code = 250_u8;
         }
       }
+    } else {
+      set final_code = 1_u8;
     }
   } else {
-    return exit_status(code: 1_u8);
+    set final_code = 1_u8;
   }
+
+  return exit_status(code: final_code);
 }

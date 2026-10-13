@@ -1,0 +1,4 @@
+fn from_whole_pixels(pixels: i32) -> result: Coordinate pure {
+  let scaled = pixels *sat 64_i32;
+  return Coordinate(value: scaled);
+}

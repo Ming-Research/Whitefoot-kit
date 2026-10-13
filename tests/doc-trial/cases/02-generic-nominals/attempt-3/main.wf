@@ -1,0 +1,113 @@
+alias ExitStatus = std::process::ExitStatus;
+alias Inputs = std::process::Inputs;
+alias exit_status = std::process::exit_status;
+
+struct Pair<T> {
+  left: T;
+  right: T;
+}
+
+enum Choice<T> {
+  Present(value: T);
+  Absent();
+}
+
+fn write_u64_le(buffer: &[u8], offset: u64, value: u64) -> result: unit writes(buffer) contract {
+  requires offset + 8_u64 <= buffer^.len;
+} {
+  let byte0 = cvt::<u64, u8>(value);
+  let value1 = ishr(value, 8_u32);
+  let byte1 = cvt::<u64, u8>(value1);
+  let value2 = ishr(value, 16_u32);
+  let byte2 = cvt::<u64, u8>(value2);
+  let value3 = ishr(value, 24_u32);
+  let byte3 = cvt::<u64, u8>(value3);
+  let value4 = ishr(value, 32_u32);
+  let byte4 = cvt::<u64, u8>(value4);
+  let value5 = ishr(value, 40_u32);
+  let byte5 = cvt::<u64, u8>(value5);
+  let value6 = ishr(value, 48_u32);
+  let byte6 = cvt::<u64, u8>(value6);
+  let value7 = ishr(value, 56_u32);
+  let byte7 = cvt::<u64, u8>(value7);
+  set buffer^[offset] = byte0;
+  set buffer^[offset + 1_u64] = byte1;
+  set buffer^[offset + 2_u64] = byte2;
+  set buffer^[offset + 3_u64] = byte3;
+  set buffer^[offset + 4_u64] = byte4;
+  set buffer^[offset + 5_u64] = byte5;
+  set buffer^[offset + 6_u64] = byte6;
+  set buffer^[offset + 7_u64] = byte7;
+  return unit;
+}
+
+fn write_i64_le(buffer: &[u8], offset: u64, value: i64) -> result: unit writes(buffer) contract {
+  requires offset + 8_u64 <= buffer^.len;
+} {
+  let as_u64 = reinterpret::<i64, u64>(value);
+  return write_u64_le(buffer: buffer, offset: offset, value: as_u64);
+}
+
+fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+  let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd, stdout: output, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let std::fs::Directory(read: directory, write: directory_write) = move cwd;
+  let closed_write = std::fs::close_directory_write(factory: &factory, directory: move directory_write);
+  let closed_read = std::fs::close_directory(factory: &factory, directory: move directory);
+  let buffer = array_filled::<u8, 72>(value: 0_u8);
+  let byte_pair = Pair<u8>(left: 7_u8, right: 7_u8);
+  let signed_pair = Pair<i64>(left: -9_i64, right: -9_i64);
+  let choice1 = Choice<u8>::Present(value: 3_u8);
+  let choice2 = Choice<i64>::Present(value: -5_i64);
+  let choice1_val = match choice1 {
+    Present(value: v) => v
+    Absent() => 0_u8
+  };
+  let choice2_val = match choice2 {
+    Present(value: v) => v
+    Absent() => 0_i64
+  };
+  let sum_result = 1_u8 +checked 2_u8;
+  let sum1 = match sum_result {
+    Ok(value: val) => val
+    Err(error: err) => 0_u8
+  };
+  let overflow_result = 255_u8 +checked 1_u8;
+  let overflow_marker = match overflow_result {
+    Ok(value: val) => 0_u8
+    Err(error: err) => 1_u8
+  };
+  let signed_sum = -4_i64 + 9_i64;
+  let optional_byte = Some<u8>(value: 19_u8);
+  let recovered_optional = match optional_byte {
+    Some(value: byte) => byte
+    None() => 0_u8
+  };
+  let packet = array_filled::<u8, 2>(value: 11_u8);
+  let packet_boxed = box_new::<Array<u8, 2>>(value: move packet);
+  let second_byte = packet_boxed.inner[1_u64];
+  write_u64_le(buffer: &buffer, offset: 0_u64, value: cvt::<u8, u64>(byte_pair.left));
+  write_i64_le(buffer: &buffer, offset: 8_u64, value: signed_pair.right);
+  write_u64_le(buffer: &buffer, offset: 16_u64, value: cvt::<u8, u64>(choice1_val));
+  write_i64_le(buffer: &buffer, offset: 24_u64, value: choice2_val);
+  write_u64_le(buffer: &buffer, offset: 32_u64, value: cvt::<u8, u64>(sum1));
+  write_u64_le(buffer: &buffer, offset: 40_u64, value: cvt::<u8, u64>(overflow_marker));
+  write_i64_le(buffer: &buffer, offset: 48_u64, value: signed_sum);
+  write_u64_le(buffer: &buffer, offset: 56_u64, value: cvt::<u8, u64>(recovered_optional));
+  write_u64_le(buffer: &buffer, offset: 64_u64, value: cvt::<u8, u64>(second_byte));
+  let no_deadline = None<std::time::Instant>();
+  let cancel = std::time::cancel_never();
+  let write_result = std::io::write_once(factory: &factory, output: &output, source: &buffer[0_u64..72_u64], start: 0_u64, end: 72_u64, deadline: no_deadline, cancel: &cancel);
+  std::time::close_cancel_watch(watch: move cancel);
+  match write_result {
+    Ok(value: written) => {
+      if written == 72_u64 {
+        return exit_status(code: 0_u8);
+      } else {
+        return exit_status(code: 250_u8);
+      }
+    }
+    Err(error: err) => {
+      return exit_status(code: 250_u8);
+    }
+  }
+}

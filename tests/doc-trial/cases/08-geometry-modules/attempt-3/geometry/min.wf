@@ -1,0 +1,9 @@
+fn min(left: Coordinate, right: Coordinate) -> result: Coordinate pure {
+  let is_left_less = left.value < right.value;
+  let result = if is_left_less {
+    give left;
+  } else {
+    give right;
+  }
+  return result;
+}

@@ -1,0 +1,148 @@
+alias ExitStatus = std::process::ExitStatus;
+alias Inputs = std::process::Inputs;
+alias exit_status = std::process::exit_status;
+alias HandleFactory = std::io::HandleFactory;
+alias OutputStream = std::io::OutputStream;
+alias Instant = std::time::Instant;
+alias CancelWatch = std::time::CancelWatch;
+
+struct Lease {
+  block: Array<u8, 256>;
+}
+
+struct Pool {
+  free_count: u64;
+}
+
+struct PoolTakeResult {
+  pool: Pool;
+  lease: Option<Lease>;
+}
+
+fn pool_new() -> result: Pool pure {
+  return Pool(free_count: 8_u64);
+}
+
+fn pool_take(pool: Pool) -> result: PoolTakeResult pure {
+  if pool.free_count > 0_u64 {
+    let new_pool = Pool(free_count: pool.free_count - 1_u64);
+    let block = array_filled::<u8, 256>(value: 0_u8);
+    let lease = Lease(block: move block);
+    let with_lease = Some<Lease>(value: move lease);
+    return PoolTakeResult(pool: move new_pool, lease: move with_lease);
+  }
+  let no_lease = None<Lease>();
+  return PoolTakeResult(pool: move pool, lease: move no_lease);
+}
+
+fn pool_return(pool: Pool, lease: Lease) -> result: Pool pure {
+  let Lease(block: unused_block) = move lease;
+  return Pool(free_count: pool.free_count + 1_u64);
+}
+
+fn write_u64_le(factory: &HandleFactory, output: &OutputStream, value: u64) -> result: Result<unit, std::io::IoError> writes(factory), writes(output) waits {
+  let bytes = array_filled::<u8, 8>(value: 0_u8);
+  let masked_0 = iand(value, 255_u64);
+  set bytes[0_u64] = cvt::<u64, u8>(masked_0);
+  let shift_1 = ishr(value, 8_u32);
+  let masked_1 = iand(shift_1, 255_u64);
+  set bytes[1_u64] = cvt::<u64, u8>(masked_1);
+  let shift_2 = ishr(value, 16_u32);
+  let masked_2 = iand(shift_2, 255_u64);
+  set bytes[2_u64] = cvt::<u64, u8>(masked_2);
+  let shift_3 = ishr(value, 24_u32);
+  let masked_3 = iand(shift_3, 255_u64);
+  set bytes[3_u64] = cvt::<u64, u8>(masked_3);
+  let shift_4 = ishr(value, 32_u32);
+  let masked_4 = iand(shift_4, 255_u64);
+  set bytes[4_u64] = cvt::<u64, u8>(masked_4);
+  let shift_5 = ishr(value, 40_u32);
+  let masked_5 = iand(shift_5, 255_u64);
+  set bytes[5_u64] = cvt::<u64, u8>(masked_5);
+  let shift_6 = ishr(value, 48_u32);
+  let masked_6 = iand(shift_6, 255_u64);
+  set bytes[6_u64] = cvt::<u64, u8>(masked_6);
+  let shift_7 = ishr(value, 56_u32);
+  set bytes[7_u64] = cvt::<u64, u8>(shift_7);
+  let window = &bytes[0_u64..8_u64];
+  let no_deadline = None<Instant>();
+  let cancel = std::time::cancel_never();
+  let result = std::io::write_once(factory: factory, output: output, source: window, start: 0_u64, end: 8_u64, deadline: no_deadline, cancel: &cancel);
+  std::time::close_cancel_watch(watch: move cancel);
+  match result {
+    Ok(value: next) => {
+      if next == 8_u64 {
+        return Ok<unit, std::io::IoError>(value: unit);
+      }
+      let error = std::io::IoError::WriteZero(code: 0_u32, origin: 0_u8);
+      return Err<unit, std::io::IoError>(error: error);
+    }
+    Err(error: problem) => {
+      return Err<unit, std::io::IoError>(error: problem);
+    }
+  }
+}
+
+fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+  let Inputs(cwd: cwd_directory, handles: factory, stdout: output, ..) = move inputs;
+  let std::fs::Directory(read: directory_read, write: directory_write) = move cwd_directory;
+  std::fs::close_directory_write(factory: &factory, directory: move directory_write);
+  std::fs::close_directory(factory: &factory, directory: move directory_read);
+  let pool = pool_new();
+  let initial_count = pool.free_count;
+  if initial_count != 8_u64 {
+    return exit_status(code: 2_u8);
+  }
+  let taken_result = pool_take(pool: move pool);
+  let taken_pool = taken_result.pool;
+  let lease_option = taken_result.lease;
+  let mid_count = taken_pool.free_count;
+  if mid_count != 7_u64 {
+    return exit_status(code: 3_u8);
+  }
+  let returned_option = match move lease_option {
+    Some(value: lease) => {
+      let returned_pool = pool_return(pool: move taken_pool, lease: move lease);
+      let final_count = returned_pool.free_count;
+      if final_count != 8_u64 {
+        return exit_status(code: 4_u8);
+      }
+      give Some<Pool>(value: move returned_pool);
+    }
+    None() => {
+      give None<Pool>();
+    }
+  };
+  match move returned_option {
+    Some(value: final_pool) => {
+    }
+    None() => {
+      return exit_status(code: 5_u8);
+    }
+  }
+  let write1 = write_u64_le(factory: &factory, output: &output, value: 8_u64);
+  match write1 {
+    Ok(value: unused_ok1) => {
+    }
+    Err(error: unused_err1) => {
+      return exit_status(code: 250_u8);
+    }
+  }
+  let write2 = write_u64_le(factory: &factory, output: &output, value: 7_u64);
+  match write2 {
+    Ok(value: unused_ok2) => {
+    }
+    Err(error: unused_err2) => {
+      return exit_status(code: 250_u8);
+    }
+  }
+  let write3 = write_u64_le(factory: &factory, output: &output, value: 8_u64);
+  match write3 {
+    Ok(value: unused_ok3) => {
+    }
+    Err(error: unused_err3) => {
+      return exit_status(code: 250_u8);
+    }
+  }
+  return exit_status(code: 0_u8);
+}

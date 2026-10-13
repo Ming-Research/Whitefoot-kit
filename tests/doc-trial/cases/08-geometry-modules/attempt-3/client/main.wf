@@ -1,0 +1,137 @@
+alias ExitStatus = std::process::ExitStatus;
+alias exit_status = std::process::exit_status;
+alias Inputs = std::process::Inputs;
+alias Coordinate = pkg::geometry::Coordinate;
+alias Rectangle = pkg::geometry::Rectangle;
+alias from_whole_pixels = pkg::geometry::from_whole_pixels;
+alias from_f64_pixels = pkg::geometry::from_f64_pixels;
+alias to_f64_pixels = pkg::geometry::to_f64_pixels;
+alias add_saturating = pkg::geometry::add_saturating;
+alias sub_saturating = pkg::geometry::sub_saturating;
+alias contains_point = pkg::geometry::contains_point;
+alias intersects = pkg::geometry::intersects;
+
+fn write_u64_le(bytes: &[u8], offset: u64, value: u64) -> result: unit pure {
+  let byte0 = cvt.wrap::<u64, u8>(value);
+  set bytes^[offset] = byte0;
+  let shift1 = ishr(value, 8_u32);
+  let byte1 = cvt.wrap::<u64, u8>(shift1);
+  set bytes^[offset + 1_u64] = byte1;
+  let shift2 = ishr(value, 16_u32);
+  let byte2 = cvt.wrap::<u64, u8>(shift2);
+  set bytes^[offset + 2_u64] = byte2;
+  let shift3 = ishr(value, 24_u32);
+  let byte3 = cvt.wrap::<u64, u8>(shift3);
+  set bytes^[offset + 3_u64] = byte3;
+  let shift4 = ishr(value, 32_u32);
+  let byte4 = cvt.wrap::<u64, u8>(shift4);
+  set bytes^[offset + 4_u64] = byte4;
+  let shift5 = ishr(value, 40_u32);
+  let byte5 = cvt.wrap::<u64, u8>(shift5);
+  set bytes^[offset + 5_u64] = byte5;
+  let shift6 = ishr(value, 48_u32);
+  let byte6 = cvt.wrap::<u64, u8>(shift6);
+  set bytes^[offset + 6_u64] = byte6;
+  let shift7 = ishr(value, 56_u32);
+  let byte7 = cvt.wrap::<u64, u8>(shift7);
+  set bytes^[offset + 7_u64] = byte7;
+  return unit;
+}
+
+fn write_i64_le(bytes: &[u8], offset: u64, value: i64) -> result: unit pure {
+  let as_u64 = reinterpret::<i64, u64>(value);
+  write_u64_le(bytes: bytes, offset: offset, value: as_u64);
+  return unit;
+}
+
+fn write_f64_le(bytes: &[u8], offset: u64, value: f64) -> result: unit pure {
+  let as_u64 = reinterpret::<f64, u64>(value);
+  write_u64_le(bytes: bytes, offset: offset, value: as_u64);
+  return unit;
+}
+
+fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+  let Inputs(cwd: cwd_directory, handles: factory, stdout: output, ..) = move inputs;
+  let std::fs::Directory(read: cwd, write: cwd_write) = move cwd_directory;
+  let write_close_result = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
+  let read_close_result = std::fs::close_directory(factory: &factory, directory: move cwd);
+  let buffer = array_filled::<u8, 112>(value: 0_u8);
+  let obs1 = from_whole_pixels(pixels: 2_i32);
+  write_i64_le(bytes: &buffer[0_u64..112_u64], offset: 0_u64, value: cvt::<i32, i64>(obs1.value));
+  let obs2 = from_whole_pixels(pixels: 2147483647_i32);
+  write_i64_le(bytes: &buffer[0_u64..112_u64], offset: 8_u64, value: cvt::<i32, i64>(obs2.value));
+  let obs3 = from_whole_pixels(pixels: -2147483648_i32);
+  write_i64_le(bytes: &buffer[0_u64..112_u64], offset: 16_u64, value: cvt::<i32, i64>(obs3.value));
+  let obs4 = from_f64_pixels(pixels: 1.5_f64);
+  write_i64_le(bytes: &buffer[0_u64..112_u64], offset: 24_u64, value: cvt::<i32, i64>(obs4.value));
+  let obs5 = to_f64_pixels(coord: obs4);
+  write_f64_le(bytes: &buffer[0_u64..112_u64], offset: 32_u64, value: obs5);
+  let obs6 = from_f64_pixels(pixels: 0.0078125_f64);
+  write_i64_le(bytes: &buffer[0_u64..112_u64], offset: 40_u64, value: cvt::<i32, i64>(obs6.value));
+  let obs7 = from_f64_pixels(pixels: 0.0234375_f64);
+  write_i64_le(bytes: &buffer[0_u64..112_u64], offset: 48_u64, value: cvt::<i32, i64>(obs7.value));
+  let max_coord = Coordinate(value: 2147483647_i32);
+  let one_pixel = Coordinate(value: 64_i32);
+  let obs8 = add_saturating(left: max_coord, right: one_pixel);
+  write_i64_le(bytes: &buffer[0_u64..112_u64], offset: 56_u64, value: cvt::<i32, i64>(obs8.value));
+  let min_coord = Coordinate(value: -2147483648_i32);
+  let obs9 = sub_saturating(left: min_coord, right: one_pixel);
+  write_i64_le(bytes: &buffer[0_u64..112_u64], offset: 64_u64, value: cvt::<i32, i64>(obs9.value));
+  let rect = Rectangle(left: from_whole_pixels(pixels: 10_i32), top: from_whole_pixels(pixels: 20_i32), width: from_whole_pixels(pixels: 3_i32), height: from_whole_pixels(pixels: 4_i32));
+  let point1 = from_whole_pixels(pixels: 10_i32);
+  let point2 = from_whole_pixels(pixels: 20_i32);
+  let obs10 = contains_point(rect: rect, x: point1, y: point2);
+  let obs10_u64 = if obs10 {
+    give 1_u64;
+  } else {
+    give 0_u64;
+  }
+  write_u64_le(bytes: &buffer[0_u64..112_u64], offset: 72_u64, value: obs10_u64);
+  let point3 = from_whole_pixels(pixels: 12_i32);
+  let point4 = from_whole_pixels(pixels: 23_i32);
+  let obs11 = contains_point(rect: rect, x: point3, y: point4);
+  let obs11_u64 = if obs11 {
+    give 1_u64;
+  } else {
+    give 0_u64;
+  }
+  write_u64_le(bytes: &buffer[0_u64..112_u64], offset: 80_u64, value: obs11_u64);
+  let point5 = from_whole_pixels(pixels: 13_i32);
+  let obs12 = contains_point(rect: rect, x: point5, y: point4);
+  let obs12_u64 = if obs12 {
+    give 1_u64;
+  } else {
+    give 0_u64;
+  }
+  write_u64_le(bytes: &buffer[0_u64..112_u64], offset: 88_u64, value: obs12_u64);
+  let point6 = from_whole_pixels(pixels: 24_i32);
+  let obs13 = contains_point(rect: rect, x: point3, y: point6);
+  let obs13_u64 = if obs13 {
+    give 1_u64;
+  } else {
+    give 0_u64;
+  }
+  write_u64_le(bytes: &buffer[0_u64..112_u64], offset: 96_u64, value: obs13_u64);
+  let rect2 = Rectangle(left: from_whole_pixels(pixels: 13_i32), top: from_whole_pixels(pixels: 20_i32), width: from_whole_pixels(pixels: 3_i32), height: from_whole_pixels(pixels: 4_i32));
+  let obs14 = intersects(rect1: rect, rect2: rect2);
+  let obs14_u64 = if obs14 {
+    give 1_u64;
+  } else {
+    give 0_u64;
+  }
+  write_u64_le(bytes: &buffer[0_u64..112_u64], offset: 104_u64, value: obs14_u64);
+  let cancel = std::time::cancel_never();
+  let write_result = std::io::write_once(factory: &factory, output: &output, source: &buffer[0_u64..112_u64], start: 0_u64, end: 112_u64, deadline: None<std::time::Instant>(), cancel: &cancel);
+  match write_result {
+    Ok(value: written) => {
+      if written == 112_u64 {
+        return exit_status(code: 0_u8);
+      } else {
+        return exit_status(code: 1_u8);
+      }
+    }
+    Err(error: unused_error) => {
+      return exit_status(code: 1_u8);
+    }
+  }
+}

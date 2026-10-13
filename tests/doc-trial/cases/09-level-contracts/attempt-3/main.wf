@@ -1,0 +1,249 @@
+alias ExitStatus = std::process::ExitStatus;
+alias exit_status = std::process::exit_status;
+alias HandleFactory = std::io::HandleFactory;
+alias OutputStream = std::io::OutputStream;
+alias Inputs = std::process::Inputs;
+alias IoError = std::io::IoError;
+
+const parents_valid: Array<u32, 6> =[6_u32, 0_u32, 0_u32, 1_u32, 1_u32, 2_u32];
+const depths_valid: Array<u32, 6> =[0_u32, 1_u32, 1_u32, 2_u32, 2_u32, 2_u32];
+
+const parents_bad_parent: Array<u32, 6> =[6_u32, 0_u32, 0_u32, 2_u32, 1_u32, 2_u32];
+const depths_bad_parent: Array<u32, 6> =[0_u32, 1_u32, 1_u32, 2_u32, 2_u32, 2_u32];
+
+const parents_bad_depth: Array<u32, 6> =[6_u32, 0_u32, 0_u32, 1_u32, 1_u32, 2_u32];
+const depths_bad_depth: Array<u32, 6> =[0_u32, 1_u32, 1_u32, 2_u32, 2_u32, 1_u32];
+
+const parents_bad_root: Array<u32, 6> =[6_u32, 0_u32, 0_u32, 1_u32, 1_u32, 2_u32];
+const depths_bad_root: Array<u32, 6> =[4097_u32, 1_u32, 1_u32, 2_u32, 2_u32, 2_u32];
+
+fn validate(parents: &[u32], depths: &[u32]) -> result: Bool pure contract {
+  requires parents^.len == depths^.len;
+} {
+  let n = parents^.len;
+  for (i in 0_u64..n) {
+    let depth = depths^[i];
+    if depth > 4096_u32 {
+      return False();
+    }
+    let parent = parents^[i];
+    let n_u32 = cvt::<u64, u32>(n);
+    if parent == n_u32 {
+      continue;
+    }
+    if parent >= n_u32 {
+      return False();
+    }
+    let parent_u64 = cvt::<u32, u64>(parent);
+    if parent_u64 >= i {
+      return False();
+    }
+    let parent_depth = depths^[parent_u64];
+    if depth != parent_depth + 1_u32 {
+      return False();
+    }
+  }
+  return True();
+}
+
+fn find_max_depth(depths: &[u32]) -> result: u32 pure {
+  let max_d = 0_u32;
+  let n = depths^.len;
+  for (i in 0_u64..n) {
+    let d = depths^[i];
+    if d > max_d {
+      set max_d = d;
+    }
+  }
+  return max_d;
+}
+
+fn write_u64_le(factory: &HandleFactory, output: &OutputStream, value: u64) -> result: Result<unit, IoError> writes(factory), writes(output) waits {
+  let buffer = array_filled::<u8, 8>(value: 0_u8);
+  set buffer[0_u64] = cvt::<u64, u8>(iand(value, 255_u64));
+  let v1 = ishr(value, 8_u32);
+  set buffer[1_u64] = cvt::<u64, u8>(iand(v1, 255_u64));
+  let v2 = ishr(value, 16_u32);
+  set buffer[2_u64] = cvt::<u64, u8>(iand(v2, 255_u64));
+  let v3 = ishr(value, 24_u32);
+  set buffer[3_u64] = cvt::<u64, u8>(iand(v3, 255_u64));
+  let v4 = ishr(value, 32_u32);
+  set buffer[4_u64] = cvt::<u64, u8>(iand(v4, 255_u64));
+  let v5 = ishr(value, 40_u32);
+  set buffer[5_u64] = cvt::<u64, u8>(iand(v5, 255_u64));
+  let v6 = ishr(value, 48_u32);
+  set buffer[6_u64] = cvt::<u64, u8>(iand(v6, 255_u64));
+  let v7 = ishr(value, 56_u32);
+  set buffer[7_u64] = cvt::<u64, u8>(iand(v7, 255_u64));
+
+  let written = 0_u64;
+  loop @write_loop {
+    if written < 8_u64 {
+    } else {
+      break @write_loop;
+    }
+    let no_deadline = None<std::time::Instant>();
+    let cancel = std::time::cancel_never();
+    let start = written;
+    let end = 8_u64;
+    let outcome = std::io::write_once(factory: factory, output: output, source: &buffer[start..end], start: 0_u64, end: end - start, deadline: no_deadline, cancel: &cancel);
+    std::time::close_cancel_watch(watch: move cancel);
+    match outcome {
+      Ok(value: next) => {
+        set written = written + next;
+      }
+      Err(error: problem) => {
+        return Err<unit, IoError>(error: problem);
+      }
+    }
+  }
+  return Ok<unit, IoError>(value: unit);
+}
+
+fn process_and_write(factory: &HandleFactory, output: &OutputStream, parents: &[u32], depths: &[u32]) -> result: Result<unit, IoError> reads(parents), reads(depths), writes(factory), writes(output) waits {
+  let is_valid = validate(parents: parents, depths: depths);
+  if is_valid {
+    let acceptance = 1_u64;
+    let write_acceptance = write_u64_le(factory: factory, output: output, value: acceptance);
+    match write_acceptance {
+      Ok(value: unused) => {
+      }
+      Err(error: problem) => {
+        return Err<unit, IoError>(error: problem);
+      }
+    }
+
+    let n = parents^.len;
+    let max_depth = find_max_depth(depths: depths);
+    let max_depth_u64 = cvt::<u32, u64>(max_depth);
+    let num_groups = max_depth_u64 + 1_u64;
+
+    let write_groups = write_u64_le(factory: factory, output: output, value: num_groups);
+    match write_groups {
+      Ok(value: unused) => {
+      }
+      Err(error: problem) => {
+        return Err<unit, IoError>(error: problem);
+      }
+    }
+
+    for (d in 0_u64..num_groups) {
+      let group_len = 0_u64;
+      for (i in 0_u64..n) {
+        let node_depth = depths^[i];
+        let node_depth_u64 = cvt::<u32, u64>(node_depth);
+        if node_depth_u64 == d {
+          set group_len = group_len + 1_u64;
+        }
+      }
+      let write_len = write_u64_le(factory: factory, output: output, value: group_len);
+      match write_len {
+        Ok(value: unused) => {
+        }
+        Err(error: problem) => {
+          return Err<unit, IoError>(error: problem);
+        }
+      }
+
+      for (i in 0_u64..n) {
+        let node_depth = depths^[i];
+        let node_depth_u64 = cvt::<u32, u64>(node_depth);
+        if node_depth_u64 == d {
+          let write_node = write_u64_le(factory: factory, output: output, value: i);
+          match write_node {
+            Ok(value: unused) => {
+            }
+            Err(error: problem) => {
+              return Err<unit, IoError>(error: problem);
+            }
+          }
+        }
+      }
+    }
+
+    let write_count = write_u64_le(factory: factory, output: output, value: n);
+    match write_count {
+      Ok(value: unused) => {
+      }
+      Err(error: problem) => {
+        return Err<unit, IoError>(error: problem);
+      }
+    }
+
+    for (i in 0_u64..n) {
+      let pos = 0_u64;
+      for (j in 0_u64..i) {
+        let j_depth = depths^[j];
+        let i_depth = depths^[i];
+        if j_depth == i_depth {
+          set pos = pos + 1_u64;
+        }
+      }
+      let write_pos = write_u64_le(factory: factory, output: output, value: pos);
+      match write_pos {
+        Ok(value: unused) => {
+        }
+        Err(error: problem) => {
+          return Err<unit, IoError>(error: problem);
+        }
+      }
+    }
+
+    return Ok<unit, IoError>(value: unit);
+  } else {
+    let acceptance = 0_u64;
+    return write_u64_le(factory: factory, output: output, value: acceptance);
+  }
+}
+
+fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+  let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd, stdout: stdout, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let std::fs::Directory(read: directory, write: writable) = move cwd;
+  std::fs::close_directory_write(factory: &factory, directory: move writable);
+  std::fs::close_directory(factory: &factory, directory: move directory);
+
+  let parents_valid_ref = &parents_valid[0_u64..6_u64];
+  let depths_valid_ref = &depths_valid[0_u64..6_u64];
+  let outcome_valid = process_and_write(factory: &factory, output: &stdout, parents: parents_valid_ref, depths: depths_valid_ref);
+
+  let code = match outcome_valid {
+    Ok(value: unused) => {
+      let parents_bad_p_ref = &parents_bad_parent[0_u64..6_u64];
+      let depths_bad_p_ref = &depths_bad_parent[0_u64..6_u64];
+      let outcome_bad_p = process_and_write(factory: &factory, output: &stdout, parents: parents_bad_p_ref, depths: depths_bad_p_ref);
+      match outcome_bad_p {
+        Ok(value: unused) => {
+          let parents_bad_d_ref = &parents_bad_depth[0_u64..6_u64];
+          let depths_bad_d_ref = &depths_bad_depth[0_u64..6_u64];
+          let outcome_bad_d = process_and_write(factory: &factory, output: &stdout, parents: parents_bad_d_ref, depths: depths_bad_d_ref);
+          match outcome_bad_d {
+            Ok(value: unused) => {
+              let parents_bad_r_ref = &parents_bad_root[0_u64..6_u64];
+              let depths_bad_r_ref = &depths_bad_root[0_u64..6_u64];
+              let outcome_bad_r = process_and_write(factory: &factory, output: &stdout, parents: parents_bad_r_ref, depths: depths_bad_r_ref);
+              match outcome_bad_r {
+                Ok(value: unused) => {
+                  0_u8
+                }
+                Err(error: unused) => {
+                  1_u8
+                }
+              }
+            }
+            Err(error: unused) => {
+              1_u8
+            }
+          }
+        }
+        Err(error: unused) => {
+          1_u8
+        }
+      }
+    }
+    Err(error: unused) => {
+      1_u8
+    }
+  };
+
+  return exit_status(code: code);
+}

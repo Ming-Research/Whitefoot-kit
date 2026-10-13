@@ -1,22 +1,119 @@
 alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
 alias exit_status = std::process::exit_status;
-alias OutputStream = std::io::OutputStream;
 alias HandleFactory = std::io::HandleFactory;
+alias OutputStream = std::io::OutputStream;
 alias IoError = std::io::IoError;
+alias Instant = std::time::Instant;
+alias CancelWatch = std::time::CancelWatch;
 
-fn write_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], length: u64) -> result: Result<unit, IoError> reads(source), writes(factory), writes(output) waits contract {
-  requires length <= source^.len;
+fn write_u64_le(buffer: &[u8], offset: u64, value: u64) -> result: unit writes(buffer) contract {
+  requires offset + 8_u64 <= buffer^.len;
 } {
+  let b0 = cvt.wrap::<u64, u8>(value);
+  let b1 = cvt.wrap::<u64, u8>(ishr(value, 8_u32));
+  let b2 = cvt.wrap::<u64, u8>(ishr(value, 16_u32));
+  let b3 = cvt.wrap::<u64, u8>(ishr(value, 24_u32));
+  let b4 = cvt.wrap::<u64, u8>(ishr(value, 32_u32));
+  let b5 = cvt.wrap::<u64, u8>(ishr(value, 40_u32));
+  let b6 = cvt.wrap::<u64, u8>(ishr(value, 48_u32));
+  let b7 = cvt.wrap::<u64, u8>(ishr(value, 56_u32));
+  set buffer^[offset] = b0;
+  set buffer^[offset + 1_u64] = b1;
+  set buffer^[offset + 2_u64] = b2;
+  set buffer^[offset + 3_u64] = b3;
+  set buffer^[offset + 4_u64] = b4;
+  set buffer^[offset + 5_u64] = b5;
+  set buffer^[offset + 6_u64] = b6;
+  set buffer^[offset + 7_u64] = b7;
+  return unit;
+}
+
+fn validate(parents: &[u32], depths: &[u32]) -> result: Bool pure contract {
+  requires parents^.len == depths^.len;
+} {
+  let n = parents^.len;
+  if n == 0_u64 {
+    return True();
+  }
+  let valid = True();
+  for (i in 0_u64..n) {
+    let parent = parents^[i];
+    let depth = depths^[i];
+    let depth_valid = depth <= 4096_u32;
+    if depth_valid {
+    } else {
+      set valid = False();
+      break;
+    }
+    let n_u32 = cvt.wrap::<u64, u32>(n);
+    let is_sentinel = parent == n_u32;
+    if is_sentinel {
+    } else {
+      let parent_u64 = cvt.wrap::<u32, u64>(parent);
+      let parent_in_range = parent_u64 < i;
+      if parent_in_range {
+        let parent_depth = depths^[parent_u64];
+        let parent_depth_ok = parent_depth + 1_u32 == depth;
+        if parent_depth_ok {
+        } else {
+          set valid = False();
+          break;
+        }
+      } else {
+        set valid = False();
+        break;
+      }
+    }
+  }
+  return valid;
+}
+
+fn count_groups(depths: &[u32]) -> result: u64 pure {
+  let n = depths^.len;
+  if n == 0_u64 {
+    return 1_u64;
+  }
+  let max_depth = 0_u32;
+  for (i in 0_u64..n) {
+    let d = depths^[i];
+    if d > max_depth {
+      set max_depth = d;
+    }
+  }
+  let num_groups = cvt.wrap::<u32, u64>(max_depth) + 1_u64;
+  return num_groups;
+}
+
+fn build_positions(depths: &[u32], positions: &[u64]) -> result: unit writes(positions) contract {
+  requires positions^.len == depths^.len;
+} {
+  let n = depths^.len;
+  let counts = array_filled::<u64, 4097>(value: 0_u64);
+  for (i in 0_u64..n) {
+    let depth = depths^[i];
+    let depth_u64 = cvt.wrap::<u32, u64>(depth);
+    if depth_u64 < 4097_u64 {
+      let count = counts[depth_u64];
+      set positions^[i] = count;
+      let next = count + 1_u64;
+      set counts[depth_u64] = next;
+    }
+  }
+  return unit;
+}
+
+fn write_all(factory: &HandleFactory, output: &OutputStream, buffer: &[u8]) -> result: Result<unit, IoError> reads(buffer), writes(factory), writes(output) waits {
+  let length = buffer^.len;
   let sent = 0_u64;
   loop @publish {
     if sent < length {
     } else {
       break @publish;
     }
-    let no_deadline = None<std::time::Instant>();
+    let no_deadline = None<Instant>();
     let cancel = std::time::cancel_never();
-    let outcome = std::io::write_once(factory: factory, output: output, source: source, start: sent, end: length, deadline: no_deadline, cancel: &cancel);
+    let outcome = std::io::write_once(factory: factory, output: output, source: buffer, start: sent, end: length, deadline: no_deadline, cancel: &cancel);
     std::time::close_cancel_watch(watch: move cancel);
     match outcome {
       Ok(value: next) => {
@@ -30,167 +127,13 @@ fn write_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], leng
   return Ok<unit, IoError>(value: unit);
 }
 
-fn write_u64_le(factory: &HandleFactory, output: &OutputStream, value: u64) -> result: Result<unit, IoError> reads(output), writes(factory), writes(output) waits {
-  let bytes = array_filled::<u8, 8>(value: 0_u8);
-  let b0 = cvt.wrap::<u64, u8>(value);
-  let v1 = ishr(value, 8_u32);
-  let b1 = cvt.wrap::<u64, u8>(v1);
-  let v2 = ishr(value, 16_u32);
-  let b2 = cvt.wrap::<u64, u8>(v2);
-  let v3 = ishr(value, 24_u32);
-  let b3 = cvt.wrap::<u64, u8>(v3);
-  let v4 = ishr(value, 32_u32);
-  let b4 = cvt.wrap::<u64, u8>(v4);
-  let v5 = ishr(value, 40_u32);
-  let b5 = cvt.wrap::<u64, u8>(v5);
-  let v6 = ishr(value, 48_u32);
-  let b6 = cvt.wrap::<u64, u8>(v6);
-  let v7 = ishr(value, 56_u32);
-  let b7 = cvt.wrap::<u64, u8>(v7);
-  set bytes[0_u64] = b0;
-  set bytes[1_u64] = b1;
-  set bytes[2_u64] = b2;
-  set bytes[3_u64] = b3;
-  set bytes[4_u64] = b4;
-  set bytes[5_u64] = b5;
-  set bytes[6_u64] = b6;
-  set bytes[7_u64] = b7;
-  let window = &bytes[0_u64..8_u64];
-  return write_all(factory: factory, output: output, source: window, length: 8_u64);
-}
-
-struct ProcessResult {
-  is_valid: Bool;
-  groups_buf: Box<Slots<u64>>;
-  counts_buf: Box<Slots<u64>>;
-  positions_buf: Box<Slots<u64>>;
-  max_depth_val: u32;
-}
-
-fn validate_and_process(parents: &[u32], depths: &[u32]) -> result: ProcessResult pure contract {
-  requires parents^.len == depths^.len;
-} {
-  let len = parents^.len;
-  let groups_buf = box_slots_new::<u64>(capacity: len);
-  let counts_buf = box_slots_new::<u64>(capacity: 4097_u64);
-  let positions_buf = box_slots_new::<u64>(capacity: len);
-  let is_valid = True();
-  let max_depth_val = 0_u32;
-  let i = 0_u64;
-  loop @validate {
-    if i < len {
-    } else {
-      break @validate;
-    }
-    let parent = parents^[i];
-    let depth = depths^[i];
-    if depth > 4096_u32 {
-      set is_valid = False();
-    }
-    let parent_u64 = cvt.checked::<u32, u64>(parent);
-    let is_sentinel = match parent_u64 {
-      Ok(value: pv) => {
-        give pv == len;
-      }
-      Err(error: narrow) => {
-        give False();
-      }
-    }
-    if is_sentinel {
-    } else {
-      let i_u32 = cvt.checked::<u64, u32>(i);
-      match i_u32 {
-        Ok(value: i_u32_val) => {
-          if parent >= i_u32_val {
-            set is_valid = False();
-          } else {
-            let parent_u64_inner = cvt.checked::<u32, u64>(parent);
-            match parent_u64_inner {
-              Ok(value: parent_idx) => {
-                if parent_idx < len {
-                  let parent_depth = depths^[parent_idx];
-                  let expected_depth = depth - 1_u32;
-                  if parent_depth != expected_depth {
-                    set is_valid = False();
-                  }
-                } else {
-                  set is_valid = False();
-                }
-              }
-              Err(error: narrow) => {
-                set is_valid = False();
-              }
-            }
-          }
-        }
-        Err(error: narrow) => {
-          set is_valid = False();
-        }
-      }
-    }
-    if depth > max_depth_val {
-      set max_depth_val = depth;
-    }
-    let i_next = i + 1_u64;
-    set i = i_next;
-  }
-
-  if is_valid {
-    let j = 0_u64;
-    let max_d_u64 = cvt.checked::<u32, u64>(max_depth_val);
-    match max_d_u64 {
-      Ok(value: max_d) => {
-        loop @init_counts {
-          if j <= max_d {
-          } else {
-            break @init_counts;
-          }
-          place_back(window: &counts_buf.inner, value: 0_u64);
-          let j_next = j + 1_u64;
-          set j = j_next;
-        }
-      }
-      Err(error: narrow) => {
-        set is_valid = False();
-      }
-    }
-    let k = 0_u64;
-    loop @process_nodes {
-      if k < len {
-      } else {
-        break @process_nodes;
-      }
-      let depth_k = depths^[k];
-      let depth_idx = cvt.checked::<u32, u64>(depth_k);
-      match depth_idx {
-        Ok(value: d_u64) => {
-          if d_u64 < counts_buf.inner.len {
-            let count_cell = &counts_buf.inner[d_u64];
-            let pos_val = count_cell^;
-            place_back(window: &groups_buf.inner, value: k);
-            place_back(window: &positions_buf.inner, value: pos_val);
-            set count_cell^ = pos_val + 1_u64;
-          } else {
-            set is_valid = False();
-          }
-        }
-        Err(error: narrow) => {
-          set is_valid = False();
-        }
-      }
-      let k_next = k + 1_u64;
-      set k = k_next;
-    }
-  }
-
-  return ProcessResult(is_valid: is_valid, groups_buf: move groups_buf, counts_buf: move counts_buf, positions_buf: move positions_buf, max_depth_val: max_depth_val);
-}
-
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(cwd: cwd_directory, stdout: output, handles: factory, ..) = move inputs;
-  let std::fs::Directory(read: cwd, write: cwd_write) = move cwd_directory;
-  std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
-  std::fs::close_directory(factory: &factory, directory: move cwd);
+  let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: stdout_stream, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let std::fs::Directory(read: directory_read, write: directory_write) = move cwd_directory;
+  std::fs::close_directory_write(factory: &factory, directory: move directory_write);
+  std::fs::close_directory(factory: &factory, directory: move directory_read);
+  let buffer = array_filled::<u8, 168>(value: 0_u8);
+  let offset = 0_u64;
   let parents = array_filled::<u32, 6>(value: 0_u32);
   set parents[0_u64] = 6_u32;
   set parents[1_u64] = 0_u32;
@@ -205,128 +148,131 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   set depths[3_u64] = 2_u32;
   set depths[4_u64] = 2_u32;
   set depths[5_u64] = 2_u32;
-  let p_slice = &parents[0_u64..6_u64];
-  let d_slice = &depths[0_u64..6_u64];
-  let proc_result = validate_and_process(parents: p_slice, depths: d_slice);
-  let acceptance = if proc_result.is_valid {
+  let parents_view = &parents[0_u64..6_u64];
+  let depths_view = &depths[0_u64..6_u64];
+  let valid = validate(parents: parents_view, depths: depths_view);
+  write_u64_le(buffer: &buffer, offset: 0_u64, value: if valid {
     give 1_u64;
   } else {
     give 0_u64;
-  }
-  let outcome1 = write_u64_le(factory: &factory, output: &output, value: acceptance);
-  match outcome1 {
-    Ok(value: unit_val) => {
-    }
-    Err(error: err) => {
-      return exit_status(code: 1_u8);
-    }
-  }
-  let num_groups = cvt.checked::<u32, u64>(proc_result.max_depth_val);
-  let num_groups_val = match num_groups {
-    Ok(value: nd) => {
-      give nd + 1_u64;
-    }
-    Err(error: narrow) => {
-      give 0_u64;
-    }
-  }
-  let outcome2 = write_u64_le(factory: &factory, output: &output, value: num_groups_val);
-  match outcome2 {
-    Ok(value: unit_val) => {
-    }
-    Err(error: err) => {
-      return exit_status(code: 1_u8);
-    }
-  }
-  let group_idx = 0_u64;
-  let node_offset = 0_u64;
-  loop @write_groups {
-    if group_idx < proc_result.counts_buf.inner.len {
-    } else {
-      break @write_groups;
-    }
-    let count = proc_result.counts_buf.inner[group_idx];
-    let outcome = write_u64_le(factory: &factory, output: &output, value: count);
-    match outcome {
-      Ok(value: unit_val) => {
-      }
-      Err(error: err) => {
-        return exit_status(code: 1_u8);
+  });
+  set offset = 8_u64;
+  let num_groups = if valid {
+    give count_groups(depths: depths_view);
+  } else {
+    give 0_u64;
+  };
+  write_u64_le(buffer: &buffer, offset: offset, value: num_groups);
+  set offset = offset + 8_u64;
+  if valid {
+    let group_lengths = array_filled::<u64, 4097>(value: 0_u64);
+    let depth_counts = array_filled::<u64, 4097>(value: 0_u64);
+    for (i in 0_u64..6_u64) {
+      let depth = depths[i];
+      let depth_u64 = cvt.wrap::<u32, u64>(depth);
+      if depth_u64 < 4097_u64 {
+        let count = depth_counts[depth_u64];
+        let next = count + 1_u64;
+        set depth_counts[depth_u64] = next;
+        set group_lengths[depth_u64] = next;
       }
     }
-    let node_in_group = 0_u64;
-    loop @write_nodes_in_group {
-      if node_in_group < count {
-      } else {
-        break @write_nodes_in_group;
-      }
-      let node_idx = node_offset + node_in_group;
-      let node = proc_result.groups_buf.inner[node_idx];
-      let outcome = write_u64_le(factory: &factory, output: &output, value: node);
-      match outcome {
-        Ok(value: unit_val) => {
-        }
-        Err(error: err) => {
-          return exit_status(code: 1_u8);
+    for (d in 0_u64..num_groups) {
+      let length = group_lengths[d];
+      write_u64_le(buffer: &buffer, offset: offset, value: length);
+      set offset = offset + 8_u64;
+      for (i in 0_u64..6_u64) {
+        let depth = depths[i];
+        let depth_u64 = cvt.wrap::<u32, u64>(depth);
+        if depth_u64 == d {
+          write_u64_le(buffer: &buffer, offset: offset, value: i);
+          set offset = offset + 8_u64;
         }
       }
-      let node_in_group_next = node_in_group + 1_u64;
-      set node_in_group = node_in_group_next;
     }
-    let node_offset_next = node_offset + count;
-    set node_offset = node_offset_next;
-    let group_idx_next = group_idx + 1_u64;
-    set group_idx = group_idx_next;
+    write_u64_le(buffer: &buffer, offset: offset, value: 6_u64);
+    set offset = offset + 8_u64;
+    let positions = array_filled::<u64, 6>(value: 0_u64);
+    let pos_view = &positions[0_u64..6_u64];
+    build_positions(depths: depths_view, positions: pos_view);
+    for (i in 0_u64..6_u64) {
+      write_u64_le(buffer: &buffer, offset: offset, value: positions[i]);
+      set offset = offset + 8_u64;
+    }
+  } else {
+    write_u64_le(buffer: &buffer, offset: offset, value: 0_u64);
+    set offset = offset + 8_u64;
   }
-  let outcome = write_u64_le(factory: &factory, output: &output, value: 6_u64);
-  match outcome {
-    Ok(value: unit_val) => {
+  let parents2 = array_filled::<u32, 6>(value: 0_u32);
+  set parents2[0_u64] = 6_u32;
+  set parents2[1_u64] = 0_u32;
+  set parents2[2_u64] = 0_u32;
+  set parents2[3_u64] = 2_u32;
+  set parents2[4_u64] = 1_u32;
+  set parents2[5_u64] = 2_u32;
+  let depths2 = array_filled::<u32, 6>(value: 0_u32);
+  set depths2[0_u64] = 0_u32;
+  set depths2[1_u64] = 1_u32;
+  set depths2[2_u64] = 1_u32;
+  set depths2[3_u64] = 2_u32;
+  set depths2[4_u64] = 2_u32;
+  set depths2[5_u64] = 2_u32;
+  let valid2 = validate(parents: &parents2[0_u64..6_u64], depths: &depths2[0_u64..6_u64]);
+  write_u64_le(buffer: &buffer, offset: offset, value: if valid2 {
+    give 1_u64;
+  } else {
+    give 0_u64;
+  });
+  set offset = offset + 8_u64;
+  let parents3 = array_filled::<u32, 6>(value: 0_u32);
+  set parents3[0_u64] = 6_u32;
+  set parents3[1_u64] = 0_u32;
+  set parents3[2_u64] = 0_u32;
+  set parents3[3_u64] = 1_u32;
+  set parents3[4_u64] = 1_u32;
+  set parents3[5_u64] = 2_u32;
+  let depths3 = array_filled::<u32, 6>(value: 0_u32);
+  set depths3[0_u64] = 0_u32;
+  set depths3[1_u64] = 1_u32;
+  set depths3[2_u64] = 1_u32;
+  set depths3[3_u64] = 1_u32;
+  set depths3[4_u64] = 2_u32;
+  set depths3[5_u64] = 2_u32;
+  let valid3 = validate(parents: &parents3[0_u64..6_u64], depths: &depths3[0_u64..6_u64]);
+  write_u64_le(buffer: &buffer, offset: offset, value: if valid3 {
+    give 1_u64;
+  } else {
+    give 0_u64;
+  });
+  set offset = offset + 8_u64;
+  let parents4 = array_filled::<u32, 6>(value: 0_u32);
+  set parents4[0_u64] = 6_u32;
+  set parents4[1_u64] = 0_u32;
+  set parents4[2_u64] = 0_u32;
+  set parents4[3_u64] = 1_u32;
+  set parents4[4_u64] = 1_u32;
+  set parents4[5_u64] = 2_u32;
+  let depths4 = array_filled::<u32, 6>(value: 0_u32);
+  set depths4[0_u64] = 0_u32;
+  set depths4[1_u64] = 1_u32;
+  set depths4[2_u64] = 1_u32;
+  set depths4[3_u64] = 2_u32;
+  set depths4[4_u64] = 2_u32;
+  set depths4[5_u64] = 4097_u32;
+  let valid4 = validate(parents: &parents4[0_u64..6_u64], depths: &depths4[0_u64..6_u64]);
+  write_u64_le(buffer: &buffer, offset: offset, value: if valid4 {
+    give 1_u64;
+  } else {
+    give 0_u64;
+  });
+  let buffer_view = &buffer[0_u64..168_u64];
+  let write_result = write_all(factory: &factory, output: &stdout_stream, buffer: buffer_view);
+  match write_result {
+    Ok(value: unused_ok) => {
+      return exit_status(code: 0_u8);
     }
-    Err(error: err) => {
+    Err(error: problem) => {
       return exit_status(code: 1_u8);
     }
   }
-  let pos_idx = 0_u64;
-  loop @write_positions {
-    if pos_idx < proc_result.positions_buf.inner.len {
-    } else {
-      break @write_positions;
-    }
-    let pos = proc_result.positions_buf.inner[pos_idx];
-    let outcome = write_u64_le(factory: &factory, output: &output, value: pos);
-    match outcome {
-      Ok(value: unit_val) => {
-      }
-      Err(error: err) => {
-        return exit_status(code: 1_u8);
-      }
-    }
-    let pos_idx_next = pos_idx + 1_u64;
-    set pos_idx = pos_idx_next;
-  }
-  let outcome = write_u64_le(factory: &factory, output: &output, value: 0_u64);
-  match outcome {
-    Ok(value: unit_val) => {
-    }
-    Err(error: err) => {
-      return exit_status(code: 1_u8);
-    }
-  }
-  let outcome = write_u64_le(factory: &factory, output: &output, value: 0_u64);
-  match outcome {
-    Ok(value: unit_val) => {
-    }
-    Err(error: err) => {
-      return exit_status(code: 1_u8);
-    }
-  }
-  let outcome = write_u64_le(factory: &factory, output: &output, value: 0_u64);
-  match outcome {
-    Ok(value: unit_val) => {
-    }
-    Err(error: err) => {
-      return exit_status(code: 1_u8);
-    }
-  }
-  return exit_status(code: 0_u8);
 }

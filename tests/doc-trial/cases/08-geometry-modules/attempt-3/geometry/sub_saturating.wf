@@ -1,0 +1,4 @@
+fn sub_saturating(left: Coordinate, right: Coordinate) -> result: Coordinate pure {
+  let diff = left.value -sat right.value;
+  return Coordinate(value: diff);
+}

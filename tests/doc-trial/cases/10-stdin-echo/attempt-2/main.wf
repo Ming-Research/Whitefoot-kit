@@ -1,0 +1,53 @@
+alias ExitStatus = std::process::ExitStatus;
+alias exit_status = std::process::exit_status;
+alias Inputs = std::process::Inputs;
+alias ReadStop = std::io::ReadStop;
+
+fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+  let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: out, stderr: unused_stderr, handles: factory, stdin: input, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
+  std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
+  std::fs::close_directory(factory: &factory, directory: move cwd_read);
+  let buffer = array_filled::<u8, 4096>(value: 0_u8);
+  let cancel = std::time::cancel_never();
+  let code = 0_u8;
+  loop {
+    let read_result = std::io::read_next(factory: &factory, input: &input, destination: &buffer[0_u64..4096_u64], start: 0_u64, end: 4096_u64, deadline: None<std::time::Instant>(), cancel: &cancel);
+    match move read_result {
+      Ok(value: bytes_read) => {
+        let write_start = 0_u64;
+        loop {
+          if write_start >= bytes_read {
+            break;
+          }
+          let write_result = std::io::write_once(factory: &factory, output: &out, source: &buffer[0_u64..bytes_read], start: write_start, end: bytes_read, deadline: None<std::time::Instant>(), cancel: &cancel);
+          match move write_result {
+            Ok(value: written_to) => {
+              set write_start = written_to;
+            }
+            Err(error: write_error) => {
+              set code = 4_u8;
+              break;
+            }
+          }
+        }
+        if code == 4_u8 {
+          break;
+        }
+      }
+      Err(error: read_error) => {
+        match move read_error {
+          ReadEnd() => {
+            set code = 0_u8;
+          }
+          ReadFailed(error: io_error) => {
+            set code = 3_u8;
+          }
+        }
+        break;
+      }
+    }
+  }
+  std::time::close_cancel_watch(watch: move cancel);
+  return exit_status(code: code);
+}

@@ -1,0 +1,23 @@
+fn saturating_add(left: i32, right: i32) -> result: i32 pure {
+  return left +sat right;
+}
+
+fn saturating_sub(left: i32, right: i32) -> result: i32 pure {
+  return left -sat right;
+}
+
+fn min(left: i32, right: i32) -> result: i32 pure {
+  if left <= right {
+    give left;
+  } else {
+    give right;
+  }
+}
+
+fn max(left: i32, right: i32) -> result: i32 pure {
+  if left >= right {
+    give left;
+  } else {
+    give right;
+  }
+}

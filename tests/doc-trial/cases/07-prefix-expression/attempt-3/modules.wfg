@@ -1,0 +1,3 @@
+pkg::main: [std::process, std::fs, std::io, std::time];
+
+entry main = pkg::main::main;

@@ -1,0 +1,14 @@
+fn intersects(rect1: Rectangle, rect2: Rectangle) -> result: Bool pure {
+  let right1 = add_saturating(left: rect1.left, right: rect1.width);
+  let bottom1 = add_saturating(left: rect1.top, right: rect1.height);
+  let right2 = add_saturating(left: rect2.left, right: rect2.width);
+  let bottom2 = add_saturating(left: rect2.top, right: rect2.height);
+  let x_overlap_1 = rect1.left.value < right2.value;
+  let x_overlap_2 = rect2.left.value < right1.value;
+  let x_overlaps = band(x_overlap_1, x_overlap_2);
+  let y_overlap_1 = rect1.top.value < bottom2.value;
+  let y_overlap_2 = rect2.top.value < bottom1.value;
+  let y_overlaps = band(y_overlap_1, y_overlap_2);
+  let result = band(x_overlaps, y_overlaps);
+  return result;
+}

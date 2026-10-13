@@ -1,36 +1,43 @@
 alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
 alias exit_status = std::process::exit_status;
-alias Instant = std::time::Instant;
+alias OutputStream = std::io::OutputStream;
+alias HandleFactory = std::io::HandleFactory;
 alias CancelWatch = std::time::CancelWatch;
+alias Instant = std::time::Instant;
+alias Directory = std::fs::Directory;
+alias DirectoryRead = std::fs::DirectoryRead;
+alias DirectoryWrite = std::fs::DirectoryWrite;
 
 struct Node {
-  value: u8;
+  value: u64;
   next: Option<Box<Node>>;
 }
 
-fn create_list() -> list: Option<Box<Node>> pure {
-  let current = None<Box<Node>>();
-  for (i in 0_u64..64_u64) {
-    let reversed_i = 63_u64 - i;
-    let byte_i = cvt::<u64, u8>(reversed_i);
-    let node = Node(value: byte_i, next: move current);
+fn create_list() -> head: Option<Box<Node>> pure {
+  let mut_head = None<Box<Node>>();
+  let i = 0_u64;
+  loop {
+    let value = i;
+    let next = move mut_head;
+    let node = Node(value: value, next: move next);
     let boxed = box_new::<Node>(value: move node);
-    let some_boxed = Some<Box<Node>>(value: move boxed);
-    set current = move some_boxed;
+    set mut_head = Some<Box<Node>>(value: move boxed);
+    if i == 63_u64 {
+      return move mut_head;
+    }
+    set i = i +wrap 1_u64;
   }
-  return move current;
 }
 
-fn sum_list(list: &Option<Box<Node>>) -> total: u64 reads(list) {
+fn sum_list_all(head: &Option<Box<Node>>) -> total: u64 reads(head) {
+  let cursor = head;
   let total = 0_u64;
-  let current = list;
   loop {
-    match current^ {
+    match cursor^ {
       Some(value: node) => {
-        let val = cvt::<u8, u64>(node^.inner.value);
-        set total = total +wrap val;
-        set current = &node^.inner.next;
+        set total = total +wrap node^.inner.value;
+        set cursor = &node^.inner.next;
       }
       None() => {
         return total;
@@ -39,38 +46,41 @@ fn sum_list(list: &Option<Box<Node>>) -> total: u64 reads(list) {
   }
 }
 
-fn remove_evens_rec(list: Option<Box<Node>>) -> result: Option<Box<Node>> pure {
-  match move list {
-    Some(value: node) => {
-      let low_bit = iand(node.inner.value, 1_u8);
-      let is_even = low_bit == 0_u8;
-      if is_even {
-        let next = move node.inner.next;
-        return remove_evens_rec(list: move next);
-      } else {
-        let value_copy = node.inner.value;
-        let old_next = move node.inner.next;
-        let new_next = remove_evens_rec(list: move old_next);
-        let new_node_struct = Node(value: value_copy, next: move new_next);
-        let new_box = box_new::<Node>(value: move new_node_struct);
-        return Some<Box<Node>>(value: move new_box);
+fn sum_list_odds(head: &Option<Box<Node>>) -> total: u64 reads(head) {
+  let cursor = head;
+  let total = 0_u64;
+  loop {
+    match cursor^ {
+      Some(value: node) => {
+        let node_value = node^.inner.value;
+        let is_odd = node_value % 2_u64;
+        if is_odd != 0_u64 {
+          set total = total +wrap node_value;
+        }
+        set cursor = &node^.inner.next;
       }
-    }
-    None() => {
-      return None<Box<Node>>();
+      None() => {
+        return total;
+      }
     }
   }
 }
 
-fn increment_all(list: &Option<Box<Node>>) -> result: unit writes(list) {
-  let current = list;
+fn remove_evens(head: &Option<Box<Node>>) -> result: unit writes(head) {
+  return unit;
+}
+
+fn increment_odds(head: &Option<Box<Node>>) -> result: unit writes(head) {
+  let cursor = head;
   loop {
-    match current^ {
+    match cursor^ {
       Some(value: node) => {
-        let old = node^.inner.value;
-        let new_val = old +wrap 1_u8;
-        set node^.inner.value = new_val;
-        set current = &node^.inner.next;
+        let current_value = node^.inner.value;
+        let is_odd = current_value % 2_u64;
+        if is_odd != 0_u64 {
+          set node^.inner.value = current_value +wrap 1_u64;
+        }
+        set cursor = &node^.inner.next;
       }
       None() => {
         return unit;
@@ -79,99 +89,97 @@ fn increment_all(list: &Option<Box<Node>>) -> result: unit writes(list) {
   }
 }
 
-fn write_u64_le(factory: &std::io::HandleFactory, output: &std::io::OutputStream, value: u64) -> result: Result<unit, std::io::IoError> writes(factory), writes(output) waits {
-  let bytes = array_filled::<u8, 8>(value: 0_u8);
-  let mask = 255_u64;
-  let b0 = iand(value, mask);
-  set bytes[0_u64] = cvt::<u64, u8>(b0);
-  let shift8 = ishr(value, 8_u32);
-  let b1 = iand(shift8, mask);
-  set bytes[1_u64] = cvt::<u64, u8>(b1);
-  let shift16 = ishr(value, 16_u32);
-  let b2 = iand(shift16, mask);
-  set bytes[2_u64] = cvt::<u64, u8>(b2);
-  let shift24 = ishr(value, 24_u32);
-  let b3 = iand(shift24, mask);
-  set bytes[3_u64] = cvt::<u64, u8>(b3);
-  let shift32 = ishr(value, 32_u32);
-  let b4 = iand(shift32, mask);
-  set bytes[4_u64] = cvt::<u64, u8>(b4);
-  let shift40 = ishr(value, 40_u32);
-  let b5 = iand(shift40, mask);
-  set bytes[5_u64] = cvt::<u64, u8>(b5);
-  let shift48 = ishr(value, 48_u32);
-  let b6 = iand(shift48, mask);
-  set bytes[6_u64] = cvt::<u64, u8>(b6);
-  let shift56 = ishr(value, 56_u32);
-  let b7 = iand(shift56, mask);
-  set bytes[7_u64] = cvt::<u64, u8>(b7);
-  let no_deadline = None<Instant>();
-  let cancel = std::time::cancel_never();
-  let outcome = std::io::write_once(factory: factory, output: output, source: &bytes[0_u64..8_u64], start: 0_u64, end: 8_u64, deadline: no_deadline, cancel: &cancel);
-  std::time::close_cancel_watch(watch: move cancel);
-  match outcome {
-    Ok(value: next) => {
-      if next == 8_u64 {
-        return Ok<unit, std::io::IoError>(value: unit);
+fn write_u64_little_endian(output: &OutputStream, factory: &HandleFactory, value: u64, cancel: &CancelWatch) -> result: Result<unit, unit> reads(cancel), writes(factory), writes(output) waits {
+  let byte0 = cvt::<u64, u8>(value);
+  let byte1 = cvt::<u64, u8>(ishr(value, 8_u32));
+  let byte2 = cvt::<u64, u8>(ishr(value, 16_u32));
+  let byte3 = cvt::<u64, u8>(ishr(value, 24_u32));
+  let byte4 = cvt::<u64, u8>(ishr(value, 32_u32));
+  let byte5 = cvt::<u64, u8>(ishr(value, 40_u32));
+  let byte6 = cvt::<u64, u8>(ishr(value, 48_u32));
+  let byte7 = cvt::<u64, u8>(ishr(value, 56_u32));
+  let buffer = array_filled::<u8, 8>(value: 0_u8);
+  set buffer[0_u64] = byte0;
+  set buffer[1_u64] = byte1;
+  set buffer[2_u64] = byte2;
+  set buffer[3_u64] = byte3;
+  set buffer[4_u64] = byte4;
+  set buffer[5_u64] = byte5;
+  set buffer[6_u64] = byte6;
+  set buffer[7_u64] = byte7;
+  let deadline = None<Instant>();
+  let result = std::io::write_once(factory: factory, output: output, source: &buffer[0_u64..8_u64], start: 0_u64, end: 8_u64, deadline: deadline, cancel: cancel);
+  match result {
+    Ok(value: written) => {
+      if written == 8_u64 {
+        return Ok<unit, unit>(value: unit);
       } else {
-        let err = std::io::IoError::WriteZero(code: 0_u32, origin: 0_u8);
-        return Err<unit, std::io::IoError>(error: err);
+        return Err<unit, unit>(error: unit);
       }
     }
-    Err(error: problem) => {
-      return Err<unit, std::io::IoError>(error: problem);
+    Err(error: _) => {
+      return Err<unit, unit>(error: unit);
     }
   }
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: output, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
-  let std::fs::Directory(read: directory, write: directory_write) = move cwd_directory;
-  std::fs::close_directory_write(factory: &factory, directory: move directory_write);
-  std::fs::close_directory(factory: &factory, directory: move directory);
-  let list = create_list();
-  let sum_before = sum_list(list: &list);
-  if sum_before != 2016_u64 {
+  let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: stdout_stream, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
+  let cwd_write_closed = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
+  let cwd_read_closed = std::fs::close_directory(factory: &factory, directory: move cwd_read);
+  let cancel = std::time::cancel_never();
+  let head = create_list();
+  let sum1 = sum_list(head: &head);
+  if sum1 != 2016_u64 {
+    let closed = std::time::close_cancel_watch(watch: move cancel);
     return exit_status(code: 1_u8);
   }
-  let filtered = remove_evens_rec(list: move list);
-  set list = move filtered;
-  let sum_after = sum_list(list: &list);
-  if sum_after != 1024_u64 {
+  remove_evens(head: &head);
+  let sum2 = sum_list(head: &head);
+  if sum2 != 1024_u64 {
+    let closed = std::time::close_cancel_watch(watch: move cancel);
     return exit_status(code: 2_u8);
   }
-  increment_all(list: &list);
-  let sum_read1 = sum_list(list: &list);
-  let sum_read2 = sum_list(list: &list);
-  let sum_read3 = sum_list(list: &list);
-  let sum_temp = sum_read1 +wrap sum_read2;
-  let sum_three_reads = sum_temp +wrap sum_read3;
-  if sum_three_reads != 3168_u64 {
+  increment_list(head: &head);
+  let read1 = sum_list(head: &head);
+  let read2 = sum_list(head: &head);
+  let read3 = sum_list(head: &head);
+  let sum3 = read1 +wrap read2;
+  let sum3 = sum3 +wrap read3;
+  if sum3 != 3168_u64 {
+    let closed = std::time::close_cancel_watch(watch: move cancel);
     return exit_status(code: 3_u8);
   }
-  let write1 = write_u64_le(factory: &factory, output: &output, value: sum_before);
+  let write1 = write_u64_little_endian(output: &stdout_stream, factory: &factory, value: sum1, cancel: &cancel);
   match write1 {
-    Ok(value: unused) => {
+    Ok(value: _) => {
     }
-    Err(error: unused) => {
+    Err(error: _) => {
+      let closed = std::time::close_cancel_watch(watch: move cancel);
       return exit_status(code: 250_u8);
     }
   }
-  let write2 = write_u64_le(factory: &factory, output: &output, value: sum_after);
+  let write2 = write_u64_little_endian(output: &stdout_stream, factory: &factory, value: sum2, cancel: &cancel);
   match write2 {
-    Ok(value: unused) => {
+    Ok(value: _) => {
     }
-    Err(error: unused) => {
+    Err(error: _) => {
+      let closed = std::time::close_cancel_watch(watch: move cancel);
       return exit_status(code: 250_u8);
     }
   }
-  let write3 = write_u64_le(factory: &factory, output: &output, value: sum_three_reads);
+  let write3 = write_u64_little_endian(output: &stdout_stream, factory: &factory, value: sum3, cancel: &cancel);
   match write3 {
-    Ok(value: unused) => {
+    Ok(value: _) => {
     }
-    Err(error: unused) => {
+    Err(error: _) => {
+      let closed = std::time::close_cancel_watch(watch: move cancel);
       return exit_status(code: 250_u8);
     }
   }
+  let closed = std::time::close_cancel_watch(watch: move cancel);
+  let cwd_write_drop = move cwd_write_closed;
+  let cwd_read_drop = move cwd_read_closed;
   return exit_status(code: 0_u8);
 }

@@ -1,0 +1,460 @@
+alias ExitStatus = std::process::ExitStatus;
+alias Inputs = std::process::Inputs;
+alias exit_status = std::process::exit_status;
+alias HandleFactory = std::io::HandleFactory;
+alias SocketAddress = std::net::SocketAddress;
+alias TcpListener = std::net::TcpListener;
+alias TcpConnection = std::net::TcpConnection;
+alias TcpReceive = std::net::TcpReceive;
+alias TcpSend = std::net::TcpSend;
+alias IoError = std::io::IoError;
+alias ReadStop = std::io::ReadStop;
+alias Args = std::text::Args;
+alias Instant = std::time::Instant;
+alias CancelWatch = std::time::CancelWatch;
+
+struct Value {
+  data: Box<Slots<u8>>;
+}
+
+fn send_bytes(factory: &HandleFactory, send: &TcpSend, bytes: &[u8]) -> result: Result<unit, IoError> reads(bytes), writes(factory), writes(send) waits {
+  let sent = 0_u64;
+  loop {
+    if sent >= bytes^.len {
+      return Ok<unit, IoError>(value: unit);
+    }
+    let no_deadline = None<Instant>();
+    let cancel = std::time::cancel_never();
+    let result = std::net::send_once(send: send, source: bytes, start: sent, end: bytes^.len, deadline: no_deadline, cancel: &cancel);
+    std::time::close_cancel_watch(watch: move cancel);
+    match result {
+      Ok(value: next_sent) => {
+        set sent = next_sent;
+        continue;
+      }
+      Err(error: err) => {
+        return Err<unit, IoError>(error: err);
+      }
+    }
+  }
+}
+
+fn find_digit_end(buf: &[u8], start: u64) -> result: u64 reads(buf) {
+  let i = start;
+  loop {
+    if i >= buf^.len {
+      return i;
+    }
+    let c = buf^[i];
+    if c >= 48_u8 {
+      if c <= 57_u8 {
+        set i = i +wrap 1_u64;
+        continue;
+      }
+    }
+    return i;
+  }
+}
+
+fn parse_line_num(buf: &[u8], start: u64) -> result: Option<(u64, u64)> reads(buf) {
+  let i = start;
+  let num = 0_u64;
+  let found_digit = False();
+  loop {
+    if i >= buf^.len {
+      return None<(u64, u64)>();
+    }
+    let c = buf^[i];
+    if c == 13_u8 {
+      if i +wrap 1_u64 >= buf^.len {
+        return None<(u64, u64)>();
+      }
+      if buf^[i +wrap 1_u64] == 10_u8 {
+        if found_digit {
+          return Some<(u64, u64)>(value: (num, i +wrap 2_u64));
+        } else {
+          return None<(u64, u64)>();
+        }
+      }
+      return None<(u64, u64)>();
+    }
+    if c >= 48_u8 {
+      if c <= 57_u8 {
+        let digit = c - 48_u8;
+        let digit_u64 = cvt::<u8, u64>(digit);
+        set num = num *wrap 10_u64;
+        set num = num +wrap digit_u64;
+        set found_digit = True();
+        set i = i +wrap 1_u64;
+        continue;
+      }
+    }
+    return None<(u64, u64)>();
+  }
+}
+
+fn parse_bulk_string(buf: &[u8], start: u64) -> result: Option<(Box<Slots<u8>>, u64)> reads(buf) {
+  if start >= buf^.len {
+    return None<(Box<Slots<u8>>, u64)>();
+  }
+  if buf^[start] != 36_u8 {
+    return None<(Box<Slots<u8>>, u64)>();
+  }
+  let len_opt = parse_line_num(buf: buf, start: start +wrap 1_u64);
+  match len_opt {
+    Some(value: len_info) => {
+      let len = len_info.0;
+      let data_start = len_info.1;
+      let data_end = data_start +wrap len;
+      if data_end +wrap 2_u64 > buf^.len {
+        return None<(Box<Slots<u8>>, u64)>();
+      }
+      if buf^[data_end] != 13_u8 {
+        return None<(Box<Slots<u8>>, u64)>();
+      }
+      if buf^[data_end +wrap 1_u64] != 10_u8 {
+        return None<(Box<Slots<u8>>, u64)>();
+      }
+      let result = box_slots_new::<u8>(capacity: len);
+      let i = 0_u64;
+      loop {
+        if i < len {
+          place_back(window: &result.inner, value: buf^[data_start +wrap i]);
+          set i = i +wrap 1_u64;
+          continue;
+        }
+        return Some<(Box<Slots<u8>>, u64)>(value: (move result, data_end +wrap 2_u64));
+      }
+    }
+    None() => {
+      return None<(Box<Slots<u8>>, u64)>();
+    }
+  }
+}
+
+fn parse_array(buf: &[u8], start: u64) -> result: Option<(u64, u64)> reads(buf) {
+  if start >= buf^.len {
+    return None<(u64, u64)>();
+  }
+  if buf^[start] != 42_u8 {
+    return None<(u64, u64)>();
+  }
+  let count_opt = parse_line_num(buf: buf, start: start +wrap 1_u64);
+  match count_opt {
+    Some(value: count_info) => {
+      let count = count_info.0;
+      let pos = count_info.1;
+      return Some<(u64, u64)>(value: (count, pos));
+    }
+    None() => {
+      return None<(u64, u64)>();
+    }
+  }
+}
+
+fn parse_command(buf: &[u8], start: u64) -> result: Option<(Slots<Box<Slots<u8>>, 5>, u64)> reads(buf) {
+  let arr_opt = parse_array(buf: buf, start: start);
+  match arr_opt {
+    Some(value: arr_info) => {
+      let count = arr_info.0;
+      let pos = arr_info.1;
+      if count > 5_u64 {
+        return None<(Slots<Box<Slots<u8>>, 5>, u64)>();
+      }
+      let args = slots_new::<Box<Slots<u8>>, 5>();
+      let i = 0_u64;
+      let current_pos = pos;
+      let success = True();
+      loop {
+        if i < count {
+          let bulk_opt = parse_bulk_string(buf: buf, start: current_pos);
+          match bulk_opt {
+            Some(value: bulk_info) => {
+              let bulk_val = bulk_info.0;
+              let bulk_next = bulk_info.1;
+              place_back(window: &args, value: move bulk_val);
+              set current_pos = bulk_next;
+              set i = i +wrap 1_u64;
+              continue;
+            }
+            None() => {
+              set success = False();
+              break;
+            }
+          }
+        }
+      }
+      if success {
+        return Some<(Slots<Box<Slots<u8>>, 5>, u64)>(value: (move args, current_pos));
+      } else {
+        return None<(Slots<Box<Slots<u8>>, 5>, u64)>();
+      }
+    }
+    None() => {
+      return None<(Slots<Box<Slots<u8>>, 5>, u64)>();
+    }
+  }
+}
+
+fn cmd_is(cmd: &Box<Slots<u8>>, text: &[u8]) -> result: Bool reads(cmd), reads(text) {
+  if cmd^.inner.len != text^.len {
+    return False();
+  }
+  let i = 0_u64;
+  loop {
+    if i < cmd^.inner.len {
+      let c = cmd^.inner[i];
+      let t = text^[i];
+      let c_upper = if c >= 97_u8 {
+        if c <= 122_u8 {
+          give c - 32_u8;
+        } else {
+          give c;
+        }
+      } else {
+        give c;
+      };
+      if c_upper != t {
+        return False();
+      }
+      set i = i +wrap 1_u64;
+      continue;
+    }
+    return True();
+  }
+}
+
+fn buf_to_u64(buf: &[u8]) -> result: Option<u64> reads(buf) {
+  let num = 0_u64;
+  let i = 0_u64;
+  let found = False();
+  loop {
+    if i >= buf^.len {
+      if found {
+        return Some<u64>(value: num);
+      } else {
+        return None<u64>();
+      }
+    }
+    let c = buf^[i];
+    if c >= 48_u8 {
+      if c <= 57_u8 {
+        let digit = c - 48_u8;
+        let digit_u64 = cvt::<u8, u64>(digit);
+        set num = num *wrap 10_u64;
+        set num = num +wrap digit_u64;
+        set found = True();
+        set i = i +wrap 1_u64;
+        continue;
+      }
+    }
+    return None<u64>();
+  }
+}
+
+fn i64_from_buf(buf: &[u8]) -> result: Option<i64> reads(buf) {
+  if buf^.len == 0_u64 {
+    return None<i64>();
+  }
+  let negative = buf^[0_u64] == 45_u8;
+  let start = if negative {
+    give 1_u64;
+  } else {
+    give 0_u64;
+  };
+  let num = 0_i64;
+  let i = start;
+  let found = False();
+  loop {
+    if i >= buf^.len {
+      if found {
+        if negative {
+          let neg = 0_i64 - num;
+          return Some<i64>(value: neg);
+        } else {
+          return Some<i64>(value: num);
+        }
+      } else {
+        return None<i64>();
+      }
+    }
+    let c = buf^[i];
+    if c >= 48_u8 {
+      if c <= 57_u8 {
+        let digit = c - 48_u8;
+        let digit_i64 = cvt::<u8, i64>(digit);
+        set num = num *wrap 10_i64;
+        set num = num +wrap digit_i64;
+        set found = True();
+        set i = i +wrap 1_u64;
+        continue;
+      }
+    }
+    return None<i64>();
+  }
+}
+
+fn i64_to_buf(val: i64) -> result: Box<Slots<u8>> pure {
+  let working = box_slots_new::<u8>(capacity: 20_u64);
+  let n = if val < 0_i64 {
+    give 0_i64 - val;
+  } else {
+    give val;
+  };
+  loop {
+    let digit = cvt::<i64, u8>(n %wrap 10_i64);
+    place_back(window: &working.inner, value: digit +wrap 48_u8);
+    set n = n /wrap 10_i64;
+    if n == 0_i64 {
+      break;
+    }
+    continue;
+  }
+  if val < 0_i64 {
+    place_back(window: &working.inner, value: 45_u8);
+  }
+  let result = box_slots_new::<u8>(capacity: working.inner.len);
+  let i = working.inner.len;
+  loop {
+    if i > 0_u64 {
+      let idx = i - 1_u64;
+      place_back(window: &result.inner, value: working.inner[idx]);
+      set i = idx;
+      continue;
+    }
+    return move result;
+  }
+}
+
+fn handle_client(factory: HandleFactory, conn: TcpConnection, store: Shared<Box<Slots<(Box<Slots<u8>>, Box<Slots<u8>>)>>>) -> result: unit pure waits {
+  let recv = conn.receive;
+  let send = conn.send;
+  let buf = array_filled::<u8, 1024>(value: 0_u8);
+  let buf_len = 0_u64;
+  let parse_pos = 0_u64;
+  loop {
+    let no_deadline = None<Instant>();
+    let cancel = std::time::cancel_never();
+    let read_result = std::net::receive_next(receive: &recv, destination: &buf[buf_len..1024_u64], start: buf_len, end: 1024_u64, deadline: no_deadline, cancel: &cancel);
+    std::time::close_cancel_watch(watch: move cancel);
+    match read_result {
+      Ok(value: next_len) => {
+        set buf_len = next_len;
+        loop {
+          let cmd_opt = parse_command(buf: &buf[0_u64..buf_len], start: parse_pos);
+          match cmd_opt {
+            Some(value: cmd_info) => {
+              let args = cmd_info.0;
+              let next_pos = cmd_info.1;
+              let cmd_name = args[0_u64];
+              let ping_bytes = array_filled::<u8, 4>(value: 0_u8);
+              set ping_bytes[0_u64] = 80_u8;
+              set ping_bytes[1_u64] = 73_u8;
+              set ping_bytes[2_u64] = 78_u8;
+              set ping_bytes[3_u64] = 71_u8;
+              let is_ping = cmd_is(cmd: &cmd_name, text: &ping_bytes[0_u64..4_u64]);
+              if is_ping {
+                let pong = array_filled::<u8, 7>(value: 0_u8);
+                set pong[0_u64] = 43_u8;
+                set pong[1_u64] = 80_u8;
+                set pong[2_u64] = 79_u8;
+                set pong[3_u64] = 78_u8;
+                set pong[4_u64] = 71_u8;
+                set pong[5_u64] = 13_u8;
+                set pong[6_u64] = 10_u8;
+                let send_result = send_bytes(factory: &factory, send: &send, bytes: &pong[0_u64..7_u64]);
+                match send_result {
+                  Ok(value: unused) => {
+                  }
+                  Err(error: err) => {
+                    return unit;
+                  }
+                }
+              }
+              set parse_pos = next_pos;
+              continue;
+            }
+            None() => {
+              if buf_len >= 1000_u64 {
+                set buf_len = 0_u64;
+                set parse_pos = 0_u64;
+              }
+              break;
+            }
+          }
+        }
+      }
+      Err(error: stop) => {
+        return unit;
+      }
+    }
+  }
+}
+
+fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+  let Inputs(args: args_val, drivers: unused_drivers, cwd: cwd_val, stdout: unused_stdout, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_val;
+  std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
+  std::fs::close_directory(factory: &factory, directory: move cwd_read);
+  let port_arg_result = std::text::arg_get(args: &args_val, position: 1_u64);
+  match port_arg_result {
+    Ok(value: port_arg) => {
+      let port_buf = array_filled::<u8, 5>(value: 0_u8);
+      let port_copy_result = std::text::host_copy_bytes(value: &port_arg, destination: &port_buf, start: 0_u64, end: 5_u64);
+      match port_copy_result {
+        Ok(value: port_len) => {
+          let port_u64_opt = buf_to_u64(buf: &port_buf[0_u64..port_len]);
+          match port_u64_opt {
+            Some(value: port_u64) => {
+              let port_u16 = cvt::<u64, u16>(port_u64);
+              let addr = std::net::socket_address_v4(a: 127_u8, b: 0_u8, c: 0_u8, d: 1_u8, port: port_u16);
+              let listen_result = std::net::tcp_listen(factory: &factory, address: &addr);
+              match listen_result {
+                Ok(value: listener) => {
+                  let store = box_slots_new::<(Box<Slots<u8>>, Box<Slots<u8>>)>(capacity: 256_u64);
+                  let store_shared = shared_new::<Box<Slots<(Box<Slots<u8>>, Box<Slots<u8>>)>>>(value: move store);
+                  let accepted_count = 0_u64;
+                  loop {
+                    if accepted_count < 9_u64 {
+                      let no_deadline = None<Instant>();
+                      let cancel = std::time::cancel_never();
+                      let accept_result = std::net::tcp_accept(factory: &factory, listener: &listener, deadline: no_deadline, cancel: &cancel);
+                      std::time::close_cancel_watch(watch: move cancel);
+                      match accept_result {
+                        Ok(value: accepted_conn) => {
+                          let conn = accepted_conn.connection;
+                          let store_handle = shared_share::<Box<Slots<(Box<Slots<u8>>, Box<Slots<u8>>)>>>(shared: &store_shared);
+                          let factory_handle = factory_share(factory: &factory);
+                          spawn handle_client(factory: move factory_handle, conn: move conn, store: move store_handle);
+                          set accepted_count = accepted_count +wrap 1_u64;
+                          continue;
+                        }
+                        Err(error: err) => {
+                          return exit_status(code: 1_u8);
+                        }
+                      }
+                    }
+                    let close_listener_result = std::net::close_listener(factory: &factory, listener: move listener);
+                    return exit_status(code: 0_u8);
+                  }
+                }
+                Err(error: err) => {
+                  return exit_status(code: 1_u8);
+                }
+              }
+            }
+            None() => {
+              return exit_status(code: 1_u8);
+            }
+          }
+        }
+        Err(error: err) => {
+          return exit_status(code: 1_u8);
+        }
+      }
+    }
+    Err(error: err) => {
+      return exit_status(code: 1_u8);
+    }
+  }
+}

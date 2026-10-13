@@ -1,0 +1,29 @@
+public struct Point {
+  public x: i32;
+  public y: i32;
+}
+
+public struct Rect {
+  public x: i32;
+  public y: i32;
+  public width: i32;
+  public height: i32;
+}
+
+public fn from_whole_pixels(pixels: i32) -> result: i32 pure doc "Converts whole pixels to raw coordinate units.";
+
+public fn from_binary64_pixels(pixels: f64) -> result: i32 pure doc "Converts binary64 pixels to raw coordinate units.";
+
+public fn to_binary64_pixels(coord: i32) -> result: f64 pure doc "Converts raw coordinate to binary64 pixels.";
+
+public fn saturating_add(left: i32, right: i32) -> result: i32 pure doc "Saturating addition of coordinates.";
+
+public fn saturating_sub(left: i32, right: i32) -> result: i32 pure doc "Saturating subtraction of coordinates.";
+
+public fn min(left: i32, right: i32) -> result: i32 pure doc "Minimum of two coordinates.";
+
+public fn max(left: i32, right: i32) -> result: i32 pure doc "Maximum of two coordinates.";
+
+public fn contains_point(rect: Rect, point: Point) -> result: Bool pure doc "Checks if point is contained in rectangle.";
+
+public fn rectangles_intersect(rect1: Rect, rect2: Rect) -> result: Bool pure doc "Checks if two rectangles intersect.";

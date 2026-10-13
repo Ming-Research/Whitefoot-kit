@@ -1,0 +1,161 @@
+alias ExitStatus = std::process::ExitStatus;
+alias Inputs = std::process::Inputs;
+alias exit_status = std::process::exit_status;
+alias Instant = std::time::Instant;
+
+const input_bytes: Array<u8, 11> = "A%42%4a%zz%";
+
+fn is_hex_digit(byte: u8) -> result: Bool pure {
+  let is_digit = band(byte >= 48_u8, byte <= 57_u8);
+  let is_lower = band(byte >= 97_u8, byte <= 102_u8);
+  let is_upper = band(byte >= 65_u8, byte <= 70_u8);
+  let is_any = bor(is_digit, bor(is_lower, is_upper));
+  return is_any;
+}
+
+fn hex_to_value(byte: u8) -> result: u8 pure {
+  let is_digit = band(byte >= 48_u8, byte <= 57_u8);
+  let value = if is_digit {
+    give byte - 48_u8;
+  } else {
+    let is_lower = band(byte >= 97_u8, byte <= 102_u8);
+    if is_lower {
+      give byte - 97_u8 + 10_u8;
+    } else {
+      give byte - 65_u8 + 10_u8;
+    }
+  }
+  return value;
+}
+
+fn decode_percent(input: &[u8], destination: &[u8]) -> produced: u64 reads(input), writes(destination) {
+  let input_len = input^.len;
+  let dest_len = destination^.len;
+  let in_idx = 0_u64;
+  let out_idx = 0_u64;
+  loop (
+    invariant in_bound: in_idx <= input_len,
+    invariant out_bound: out_idx <= dest_len
+  ) {
+    if in_idx == input_len {
+      break;
+    }
+    let current = input^[in_idx];
+    if current == 37_u8 {
+      let next_idx = in_idx + 1_u64;
+      let second_idx = next_idx + 1_u64;
+      let has_two = second_idx < input_len;
+      if has_two {
+        let first_hex = input^[next_idx];
+        let second_hex = input^[second_idx];
+        let first_valid = is_hex_digit(byte: first_hex);
+        let second_valid = is_hex_digit(byte: second_hex);
+        let both_valid = band(first_valid, second_valid);
+        if both_valid {
+          let first_val = hex_to_value(byte: first_hex);
+          let second_val = hex_to_value(byte: second_hex);
+          let decoded = first_val *wrap 16_u8 +wrap second_val;
+          if out_idx < dest_len {
+            set destination^[out_idx] = decoded;
+            set out_idx = out_idx + 1_u64;
+          }
+          set in_idx = second_idx + 1_u64;
+        } else {
+          if out_idx < dest_len {
+            set destination^[out_idx] = current;
+            set out_idx = out_idx + 1_u64;
+          }
+          set in_idx = next_idx;
+        }
+      } else {
+        if out_idx < dest_len {
+          set destination^[out_idx] = current;
+          set out_idx = out_idx + 1_u64;
+        }
+        set in_idx = next_idx;
+      }
+    } else {
+      if out_idx < dest_len {
+        set destination^[out_idx] = current;
+        set out_idx = out_idx + 1_u64;
+      }
+      set in_idx = in_idx + 1_u64;
+    }
+  }
+  return out_idx;
+}
+
+fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+  let Inputs(cwd: cwd_directory, handles: factory, stdout: stdout_stream, ..) = move inputs;
+  let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
+  let write_close = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
+  let read_close = std::fs::close_directory(factory: &factory, directory: move cwd_read);
+  let status_code = 0_u8;
+  match write_close {
+    Ok(value: unused_write_ok) => {
+    }
+    Err(error: unused_write_err) => {
+      set status_code = 250_u8;
+    }
+  }
+  match read_close {
+    Ok(value: unused_read_ok) => {
+    }
+    Err(error: unused_read_err) => {
+      set status_code = 250_u8;
+    }
+  }
+  if status_code == 0_u8 {
+    let destination = array_filled::<u8, 11>(value: 204_u8);
+    let input_view = &input_bytes[0_u64..11_u64];
+    let dest_view = &destination[0_u64..11_u64];
+    let produced = decode_percent(input: input_view, destination: dest_view);
+    if produced != 7_u64 {
+      set status_code = 1_u8;
+    }
+    if status_code == 0_u8 {
+      let next_byte = destination[produced];
+      if next_byte != 204_u8 {
+        set status_code = 1_u8;
+      }
+    }
+    if status_code == 0_u8 {
+      let output_buf = array_filled::<u8, 16>(value: 0_u8);
+      for (i in 0_u64..7_u64) {
+        set output_buf[i] = destination[i];
+      }
+      set output_buf[7_u64] = 7_u8;
+      set output_buf[8_u64] = 0_u8;
+      set output_buf[9_u64] = 0_u8;
+      set output_buf[10_u64] = 0_u8;
+      set output_buf[11_u64] = 0_u8;
+      set output_buf[12_u64] = 0_u8;
+      set output_buf[13_u64] = 0_u8;
+      set output_buf[14_u64] = 0_u8;
+      set output_buf[15_u64] = 204_u8;
+      let output_view = &output_buf[0_u64..16_u64];
+      let sent = 0_u64;
+      loop @write {
+        let need_more = sent < 16_u64;
+        if need_more {
+        } else {
+          break @write;
+        }
+        let no_deadline = None<Instant>();
+        let cancel = std::time::cancel_never();
+        let outcome = std::io::write_once(factory: &factory, output: &stdout_stream, source: output_view, start: sent, end: 16_u64, deadline: no_deadline, cancel: &cancel);
+        std::time::close_cancel_watch(watch: move cancel);
+        match outcome {
+          Ok(value: next) => {
+            set sent = next;
+          }
+          Err(error: problem) => {
+            set status_code = 250_u8;
+            break @write;
+          }
+        }
+      }
+    }
+  }
+  return exit_status(code: status_code);
+}

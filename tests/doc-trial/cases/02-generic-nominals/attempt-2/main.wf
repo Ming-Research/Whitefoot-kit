@@ -1,0 +1,158 @@
+alias ExitStatus = std::process::ExitStatus;
+alias Inputs = std::process::Inputs;
+alias exit_status = std::process::exit_status;
+alias Directory = std::fs::Directory;
+
+struct Pair<T> {
+  left: T;
+  right: T;
+}
+
+enum Choice<T> {
+  Absent();
+  Present(value: T);
+}
+
+struct Packet {
+  byte1: u8;
+  byte2: u8;
+}
+
+fn write_u64_le(buffer: &[u8], offset: u64, value: u64) -> result: unit writes(buffer) {
+  set buffer^[offset] = cvt::<u64, u8>(value);
+  let sh8 = ishr(value, 8_u32);
+  set buffer^[offset + 1_u64] = cvt::<u64, u8>(sh8);
+  let sh16 = ishr(value, 16_u32);
+  set buffer^[offset + 2_u64] = cvt::<u64, u8>(sh16);
+  let sh24 = ishr(value, 24_u32);
+  set buffer^[offset + 3_u64] = cvt::<u64, u8>(sh24);
+  let sh32 = ishr(value, 32_u32);
+  set buffer^[offset + 4_u64] = cvt::<u64, u8>(sh32);
+  let sh40 = ishr(value, 40_u32);
+  set buffer^[offset + 5_u64] = cvt::<u64, u8>(sh40);
+  let sh48 = ishr(value, 48_u32);
+  set buffer^[offset + 6_u64] = cvt::<u64, u8>(sh48);
+  let sh56 = ishr(value, 56_u32);
+  set buffer^[offset + 7_u64] = cvt::<u64, u8>(sh56);
+  return unit;
+}
+
+fn write_i64_le(buffer: &[u8], offset: u64, value: i64) -> result: unit writes(buffer) {
+  let as_u64 = reinterpret::<i64, u64>(value);
+  return write_u64_le(buffer: buffer, offset: offset, value: as_u64);
+}
+
+fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+  let Inputs(cwd: cwd_directory, stdout: stdout_stream, handles: factory, ..) = move inputs;
+  let Directory(read: cwd, write: cwd_write) = move cwd_directory;
+  let close_write_result = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
+  let close_read_result = std::fs::close_directory(factory: &factory, directory: move cwd);
+
+  let byte_pair = Pair<u8>(left: 7_u8, right: 7_u8);
+  let signed_pair = Pair<i64>(left: -9_i64, right: -9_i64);
+
+  let choice_byte = Choice<u8>::Present(value: 3_u8);
+  let choice_signed = Choice<i64>::Present(value: -5_i64);
+
+  let byte_sum_result = 1_u8 +checked 2_u8;
+  let byte_sum = match byte_sum_result {
+    Ok(value: s) => {
+      give s;
+    }
+    Err(error: problem) => {
+      return exit_status(code: 1_u8);
+    }
+  }
+
+  let byte_overflow_result = 255_u8 +checked 1_u8;
+  let overflow_marker = match byte_overflow_result {
+    Ok(value: s) => {
+      return exit_status(code: 1_u8);
+    }
+    Err(error: problem) => {
+      give 1_u8;
+    }
+  }
+
+  let signed_sum_result = -4_i64 +checked 9_i64;
+  let signed_sum = match signed_sum_result {
+    Ok(value: s) => {
+      give s;
+    }
+    Err(error: problem) => {
+      return exit_status(code: 1_u8);
+    }
+  }
+
+  let optional_byte_choice = Choice<u8>::Present(value: 19_u8);
+  let optional_byte = match optional_byte_choice {
+    Present(value: b) => {
+      give b;
+    }
+    Absent() => {
+      return exit_status(code: 1_u8);
+    }
+  }
+
+  let packet = Packet(byte1: 11_u8, byte2: 11_u8);
+  let packet_box = box_new::<Packet>(value: move packet);
+  let recovered_byte = packet_box.inner.byte1;
+
+  let output = array_filled::<u8, 72>(value: 0_u8);
+
+  let p1_left_u64 = cvt::<u8, u64>(byte_pair.left);
+  write_u64_le(buffer: &output[0_u64..72_u64], offset: 0_u64, value: p1_left_u64);
+
+  write_i64_le(buffer: &output[0_u64..72_u64], offset: 8_u64, value: signed_pair.right);
+
+  let choice1_val = match move choice_byte {
+    Present(value: v) => {
+      give v;
+    }
+    Absent() => {
+      return exit_status(code: 1_u8);
+    }
+  }
+  let choice1_u64 = cvt::<u8, u64>(choice1_val);
+  write_u64_le(buffer: &output[0_u64..72_u64], offset: 16_u64, value: choice1_u64);
+
+  let choice_signed_val = match move choice_signed {
+    Present(value: v) => {
+      give v;
+    }
+    Absent() => {
+      return exit_status(code: 1_u8);
+    }
+  }
+  write_i64_le(buffer: &output[0_u64..72_u64], offset: 24_u64, value: choice_signed_val);
+
+  let byte_sum_u64 = cvt::<u8, u64>(byte_sum);
+  write_u64_le(buffer: &output[0_u64..72_u64], offset: 32_u64, value: byte_sum_u64);
+
+  let overflow_u64 = cvt::<u8, u64>(overflow_marker);
+  write_u64_le(buffer: &output[0_u64..72_u64], offset: 40_u64, value: overflow_u64);
+
+  write_i64_le(buffer: &output[0_u64..72_u64], offset: 48_u64, value: signed_sum);
+
+  let optional_u64 = cvt::<u8, u64>(optional_byte);
+  write_u64_le(buffer: &output[0_u64..72_u64], offset: 56_u64, value: optional_u64);
+
+  let recovered_u64 = cvt::<u8, u64>(recovered_byte);
+  write_u64_le(buffer: &output[0_u64..72_u64], offset: 64_u64, value: recovered_u64);
+
+  let none_instant = None<std::time::Instant>();
+  let cancel = std::time::cancel_never();
+  let write_result = std::io::write_once(factory: &factory, output: &stdout_stream, source: &output[0_u64..72_u64], start: 0_u64, end: 72_u64, deadline: none_instant, cancel: &cancel);
+
+  match write_result {
+    Ok(value: written) => {
+      if written == 72_u64 {
+        return exit_status(code: 0_u8);
+      }
+      return exit_status(code: 250_u8);
+    }
+    Err(error: problem) => {
+      return exit_status(code: 250_u8);
+    }
+  }
+}

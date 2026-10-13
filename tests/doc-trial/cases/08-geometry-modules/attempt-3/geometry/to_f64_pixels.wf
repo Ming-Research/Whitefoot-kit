@@ -1,0 +1,5 @@
+fn to_f64_pixels(coord: Coordinate) -> result: f64 pure {
+  let value_f64 = cvt::<i32, f64>(coord.value);
+  let result = fdiv.strict(value_f64, 64.0_f64);
+  return result;
+}

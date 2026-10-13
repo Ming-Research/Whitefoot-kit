@@ -1,0 +1,28 @@
+public struct Coordinate {
+  public value: i32;
+}
+
+public struct Rectangle {
+  public left: Coordinate;
+  public top: Coordinate;
+  public width: Coordinate;
+  public height: Coordinate;
+}
+
+public fn from_whole_pixels(pixels: i32) -> result: Coordinate pure doc "Converts whole pixels to a coordinate.";
+
+public fn from_f64_pixels(pixels: f64) -> result: Coordinate pure doc "Converts f64 pixels to a coordinate with rounding.";
+
+public fn to_f64_pixels(coord: Coordinate) -> result: f64 pure doc "Converts a coordinate to f64 pixels.";
+
+public fn add_saturating(left: Coordinate, right: Coordinate) -> result: Coordinate pure doc "Saturating addition of coordinates.";
+
+public fn sub_saturating(left: Coordinate, right: Coordinate) -> result: Coordinate pure doc "Saturating subtraction of coordinates.";
+
+public fn min(left: Coordinate, right: Coordinate) -> result: Coordinate pure doc "Minimum of two coordinates.";
+
+public fn max(left: Coordinate, right: Coordinate) -> result: Coordinate pure doc "Maximum of two coordinates.";
+
+public fn contains_point(rect: Rectangle, x: Coordinate, y: Coordinate) -> result: Bool pure doc "Checks if a point is contained in a rectangle.";
+
+public fn intersects(rect1: Rectangle, rect2: Rectangle) -> result: Bool pure doc "Checks if two rectangles intersect.";

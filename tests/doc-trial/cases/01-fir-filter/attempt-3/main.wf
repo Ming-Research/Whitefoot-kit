@@ -1,0 +1,110 @@
+alias ExitStatus = std::process::ExitStatus;
+alias exit_status = std::process::exit_status;
+alias Inputs = std::process::Inputs;
+
+fn f64_to_bytes(value: f64) -> result: Array<u8, 8> pure {
+  let bits = reinterpret::<f64, u64>(value);
+  let byte0 = cvt.wrap::<u64, u8>(bits);
+  let byte1 = cvt.wrap::<u64, u8>(ishr(bits, 8_u32));
+  let byte2 = cvt.wrap::<u64, u8>(ishr(bits, 16_u32));
+  let byte3 = cvt.wrap::<u64, u8>(ishr(bits, 24_u32));
+  let byte4 = cvt.wrap::<u64, u8>(ishr(bits, 32_u32));
+  let byte5 = cvt.wrap::<u64, u8>(ishr(bits, 40_u32));
+  let byte6 = cvt.wrap::<u64, u8>(ishr(bits, 48_u32));
+  let byte7 = cvt.wrap::<u64, u8>(ishr(bits, 56_u32));
+  let bytes = array_filled::<u8, 8>(value: 0_u8);
+  set bytes[0_u64] = byte0;
+  set bytes[1_u64] = byte1;
+  set bytes[2_u64] = byte2;
+  set bytes[3_u64] = byte3;
+  set bytes[4_u64] = byte4;
+  set bytes[5_u64] = byte5;
+  set bytes[6_u64] = byte6;
+  set bytes[7_u64] = byte7;
+  return bytes;
+}
+
+fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+  let Inputs(cwd: cwd_dir, stdout: output, handles: factory, ..) = move inputs;
+  let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_dir;
+  let cwd_write_close = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
+  let cwd_read_close = std::fs::close_directory(factory: &factory, directory: move cwd_read);
+  let history = array_filled::<f64, 8>(value: 0.0_f64);
+  let outputs = slots_new::<f64, 64>();
+  let coefficient = 0.125_f64;
+  let sum = 0.0_f64;
+  let sample_index = 0_u64;
+  let first_sample = 8.0_f64;
+  for (i in 0_u64..64_u64) {
+    let current = if i == 0_u64 {
+      give first_sample;
+    } else {
+      give 0.0_f64;
+    }
+    let filtered = fmul.strict(current, coefficient);
+    let accumulated = filtered;
+    let j = 1_u64;
+    loop {
+      if j >= 8_u64 {
+        break;
+      }
+      let prev_index = 8_u64 - j;
+      let prev_value = history[prev_index - 1_u64];
+      let weighted = fmul.strict(prev_value, coefficient);
+      set accumulated = fadd.strict(accumulated, weighted);
+      set j = j + 1_u64;
+    }
+    place_back(window: &outputs, value: accumulated);
+    set sum = fadd.strict(sum, accumulated);
+    let k = 7_u64;
+    loop {
+      if k == 0_u64 {
+        break;
+      }
+      set history[k] = history[k - 1_u64];
+      set k = k - 1_u64;
+    }
+    set history[0_u64] = current;
+  }
+  if feq(sum, 8.0_f64) {
+  } else {
+    return exit_status(code: 1_u8);
+  }
+  if outputs.len == 64_u64 {
+  } else {
+    return exit_status(code: 1_u8);
+  }
+  let all_outputs = &outputs[0_u64..64_u64];
+  let byte_buffer = slots_new::<u8, 520>();
+  for (idx in 0_u64..64_u64) {
+    let output_value = all_outputs^[idx];
+    let bytes = f64_to_bytes(value: output_value);
+    for (b in 0_u64..8_u64) {
+      place_back(window: &byte_buffer, value: bytes[b]);
+    }
+  }
+  let sum_bytes = f64_to_bytes(value: sum);
+  for (b in 0_u64..8_u64) {
+    place_back(window: &byte_buffer, value: sum_bytes[b]);
+  }
+  if byte_buffer.len == 520_u64 {
+  } else {
+    return exit_status(code: 1_u8);
+  }
+  let data = &byte_buffer[0_u64..520_u64];
+  let cancel = std::time::cancel_never();
+  let deadline = None<std::time::Instant>();
+  let write_result = std::io::write_once(factory: &factory, output: &output, source: data, start: 0_u64, end: 520_u64, deadline: deadline, cancel: &cancel);
+  match write_result {
+    Ok(value: written) => {
+      if written == 520_u64 {
+        return exit_status(code: 0_u8);
+      } else {
+        return exit_status(code: 250_u8);
+      }
+    }
+    Err(error: err) => {
+      return exit_status(code: 250_u8);
+    }
+  }
+}

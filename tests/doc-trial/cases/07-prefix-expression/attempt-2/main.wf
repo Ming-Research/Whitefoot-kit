@@ -1,0 +1,196 @@
+alias ExitStatus = std::process::ExitStatus;
+alias Inputs = std::process::Inputs;
+alias exit_status = std::process::exit_status;
+alias write_once = std::io::write_once;
+alias close_directory_write = std::fs::close_directory_write;
+alias close_directory = std::fs::close_directory;
+alias cancel_never = std::time::cancel_never;
+
+enum ParseError {
+  Truncated();
+  InvalidToken();
+}
+
+enum Expr {
+  Digit(value: u8);
+  Add(left: Box<Expr>, right: Box<Expr>);
+}
+
+fn parse_expr(bytes: &[u8], pos: u64) -> (next: u64, result: Result<Expr, ParseError>) pure {
+  if pos >= bytes^.len {
+    return pos, Err<Expr, ParseError>(error: ParseError::Truncated());
+  }
+  let byte = bytes^[pos];
+  let is_digit_low = byte >= 48_u8;
+  let is_digit_high = byte <= 57_u8;
+  let is_digit = band(is_digit_low, is_digit_high);
+  if is_digit {
+    let digit = byte - 48_u8;
+    let expr = Expr::Digit(value: digit);
+    return pos + 1_u64, Ok<Expr, ParseError>(value: expr);
+  }
+  if byte == 43_u8 {
+    let left_pos = pos + 1_u64;
+    let (left_next, left_result) = parse_expr(bytes: bytes, pos: left_pos);
+    match left_result {
+      Ok(value: left_expr) => {
+        let (right_next, right_result) = parse_expr(bytes: bytes, pos: left_next);
+        match right_result {
+          Ok(value: right_expr) => {
+            let left_box = box_new::<Expr>(value: move left_expr);
+            let right_box = box_new::<Expr>(value: move right_expr);
+            let expr = Expr::Add(left: move left_box, right: move right_box);
+            return right_next, Ok<Expr, ParseError>(value: expr);
+          }
+          Err(error: err) => {
+            return right_next, Err<Expr, ParseError>(error: move err);
+          }
+        }
+      }
+      Err(error: err) => {
+        return left_next, Err<Expr, ParseError>(error: move err);
+      }
+    }
+  }
+  return pos + 1_u64, Err<Expr, ParseError>(error: ParseError::InvalidToken());
+}
+
+fn eval_expr(expr: &Expr) -> (result: u64, overflow: Bool) reads(expr) {
+  match expr {
+    Digit(value: d) => {
+      let val = cvt::<u8, u64>(d);
+      return val, False();
+    }
+    Add(left: l, right: r) => {
+      let left_ref = &l^.inner;
+      let (left_val, left_overflow) = eval_expr(expr: left_ref);
+      if left_overflow {
+        return 0_u64, True();
+      }
+      let right_ref = &r^.inner;
+      let (right_val, right_overflow) = eval_expr(expr: right_ref);
+      if right_overflow {
+        return 0_u64, True();
+      }
+      let result = left_val +checked right_val;
+      match result {
+        Ok(value: sum) => {
+          return sum, False();
+        }
+        Err(error: _) => {
+          return 0_u64, True();
+        }
+      }
+    }
+  }
+}
+
+fn u64_to_le_bytes(value: u64) -> result: Array<u8, 8> pure {
+  let bytes = array_filled::<u8, 8>(value: 0_u8);
+  set bytes[0_u64] = cvt::<u64, u8>(iand(value, 255_u64));
+  let shift1 = ishr(value, 8_u32);
+  set bytes[1_u64] = cvt::<u64, u8>(iand(shift1, 255_u64));
+  let shift2 = ishr(value, 16_u32);
+  set bytes[2_u64] = cvt::<u64, u8>(iand(shift2, 255_u64));
+  let shift3 = ishr(value, 24_u32);
+  set bytes[3_u64] = cvt::<u64, u8>(iand(shift3, 255_u64));
+  let shift4 = ishr(value, 32_u32);
+  set bytes[4_u64] = cvt::<u64, u8>(iand(shift4, 255_u64));
+  let shift5 = ishr(value, 40_u32);
+  set bytes[5_u64] = cvt::<u64, u8>(iand(shift5, 255_u64));
+  let shift6 = ishr(value, 48_u32);
+  set bytes[6_u64] = cvt::<u64, u8>(iand(shift6, 255_u64));
+  let shift7 = ishr(value, 56_u32);
+  set bytes[7_u64] = cvt::<u64, u8>(iand(shift7, 255_u64));
+  return bytes;
+}
+
+fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+  let Inputs(args: _unused_args, drivers: _unused_drivers, cwd: cwd_directory, stdout: stdout_stream, stderr: _unused_stderr, handles: factory, stdin: _unused_stdin, clock: _unused_clock, wall_clock: _unused_wall_clock, stops: _unused_stops, memory_meter: _unused_memory_meter) = move inputs;
+  let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
+  close_directory_write(factory: &factory, directory: move cwd_write);
+  close_directory(factory: &factory, directory: move cwd_read);
+  let test_input = array_filled::<u8, 5>(value: 0_u8);
+  set test_input[0_u64] = 43_u8;
+  set test_input[1_u64] = 50_u8;
+  set test_input[2_u64] = 43_u8;
+  set test_input[3_u64] = 51_u8;
+  set test_input[4_u64] = 52_u8;
+  let view = &test_input[0_u64..5_u64];
+  let (next_pos, parse_result) = parse_expr(bytes: view, pos: 0_u64);
+  if next_pos != 5_u64 {
+    return exit_status(code: 1_u8);
+  }
+  let expr = match parse_result {
+    Ok(value: e) => {
+      move e
+    }
+    Err(error: _) => {
+      return exit_status(code: 1_u8);
+    }
+  };
+  let expr_box = box_new::<Expr>(value: move expr);
+  let (value, overflow) = eval_expr(expr: &expr_box.inner);
+  if overflow {
+    return exit_status(code: 1_u8);
+  }
+  if value != 9_u64 {
+    return exit_status(code: 1_u8);
+  }
+  let incomplete_input = array_filled::<u8, 2>(value: 0_u8);
+  set incomplete_input[0_u64] = 43_u8;
+  set incomplete_input[1_u64] = 50_u8;
+  let incomplete_view = &incomplete_input[0_u64..2_u64];
+  let (incomplete_next_pos, incomplete_parse_result) = parse_expr(bytes: incomplete_view, pos: 0_u64);
+  let error_code = match incomplete_parse_result {
+    Ok(value: _) => {
+      return exit_status(code: 1_u8);
+    }
+    Err(error: err) => {
+      match move err {
+        Truncated() => {
+          1_u8
+        }
+        InvalidToken() => {
+          2_u8
+        }
+      }
+    }
+  };
+  if error_code != 1_u8 {
+    return exit_status(code: 1_u8);
+  }
+  let cancel = cancel_never();
+  let bytes_5 = u64_to_le_bytes(value: 5_u64);
+  let view_5 = &bytes_5[0_u64..8_u64];
+  let result_5 = write_once(factory: &factory, output: &stdout_stream, source: view_5, start: 0_u64, end: 8_u64, deadline: None<std::time::Instant>(), cancel: &cancel);
+  match result_5 {
+    Ok(value: _) => {
+    }
+    Err(error: _) => {
+      return exit_status(code: 250_u8);
+    }
+  }
+  let bytes_9 = u64_to_le_bytes(value: 9_u64);
+  let view_9 = &bytes_9[0_u64..8_u64];
+  let result_9 = write_once(factory: &factory, output: &stdout_stream, source: view_9, start: 0_u64, end: 8_u64, deadline: None<std::time::Instant>(), cancel: &cancel);
+  match result_9 {
+    Ok(value: _) => {
+    }
+    Err(error: _) => {
+      return exit_status(code: 250_u8);
+    }
+  }
+  let error_value = cvt::<u8, u64>(error_code);
+  let bytes_1 = u64_to_le_bytes(value: error_value);
+  let view_1 = &bytes_1[0_u64..8_u64];
+  let result_1 = write_once(factory: &factory, output: &stdout_stream, source: view_1, start: 0_u64, end: 8_u64, deadline: None<std::time::Instant>(), cancel: &cancel);
+  match result_1 {
+    Ok(value: _) => {
+    }
+    Err(error: _) => {
+      return exit_status(code: 250_u8);
+    }
+  }
+  return exit_status(code: 0_u8);
+}
