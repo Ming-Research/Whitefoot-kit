@@ -1,5 +1,6 @@
 # Temporary, for the writing-guide trial: builds and runs every case under
-# tests/doc-trial/cases with the release tests/doc-trial/whitefoot.pin names,
+# tests/doc-trial/cases, and selected retests in cases-set2, with the release
+# tests/doc-trial/whitefoot.pin names,
 # fixed for a whole trial so its rounds compare, and uploads the diagnostics
 # and outputs. Removed before the branch is ready.
 name: doc-trial
@@ -10,6 +11,14 @@ on:
       - 'tests/doc-trial/**'
       - '.github/workflows/doc-trial.yml'
   workflow_dispatch:
+    inputs:
+      case_set:
+        description: 'Writing-guide trial set (set 1 and its smokes always run)'
+        type: choice
+        options:
+          - '1'
+          - '2'
+        default: '1'
 
 concurrency:
   group: doc-trial-${{ github.ref }}
@@ -22,6 +31,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Select retest
+        id: retest
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REQUESTED_SET: ${{ inputs.case_set }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          selected=false
+          if [ "$EVENT_NAME" = workflow_dispatch ]; then
+            if [ "$REQUESTED_SET" = 2 ]; then selected=true; fi
+          elif [ "$EVENT_NAME" = push ]; then
+            if [ "$BEFORE" = 0000000000000000000000000000000000000000 ]; then
+              changed=$(git ls-tree -r --name-only "$GITHUB_SHA" -- tests/doc-trial/cases-set2)
+            else
+              git fetch --no-tags --depth=1 origin "$BEFORE"
+              changed=$(git diff --name-only "$BEFORE" "$GITHUB_SHA" -- tests/doc-trial/cases-set2)
+            fi
+            if [ -n "$changed" ]; then selected=true; fi
+          fi
+          echo "selected=$selected" >> "$GITHUB_OUTPUT"
+
       - name: Toolchain
         run: make -C tests/doc-trial toolchain
 
@@ -29,6 +59,17 @@ jobs:
         run: |
           make -C tests/doc-trial trial
           cat tests/doc-trial/build/results/summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Retest
+        if: steps.retest.outputs.selected == 'true'
+        env:
+          CASES_DIR: ${{ github.workspace }}/tests/doc-trial/cases-set2
+        run: |
+          release=$(sed -n 's/^release = //p' tests/doc-trial/whitefoot.pin)
+          bash tests/doc-trial/run.sh \
+            "tests/doc-trial/build/whitefoot/$release/whitefootc" \
+            tests/doc-trial/build/results-set2
+          cat tests/doc-trial/build/results-set2/summary.md >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -41,4 +82,10 @@ jobs:
             tests/doc-trial/build/results/**/status.txt
             tests/doc-trial/build/results/**/program*.txt
             tests/doc-trial/build/results/summary.md
+            tests/doc-trial/build/results-set2/**/compile.txt
+            tests/doc-trial/build/results-set2/**/stdout.txt
+            tests/doc-trial/build/results-set2/**/stderr.txt
+            tests/doc-trial/build/results-set2/**/status.txt
+            tests/doc-trial/build/results-set2/**/program*.txt
+            tests/doc-trial/build/results-set2/summary.md
             tests/doc-trial/whitefoot.pin

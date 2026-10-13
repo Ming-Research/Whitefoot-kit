@@ -1,0 +1,243 @@
+alias ExitStatus = std::process::ExitStatus;
+alias exit_status = std::process::exit_status;
+alias HandleFactory = std::io::HandleFactory;
+alias OutputStream = std::io::OutputStream;
+alias IoError = std::io::IoError;
+alias write_once = std::io::write_once;
+
+nocopy enum Cell<T> {
+  EmptyCell();
+  Filled(value: T);
+}
+
+struct OptVec {
+  buf: Slots<Cell<u32>, 4>;
+  fill: u64;
+}
+
+fn vacant<T: drop, const n: u64>() -> result: Slots<Cell<T>, n> pure contract {
+  ensures result.len >= n;
+  ensures result.cap <= result.len;
+} {
+  doc "Builds a window of n slots, every one holding None.";
+  let built = slots_new::<Cell<T>, n>();
+  for @fill (
+    at in 0_u64..n,
+    invariant grown: built.len == at
+  ) {
+    let empty = Cell<T>::EmptyCell();
+    place_back(window: &built, value: move empty);
+  }
+  return move built;
+}
+
+fn optvec_new() -> result: OptVec pure {
+  let empty = vacant::<u32, 4>();
+  return OptVec(buf: move empty, fill: 0_u64);
+}
+
+fn optvec_push(v: OptVec, x: u32) -> result: OptVec pure {
+  doc "A by-value parameter carries no effect entry [EFF-1], so the container is taken by value and handed back. The element exchange is the built-in swap, which needs no hole [OP-11, WIN-3].";
+  let count = v.fill;
+  let limit = v.buf.len;
+  let has_room = count < limit;
+  if has_room {
+  } else {
+    return move v;
+  }
+  let filled = Cell<u32>::Filled(value: x);
+  swap(first: &v.buf[count], second: &filled);
+  match move filled {
+    EmptyCell() => {
+    }
+    Filled(value: stray) => {
+      return move v;
+    }
+  }
+  let bumped = count + 1_u64;
+  set v.fill = bumped;
+  return move v;
+}
+
+fn optvec_pop(v: OptVec) -> (rest: OptVec, taken: u32) pure {
+  doc "The same hand-back, with the removed element beside the container.";
+  let count = v.fill;
+  let nonempty = count > 0_u64;
+  if nonempty {
+  } else {
+    return move v, 0_u32;
+  }
+  let last = count - 1_u64;
+  let limit = v.buf.len;
+  let in_range = last < limit;
+  if in_range {
+  } else {
+    return move v, 0_u32;
+  }
+  let hole = Cell<u32>::EmptyCell();
+  swap(first: &v.buf[last], second: &hole);
+  set v.fill = last;
+  match move hole {
+    EmptyCell() => {
+      return move v, 0_u32;
+    }
+    Filled(value: w) => {
+      return move v, w;
+    }
+  }
+}
+
+fn low_byte(v: u64) -> result: u8 pure {
+  let low = iand(v, 255_u64);
+  let byte = cvt::<u64, u8>(low);
+  return byte;
+}
+
+fn spell(destination: &[u8], at: u64, value: u64) -> result: u64 writes(destination) {
+  doc "Writes the eight little-endian bytes of value at the given offset, skipping any slot the range does not have.";
+  let cursor = at;
+  let rest = value;
+  loop @octets {
+    let limit = at +wrap 8_u64;
+    let done = cursor >= limit;
+    if done {
+      break @octets;
+    }
+    let spare = destination^.len;
+    let writable = cursor < spare;
+    if writable {
+      let byte = low_byte(v: rest);
+      set destination^[cursor] = byte;
+    }
+    set rest = irotr(rest, 8_u32);
+    set cursor = cursor +wrap 1_u64;
+  }
+  return at +wrap 8_u64;
+}
+
+fn publish_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], length: u64) -> result: Result<unit, IoError> reads(source), writes(factory), writes(output) waits contract {
+  define source_length = source^.len;
+  requires length <= source_length;
+} {
+  doc "Publishes one prefix of the source range, reattempting until the host has accepted every byte or refused it.";
+  let sent = 0_u64;
+  loop @publish {
+    let pending = sent < length;
+    if pending {
+    } else {
+      break @publish;
+    }
+    let no_deadline = None<std::time::Instant>();
+    let wait_cancel_1 = std::time::cancel_never();
+    let wait_outcome_1 = write_once(factory: factory, output: output, source: source, start: sent, end: length, deadline: no_deadline, cancel: &wait_cancel_1);
+    std::time::close_cancel_watch(watch: move wait_cancel_1);
+    match wait_outcome_1 {
+      Ok(value: next) => {
+        set sent = next;
+      }
+      Err(error: problem) => {
+        return Err<unit, IoError>(error: problem);
+      }
+    }
+  }
+  return Ok<unit, IoError>(value: unit);
+}
+
+fn publish_report(factory: &HandleFactory, output: &OutputStream, source: &[u8]) -> status: ExitStatus reads(source), writes(factory), writes(output) waits {
+  doc "Trial adaptation: publish the actual observations with the maintained stdin_echo partial-write retry; status 250 reports publication failure.";
+  let length = source^.len;
+  match publish_all(factory: factory, output: output, source: source, length: length) {
+    Ok(value: published) => {
+      return exit_status(code: 0_u8);
+    }
+    Err(error: problem) => {
+      return exit_status(code: 250_u8);
+    }
+  }
+}
+
+fn main(inputs: std::process::Inputs) -> status: ExitStatus pure waits {
+  doc "Trial adaptation: exercise the selected optional-slot container, including full and empty boundaries; publish actual pops and fill counts.";
+  let std::process::Inputs(args: unused_args, drivers: unused_driver_count, cwd: directory, stdout: out, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let std::fs::Directory(read: directory_read, write: directory_write) = move directory;
+  std::fs::close_directory_write(factory: &factory, directory: move directory_write);
+  std::fs::close_directory(factory: &factory, directory: move directory_read);
+  let report = array_filled::<u8, 104>(value: 0_u8);
+  let report_window = &report[0_u64..104_u64];
+  let v = optvec_new();
+  set v = optvec_push(v: move v, x: 10_u32);
+  set v = optvec_push(v: move v, x: 20_u32);
+  set v = optvec_push(v: move v, x: 30_u32);
+  let (rest, top) = optvec_pop(v: move v);
+  if top != 30_u32 {
+    return exit_status(code: 1_u8);
+  }
+  let remaining = rest.fill;
+  if remaining != 2_u64 {
+    return exit_status(code: 1_u8);
+  }
+  let report_value_first = cvt::<u32, u64>(top);
+  let recorded_first = spell(destination: report_window, at: 0_u64, value: report_value_first);
+  let recorded_remaining = spell(destination: report_window, at: 8_u64, value: remaining);
+  let (rest_0, taken_0) = optvec_pop(v: move rest);
+  if taken_0 != 20_u32 {
+    return exit_status(code: 1_u8);
+  }
+  let report_value_pop_0 = cvt::<u32, u64>(taken_0);
+  let recorded_pop_0 = spell(destination: report_window, at: 16_u64, value: report_value_pop_0);
+  let (rest_1, taken_1) = optvec_pop(v: move rest_0);
+  if taken_1 != 10_u32 {
+    return exit_status(code: 1_u8);
+  }
+  let report_value_pop_1 = cvt::<u32, u64>(taken_1);
+  let recorded_pop_1 = spell(destination: report_window, at: 24_u64, value: report_value_pop_1);
+  let (rest_2, taken_2) = optvec_pop(v: move rest_1);
+  if taken_2 != 0_u32 {
+    return exit_status(code: 1_u8);
+  }
+  let report_value_pop_2 = cvt::<u32, u64>(taken_2);
+  let recorded_pop_2 = spell(destination: report_window, at: 32_u64, value: report_value_pop_2);
+  let recorded_empty_fill = spell(destination: report_window, at: 40_u64, value: rest_2.fill);
+  let full = optvec_new();
+  set full = optvec_push(v: move full, x: 10_u32);
+  set full = optvec_push(v: move full, x: 20_u32);
+  set full = optvec_push(v: move full, x: 30_u32);
+  set full = optvec_push(v: move full, x: 40_u32);
+  set full = optvec_push(v: move full, x: 99_u32);
+  if full.fill != 4_u64 {
+    return exit_status(code: 1_u8);
+  }
+  let recorded_full_fill = spell(destination: report_window, at: 48_u64, value: full.fill);
+  let (full_rest_0, full_taken_0) = optvec_pop(v: move full);
+  if full_taken_0 != 40_u32 {
+    return exit_status(code: 1_u8);
+  }
+  let report_value_full_pop_0 = cvt::<u32, u64>(full_taken_0);
+  let recorded_full_pop_0 = spell(destination: report_window, at: 56_u64, value: report_value_full_pop_0);
+  let (full_rest_1, full_taken_1) = optvec_pop(v: move full_rest_0);
+  if full_taken_1 != 30_u32 {
+    return exit_status(code: 1_u8);
+  }
+  let report_value_full_pop_1 = cvt::<u32, u64>(full_taken_1);
+  let recorded_full_pop_1 = spell(destination: report_window, at: 64_u64, value: report_value_full_pop_1);
+  let (full_rest_2, full_taken_2) = optvec_pop(v: move full_rest_1);
+  if full_taken_2 != 20_u32 {
+    return exit_status(code: 1_u8);
+  }
+  let report_value_full_pop_2 = cvt::<u32, u64>(full_taken_2);
+  let recorded_full_pop_2 = spell(destination: report_window, at: 72_u64, value: report_value_full_pop_2);
+  let (full_rest_3, full_taken_3) = optvec_pop(v: move full_rest_2);
+  if full_taken_3 != 10_u32 {
+    return exit_status(code: 1_u8);
+  }
+  let report_value_full_pop_3 = cvt::<u32, u64>(full_taken_3);
+  let recorded_full_pop_3 = spell(destination: report_window, at: 80_u64, value: report_value_full_pop_3);
+  let (full_rest_4, full_taken_4) = optvec_pop(v: move full_rest_3);
+  if full_taken_4 != 0_u32 {
+    return exit_status(code: 1_u8);
+  }
+  let report_value_full_pop_4 = cvt::<u32, u64>(full_taken_4);
+  let recorded_full_pop_4 = spell(destination: report_window, at: 88_u64, value: report_value_full_pop_4);
+  let recorded_final_fill = spell(destination: report_window, at: 96_u64, value: full_rest_4.fill);
+  return publish_report(factory: &factory, output: &out, source: report_window);
+}

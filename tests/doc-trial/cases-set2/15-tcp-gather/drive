@@ -1,0 +1,88 @@
+#!/usr/bin/env python3
+"""Hold both replies until both requests arrive; report actual requests and exit."""
+import contextlib
+import socket
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+
+def main():
+    binary, result_directory = sys.argv[1:]
+    result = Path(result_directory)
+    result.mkdir(parents=True, exist_ok=True)
+    deadline = time.monotonic() + 15.0
+    listeners = []
+    peers = []
+    process = None
+
+    def remaining():
+        left = deadline - time.monotonic()
+        if left <= 0:
+            raise TimeoutError("gather trial exceeded its total deadline")
+        return left
+
+    try:
+        ports = []
+        for _ in range(2):
+            listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            listeners.append(listener)
+            listener.bind(("127.0.0.1", 0))
+            listener.listen(1)
+            ports.append(listener.getsockname()[1])
+        with (result / "program.stdout.txt").open("wb") as stdout, \
+             (result / "program.stderr.txt").open("wb") as stderr:
+            process = subprocess.Popen([binary, *(str(port) for port in ports)],
+                                       stdin=subprocess.DEVNULL, stdout=stdout, stderr=stderr)
+            requests = []
+            # Both listening sockets exist before launch. Neither reply is
+            # available until each service has actually received its request.
+            for index, listener in enumerate(listeners):
+                listener.settimeout(remaining())
+                peer, _ = listener.accept()
+                peers.append(peer)
+                peer.settimeout(remaining())
+                request = peer.recv(1)
+                if request != bytes((index + 1,)):
+                    raise ValueError(f"service {index + 1}: wrong request {request.hex()}")
+                requests.append(request)
+            for index in (1, 0):
+                peers[index].settimeout(remaining())
+                peers[index].sendall(bytes(((index + 1) * 10,)))
+                peers[index].shutdown(socket.SHUT_WR)
+            for index, peer in enumerate(peers):
+                peer.settimeout(remaining())
+                if peer.recv(1) != b"":
+                    raise ValueError(f"service {index + 1}: excess request bytes")
+            status = process.wait(timeout=remaining())
+        (result / "program.status.txt").write_text(f"{status}\n", encoding="ascii")
+        if status != 30:
+            raise ValueError(f"gather process exited {status}, expected computed sum 30")
+        for stream in ("stdout", "stderr"):
+            if (result / f"program.{stream}.txt").stat().st_size:
+                raise ValueError(f"gather process unexpectedly wrote {stream}")
+        for index, request in enumerate(requests):
+            print(f"service {index + 1}: request {request.hex()} eof")
+        print(f"process exit: {status}")
+        return 0
+    except (OSError, ValueError, TimeoutError, subprocess.TimeoutExpired) as error:
+        print(f"gather drive failed: {error}", file=sys.stderr)
+        return 1
+    finally:
+        for stream in peers + listeners:
+            with contextlib.suppress(OSError):
+                stream.close()
+        if process is not None and process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=0.5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=1.0)
+        if process is not None and process.poll() is not None:
+            (result / "program.status.txt").write_text(f"{process.returncode}\n", encoding="ascii")
+
+
+if __name__ == "__main__":
+    sys.exit(main())

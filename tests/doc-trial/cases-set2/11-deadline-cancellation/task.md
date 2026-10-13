@@ -1,0 +1,5 @@
+Write a single file `main.wf` with entry `main`. Use the standard process, filesystem, IO and time interfaces. Close both startup directory permissions.
+
+Run two competitions between readiness and a deadline. In the first, work is already ready and the timer is sixty seconds away. Readiness must win, and cancelling and joining the timer must finish before its deadline. In the second, work is not ready and the timer is ten milliseconds away. The deadline must win and the timer must complete. Use a cancellation source, watch and shared cancellation-state view, a guarded atomic readiness observation, and a bound spawned timer whose result is joined at its first use. Close cancellation sources and watches when finished.
+
+Write the two computed success booleans in that order, encoded as one byte each: 1 for true and 0 for false. Successful execution therefore writes exactly the two bytes 01 01. Handle partial stdout writes. Return zero after successful publication, or 250 on publication failure; write no text, separators or newline. The harness imposes a twenty-second limit, so waiting out the long timer fails. The environment requests four IO drivers.

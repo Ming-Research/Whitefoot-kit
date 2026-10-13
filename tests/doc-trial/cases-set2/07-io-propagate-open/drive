@@ -1,0 +1,48 @@
+#!/usr/bin/env python3
+"""Record independently required native statuses for each file/path fixture."""
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+
+def main():
+    binary, result_directory = sys.argv[1:]
+    result = Path(result_directory)
+    result.mkdir(parents=True, exist_ok=True)
+    source_directory = Path(__file__).resolve().parent / "original"
+    fixture_names = ['input', 'empty', 'limit']
+    for name in fixture_names:
+        target = Path.cwd() / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((source_directory / name).read_bytes())
+    (Path.cwd() / "doc-trial-no-such-file").unlink(missing_ok=True)
+    deadline = time.monotonic() + 15.0
+    observations = [('input', ['input'], 3), ('missing', ['doc-trial-no-such-file'], 203), ('absolute', ['/doc-trial-no-such-file'], 204), ('absent', [], 205), ('empty', ['empty'], 201), ('limit', ['limit'], 64)]
+    transcript = []
+    for label, arguments, expected in observations:
+        left = deadline - time.monotonic()
+        if left <= 0:
+            raise TimeoutError("file trial exceeded its total deadline")
+        stdout_path = result / f"program-{label}.stdout.txt"
+        stderr_path = result / f"program-{label}.stderr.txt"
+        with stdout_path.open("wb") as stdout, stderr_path.open("wb") as stderr:
+            completed = subprocess.run([binary, *arguments], stdin=subprocess.DEVNULL,
+                                       stdout=stdout, stderr=stderr, timeout=left)
+        status = completed.returncode
+        (result / f"program-{label}.status.txt").write_text(f"{status}\n", encoding="ascii")
+        if status != expected:
+            raise ValueError(f"{label}: expected exit {expected}, observed {status}")
+        if stdout_path.stat().st_size or stderr_path.stat().st_size:
+            raise ValueError(f"{label}: expected empty native stdout and stderr")
+        transcript.append(f"{label}: exit {status}")
+    print("\n".join(transcript))
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except (OSError, ValueError, TimeoutError, subprocess.TimeoutExpired) as error:
+        print(f"file drive failed: {error}", file=sys.stderr)
+        sys.exit(1)

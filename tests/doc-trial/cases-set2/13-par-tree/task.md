@@ -1,0 +1,5 @@
+Write a single file `main.wf` with entry `main`. Evaluate an owned binary tree with leaves one through thirty-two in order, split into equal halves at every level. Represent leaves and branches with an enum; each branch owns its two children and a slot for its computed result. Recursively evaluate the children through borrowed payloads, using adjacent independent calls on the disjoint children and a write effect on the borrowed tree. Retain each computed non-leaf result in its branch.
+
+Combine each pair by exclusive-oring the left result rotated left thirteen bits, the right result, and the upper 64 bits of the right result multiplied by 2654435761. Write the computed root result as exactly eight little-endian bytes: 6e b9 f3 30 00 02 c0 01. Use the standard process, filesystem, IO and time interfaces, close both startup directory permissions and handle partial stdout writes. Return zero after successful output or one on output failure. Write no text, separators or newline.
+
+The harness compiles with `--par` and requests four workers. Preserve the independent-call form so the compiler can schedule disjoint branches concurrently.

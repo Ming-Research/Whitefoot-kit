@@ -1,0 +1,215 @@
+alias ExitStatus = std::process::ExitStatus;
+alias Inputs = std::process::Inputs;
+alias exit_status = std::process::exit_status;
+alias HandleFactory = std::io::HandleFactory;
+alias OutputStream = std::io::OutputStream;
+alias IoError = std::io::IoError;
+alias write_once = std::io::write_once;
+
+struct Holder {
+  before: u64;
+  slots: Slots<Box<u64>, 64>;
+  ring: Ring<Box<u64>, 4>;
+  after: Array<u64, 3>;
+}
+
+enum Held {
+  Windows(value: Holder);
+  Cell(value: Box<u64>);
+}
+
+fn inspect(held: Held, expected: u64, report: &[u8], at: u64) -> result: Bool writes(report) {
+  doc "Whole-value transfers preserve live elements; scope cleanup must ignore the stale Box pointers left by takes.";
+  match move held {
+    Windows(value: holder) => {
+      if holder.before != expected {
+        return False();
+      }
+      if holder.slots.len != 1_u64 {
+        return False();
+      }
+      if holder.ring.len != 1_u64 {
+        return False();
+      }
+      if holder.ring.head != 3_u64 {
+        return False();
+      }
+      if holder.slots[0_u64].inner != expected {
+        return False();
+      }
+      if holder.ring[0_u64].inner != expected {
+        return False();
+      }
+      let offset_before = at +wrap 0_u64;
+      let recorded_before = spell(destination: report, at: offset_before, value: holder.before);
+      let offset_slots_len = at +wrap 8_u64;
+      let recorded_slots_len = spell(destination: report, at: offset_slots_len, value: holder.slots.len);
+      let offset_ring_len = at +wrap 16_u64;
+      let recorded_ring_len = spell(destination: report, at: offset_ring_len, value: holder.ring.len);
+      let offset_head = at +wrap 24_u64;
+      let recorded_head = spell(destination: report, at: offset_head, value: holder.ring.head);
+      let offset_slot_value = at +wrap 32_u64;
+      let recorded_slot_value = spell(destination: report, at: offset_slot_value, value: holder.slots[0_u64].inner);
+      let offset_ring_value = at +wrap 40_u64;
+      let recorded_ring_value = spell(destination: report, at: offset_ring_value, value: holder.ring[0_u64].inner);
+      for (i in 0_u64..3_u64) {
+        if holder.after[i] != expected {
+          return False();
+        }
+        let array_offset = i *wrap 8_u64;
+        let array_base = at +wrap 48_u64;
+        let array_at = array_base +wrap array_offset;
+        let recorded_array = spell(destination: report, at: array_at, value: holder.after[i]);
+      }
+      return True();
+    }
+    Cell(value: cell) => {
+      return False();
+    }
+  }
+}
+
+fn churn(seed: u64, report: &[u8], at: u64) -> result: Bool writes(report) {
+  doc "Reuse short-lived frame storage, including empty windows, partial windows and a wrapped Ring with releasing elements.";
+  let empty = slots_new::<Box<u64>, 64>();
+  let zero = ring_new::<Box<u64>, 0>();
+  if empty.len != 0_u64 {
+    return False();
+  }
+  if zero.len != 0_u64 {
+    return False();
+  }
+  if zero.head != 0_u64 {
+    return False();
+  }
+  let slots = slots_new::<Box<u64>, 64>();
+  let first = box_new::<u64>(value: seed);
+  let next = seed +wrap 1_u64;
+  let second = box_new::<u64>(value: next);
+  place_back(window: &slots, value: move first);
+  place_back(window: &slots, value: move second);
+  let taken = take_back(window: &slots);
+  if taken.inner != next {
+    return False();
+  }
+  let offset_taken = at +wrap 72_u64;
+  let recorded_taken = spell(destination: report, at: offset_taken, value: taken.inner);
+  place_back(window: &slots, value: move taken);
+  let again = take_back(window: &slots);
+  if again.inner != next {
+    return False();
+  }
+  let offset_again = at +wrap 80_u64;
+  let recorded_again = spell(destination: report, at: offset_again, value: again.inner);
+  let ring = ring_new::<Box<u64>, 4>();
+  let front = box_new::<u64>(value: seed);
+  let back = box_new::<u64>(value: next);
+  place_front(window: &ring, value: move front);
+  place_back(window: &ring, value: move back);
+  let last = take_back(window: &ring);
+  if last.inner != next {
+    return False();
+  }
+  let offset_last = at +wrap 88_u64;
+  let recorded_last = spell(destination: report, at: offset_last, value: last.inner);
+  let after = array_filled::<u64, 3>(value: seed);
+  let holder = Holder(before: seed, slots: move slots, ring: move ring, after: after);
+  let held = Held::Windows(value: move holder);
+  return inspect(held: move held, expected: seed, report: report, at: at);
+}
+
+fn low_byte(v: u64) -> result: u8 pure {
+  let low = iand(v, 255_u64);
+  let byte = cvt::<u64, u8>(low);
+  return byte;
+}
+
+fn spell(destination: &[u8], at: u64, value: u64) -> result: u64 writes(destination) {
+  doc "Writes the eight little-endian bytes of value at the given offset, skipping any slot the range does not have.";
+  let cursor = at;
+  let rest = value;
+  loop @octets {
+    let limit = at +wrap 8_u64;
+    let done = cursor >= limit;
+    if done {
+      break @octets;
+    }
+    let spare = destination^.len;
+    let writable = cursor < spare;
+    if writable {
+      let byte = low_byte(v: rest);
+      set destination^[cursor] = byte;
+    }
+    set rest = irotr(rest, 8_u32);
+    set cursor = cursor +wrap 1_u64;
+  }
+  return at +wrap 8_u64;
+}
+
+fn publish_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], length: u64) -> result: Result<unit, IoError> reads(source), writes(factory), writes(output) waits contract {
+  define source_length = source^.len;
+  requires length <= source_length;
+} {
+  doc "Publishes one prefix of the source range, reattempting until the host has accepted every byte or refused it.";
+  let sent = 0_u64;
+  loop @publish {
+    let pending = sent < length;
+    if pending {
+    } else {
+      break @publish;
+    }
+    let no_deadline = None<std::time::Instant>();
+    let wait_cancel_1 = std::time::cancel_never();
+    let wait_outcome_1 = write_once(factory: factory, output: output, source: source, start: sent, end: length, deadline: no_deadline, cancel: &wait_cancel_1);
+    std::time::close_cancel_watch(watch: move wait_cancel_1);
+    match wait_outcome_1 {
+      Ok(value: next) => {
+        set sent = next;
+      }
+      Err(error: problem) => {
+        return Err<unit, IoError>(error: problem);
+      }
+    }
+  }
+  return Ok<unit, IoError>(value: unit);
+}
+
+fn publish_report(factory: &HandleFactory, output: &OutputStream, source: &[u8]) -> status: ExitStatus reads(source), writes(factory), writes(output) waits {
+  doc "Trial adaptation: publish the actual observations with the maintained stdin_echo partial-write retry; status 250 reports publication failure.";
+  let length = source^.len;
+  match publish_all(factory: factory, output: output, source: source, length: length) {
+    Ok(value: published) => {
+      return exit_status(code: 0_u8);
+    }
+    Err(error: problem) => {
+      return exit_status(code: 250_u8);
+    }
+  }
+}
+
+fn main(inputs: std::process::Inputs) -> status: ExitStatus pure waits {
+  doc "Trial adaptation: publish each seed's actual retained and removed values, window shape and post-call heap difference.";
+  let std::process::Inputs(args: unused_args, drivers: unused_driver_count, cwd: directory, stdout: out, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: meter) = move inputs;
+  let std::fs::Directory(read: directory_read, write: directory_write) = move directory;
+  std::fs::close_directory_write(factory: &factory, directory: move directory_write);
+  std::fs::close_directory(factory: &factory, directory: move directory_read);
+  let report = array_filled::<u8, 26624>(value: 0_u8);
+  let report_window = &report[0_u64..26624_u64];
+  let baseline = std::process::heap_in_use(meter: &meter);
+  for (seed in 0_u64..256_u64) {
+    let at = seed *wrap 104_u64;
+    let correct = churn(seed: seed, report: report_window, at: at);
+    let failed = bnot(correct);
+    if failed {
+      return exit_status(code: 1_u8);
+    }
+    let after = std::process::heap_in_use(meter: &meter);
+    if after != baseline {
+      return exit_status(code: 2_u8);
+    }
+    let reclaimed_at = at +wrap 96_u64;
+    let reclaimed = after -wrap baseline;
+    let recorded_reclaimed = spell(destination: report_window, at: reclaimed_at, value: reclaimed);
+  }
+  return publish_report(factory: &factory, output: &out, source: report_window);
+}

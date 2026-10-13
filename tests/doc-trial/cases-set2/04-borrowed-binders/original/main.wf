@@ -1,0 +1,166 @@
+alias ExitStatus = std::process::ExitStatus;
+alias exit_status = std::process::exit_status;
+alias HandleFactory = std::io::HandleFactory;
+alias OutputStream = std::io::OutputStream;
+alias IoError = std::io::IoError;
+alias write_once = std::io::write_once;
+
+enum Held {
+  Text(bytes: Box<Slots<u8>>);
+  Nothing();
+}
+
+fn length_of(stored: &Box<Slots<u8>>) -> length: u64 reads(stored) {
+  doc "The length of a stored string.";
+  return stored^.inner.len;
+}
+
+fn read_then_pass(held: &Held) -> total: u64 reads(held) {
+  doc "Reads through a borrowed binder, then passes the binder on: both see the same string.";
+  match held^ {
+    Text(bytes: stored) => {
+      let direct = stored^.inner.len;
+      let passed = length_of(stored: stored);
+      let total = direct +wrap passed;
+      return total;
+    }
+    Nothing() => {
+      return 0_u64;
+    }
+  }
+}
+
+fn pass_then_replace(held: &Held) -> lengths: u64 writes(held) {
+  doc "Passes a borrowed binder on, replaces the string through it, then passes it on again: the second call sees the replacement.";
+  match held^ {
+    Text(bytes: stored) => {
+      let before = length_of(stored: stored);
+      let fresh = box_slots_new::<u8>(capacity: 2_u64);
+      place_back(window: &fresh.inner, value: 9_u8);
+      place_back(window: &fresh.inner, value: 9_u8);
+      set stored^ = move fresh;
+      let after = length_of(stored: stored);
+      let tens = before *wrap 10_u64;
+      let lengths = tens +wrap after;
+      return lengths;
+    }
+    Nothing() => {
+      return 0_u64;
+    }
+  }
+}
+
+fn first_byte(held: &Held) -> first: u8 reads(held) {
+  doc "The first byte of the held string, zero when there is none.";
+  match held^ {
+    Text(bytes: stored) => {
+      if stored^.inner.len > 0_u64 {
+        let first = stored^.inner[0_u64];
+        return first;
+      }
+      return 0_u8;
+    }
+    Nothing() => {
+      return 0_u8;
+    }
+  }
+}
+
+fn low_byte(v: u64) -> result: u8 pure {
+  let low = iand(v, 255_u64);
+  let byte = cvt::<u64, u8>(low);
+  return byte;
+}
+
+fn spell(destination: &[u8], at: u64, value: u64) -> result: u64 writes(destination) {
+  doc "Writes the eight little-endian bytes of value at the given offset, skipping any slot the range does not have.";
+  let cursor = at;
+  let rest = value;
+  loop @octets {
+    let limit = at +wrap 8_u64;
+    let done = cursor >= limit;
+    if done {
+      break @octets;
+    }
+    let spare = destination^.len;
+    let writable = cursor < spare;
+    if writable {
+      let byte = low_byte(v: rest);
+      set destination^[cursor] = byte;
+    }
+    set rest = irotr(rest, 8_u32);
+    set cursor = cursor +wrap 1_u64;
+  }
+  return at +wrap 8_u64;
+}
+
+fn publish_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], length: u64) -> result: Result<unit, IoError> reads(source), writes(factory), writes(output) waits contract {
+  define source_length = source^.len;
+  requires length <= source_length;
+} {
+  doc "Publishes one prefix of the source range, reattempting until the host has accepted every byte or refused it.";
+  let sent = 0_u64;
+  loop @publish {
+    let pending = sent < length;
+    if pending {
+    } else {
+      break @publish;
+    }
+    let no_deadline = None<std::time::Instant>();
+    let wait_cancel_1 = std::time::cancel_never();
+    let wait_outcome_1 = write_once(factory: factory, output: output, source: source, start: sent, end: length, deadline: no_deadline, cancel: &wait_cancel_1);
+    std::time::close_cancel_watch(watch: move wait_cancel_1);
+    match wait_outcome_1 {
+      Ok(value: next) => {
+        set sent = next;
+      }
+      Err(error: problem) => {
+        return Err<unit, IoError>(error: problem);
+      }
+    }
+  }
+  return Ok<unit, IoError>(value: unit);
+}
+
+fn publish_report(factory: &HandleFactory, output: &OutputStream, source: &[u8]) -> status: ExitStatus reads(source), writes(factory), writes(output) waits {
+  doc "Trial adaptation: publish the actual observations with the maintained stdin_echo partial-write retry; status 250 reports publication failure.";
+  let length = source^.len;
+  match publish_all(factory: factory, output: output, source: source, length: length) {
+    Ok(value: published) => {
+      return exit_status(code: 0_u8);
+    }
+    Err(error: problem) => {
+      return exit_status(code: 250_u8);
+    }
+  }
+}
+
+fn main(inputs: std::process::Inputs) -> status: ExitStatus pure waits {
+  doc "Trial adaptation: preserve borrowed payload forwarding and owner replacement; publish their three actual observations.";
+  let std::process::Inputs(args: unused_args, drivers: unused_driver_count, cwd: directory, stdout: out, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let std::fs::Directory(read: directory_read, write: directory_write) = move directory;
+  std::fs::close_directory_write(factory: &factory, directory: move directory_write);
+  std::fs::close_directory(factory: &factory, directory: move directory_read);
+  let report = array_filled::<u8, 24>(value: 0_u8);
+  let report_window = &report[0_u64..24_u64];
+  let bytes = box_slots_new::<u8>(capacity: 1_u64);
+  place_back(window: &bytes.inner, value: 7_u8);
+  let held = Held::Text(bytes: move bytes);
+  let total = read_then_pass(held: &held);
+  if total != 2_u64 {
+    return exit_status(code: 1_u8);
+  }
+  let lengths = pass_then_replace(held: &held);
+  if lengths != 12_u64 {
+    return exit_status(code: 2_u8);
+  }
+  let first = first_byte(held: &held);
+  if first != 9_u8 {
+    return exit_status(code: 3_u8);
+  }
+  let recorded_total = spell(destination: report_window, at: 0_u64, value: total);
+  let recorded_lengths = spell(destination: report_window, at: 8_u64, value: lengths);
+  let report_value_first = cvt::<u8, u64>(first);
+  let recorded_first = spell(destination: report_window, at: 16_u64, value: report_value_first);
+  return publish_report(factory: &factory, output: &out, source: report_window);
+}

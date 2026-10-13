@@ -1,10 +1,13 @@
 #!/bin/bash
 # See cases/README.md for the source, graph, environment and driver formats.
 # Builds and runs happen in CI only. A missing attempt remains pending.
+# CASES_DIR selects another case root; the default retains set 1 and its smokes.
 set -u
 whitefootc=$1
 out=$2
 here=$(cd "$(dirname "$0")" && pwd)
+cases_dir=${CASES_DIR:-"$here/cases"}
+cases_dir=$(cd "$cases_dir" && pwd) || exit 1
 whitefootc=$(cd "$(dirname "$whitefootc")" && pwd)/$(basename "$whitefootc")
 mkdir -p "$out"
 out=$(cd "$out" && pwd)
@@ -55,7 +58,7 @@ side() {
 }
 
 smoke_errors=0
-for case in "$here"/cases/*/; do
+for case in "$cases_dir"/*/; do
   case=${case%/}
   id=$(basename "$case")
   if [ -f "$case/expected" ] && [ ! -d "$case/original" ]; then

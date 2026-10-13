@@ -1,0 +1,193 @@
+alias ExitStatus = std::process::ExitStatus;
+alias exit_status = std::process::exit_status;
+alias HandleFactory = std::io::HandleFactory;
+alias OutputStream = std::io::OutputStream;
+alias IoError = std::io::IoError;
+alias write_once = std::io::write_once;
+
+const pixel_input: Array<u8, 24> =[0_u8, 0_u8, 0_u8, 255_u8, 255_u8, 255_u8, 255_u8, 0_u8, 0_u8, 0_u8, 255_u8, 0_u8, 0_u8, 0_u8, 255_u8, 255_u8, 255_u8, 0_u8, 1_u8, 2_u8, 3_u8, 254_u8, 253_u8, 252_u8];
+
+fn grayscale_value(red: u8, green: u8, blue: u8) -> result: Result<u8, NarrowError> pure {
+  doc "One pixel averaged in binary32 and converted back by the value-preserving cvt, which reports a non-representable result rather than rounding it [OP-6].";
+  let red_float = cvt::<u8, f32>(red);
+  let green_float = cvt::<u8, f32>(green);
+  let blue_float = cvt::<u8, f32>(blue);
+  let red_green = fadd.strict(red_float, green_float);
+  let total = fadd.strict(red_green, blue_float);
+  let average = fdiv.strict(total, 3.0_f32);
+  let rounded = froundeven(average);
+  return cvt.checked::<f32, u8>(rounded);
+}
+
+fn grayscale(input: &[u8], output: &[u8]) -> result: Result<unit, NarrowError> reads(input), writes(output) contract {
+  define input_length = input^.len;
+  define output_length = output^.len;
+  requires input_length >= 24_u64;
+  requires output_length >= 8_u64;
+} {
+  doc "Both operands are range references, whose one measure is len; whether the callee may write through one is stated by this row and by nothing on the reference itself [REF-4, EFF-1].";
+  let pixel = 0_u64;
+  loop @pixels {
+    let done = pixel == 8_u64;
+    if done {
+      break @pixels;
+    }
+    let base = pixel *wrap 3_u64;
+    let green_offset = base +wrap 1_u64;
+    let blue_offset = base +wrap 2_u64;
+    let input_room = input^.len;
+    let red_ok = base < input_room;
+    if red_ok {
+    } else {
+      let error = NarrowError();
+      return Err<unit, NarrowError>(error: error);
+    }
+    let red = input^[base];
+    let green_ok = green_offset < input_room;
+    if green_ok {
+    } else {
+      let error = NarrowError();
+      return Err<unit, NarrowError>(error: error);
+    }
+    let green = input^[green_offset];
+    let blue_ok = blue_offset < input_room;
+    if blue_ok {
+    } else {
+      let error = NarrowError();
+      return Err<unit, NarrowError>(error: error);
+    }
+    let blue = input^[blue_offset];
+    let value = propagate grayscale_value(red: red, green: green, blue: blue);
+    let output_room = output^.len;
+    let pixel_ok = pixel < output_room;
+    if pixel_ok {
+    } else {
+      let error = NarrowError();
+      return Err<unit, NarrowError>(error: error);
+    }
+    set output^[pixel] = value;
+    set pixel = pixel +wrap 1_u64;
+  }
+  return Ok<unit, NarrowError>(value: unit);
+}
+
+fn low_byte(v: u64) -> result: u8 pure {
+  let low = iand(v, 255_u64);
+  let byte = cvt::<u64, u8>(low);
+  return byte;
+}
+
+fn spell(destination: &[u8], at: u64, value: u64) -> result: u64 writes(destination) {
+  doc "Writes the eight little-endian bytes of value at the given offset, skipping any slot the range does not have.";
+  let cursor = at;
+  let rest = value;
+  loop @octets {
+    let limit = at +wrap 8_u64;
+    let done = cursor >= limit;
+    if done {
+      break @octets;
+    }
+    let spare = destination^.len;
+    let writable = cursor < spare;
+    if writable {
+      let byte = low_byte(v: rest);
+      set destination^[cursor] = byte;
+    }
+    set rest = irotr(rest, 8_u32);
+    set cursor = cursor +wrap 1_u64;
+  }
+  return at +wrap 8_u64;
+}
+
+fn publish_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], length: u64) -> result: Result<unit, IoError> reads(source), writes(factory), writes(output) waits contract {
+  define source_length = source^.len;
+  requires length <= source_length;
+} {
+  doc "Publishes one prefix of the source range, reattempting until the host has accepted every byte or refused it.";
+  let sent = 0_u64;
+  loop @publish {
+    let pending = sent < length;
+    if pending {
+    } else {
+      break @publish;
+    }
+    let no_deadline = None<std::time::Instant>();
+    let wait_cancel_1 = std::time::cancel_never();
+    let wait_outcome_1 = write_once(factory: factory, output: output, source: source, start: sent, end: length, deadline: no_deadline, cancel: &wait_cancel_1);
+    std::time::close_cancel_watch(watch: move wait_cancel_1);
+    match wait_outcome_1 {
+      Ok(value: next) => {
+        set sent = next;
+      }
+      Err(error: problem) => {
+        return Err<unit, IoError>(error: problem);
+      }
+    }
+  }
+  return Ok<unit, IoError>(value: unit);
+}
+
+fn publish_report(factory: &HandleFactory, output: &OutputStream, source: &[u8]) -> status: ExitStatus reads(source), writes(factory), writes(output) waits {
+  doc "Trial adaptation: publish the actual observations with the maintained stdin_echo partial-write retry; status 250 reports publication failure.";
+  let length = source^.len;
+  match publish_all(factory: factory, output: output, source: source, length: length) {
+    Ok(value: published) => {
+      return exit_status(code: 0_u8);
+    }
+    Err(error: problem) => {
+      return exit_status(code: 250_u8);
+    }
+  }
+}
+
+fn main(inputs: std::process::Inputs) -> status: ExitStatus pure waits {
+  doc "Trial adaptation: retain the loop, enum dispatch, propagation and exact conversion; publish the eight computed grayscale bytes.";
+  let std::process::Inputs(args: unused_args, drivers: unused_driver_count, cwd: directory, stdout: out, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let std::fs::Directory(read: directory_read, write: directory_write) = move directory;
+  std::fs::close_directory_write(factory: &factory, directory: move directory_write);
+  std::fs::close_directory(factory: &factory, directory: move directory_read);
+  let output = array_filled::<u8, 8>(value: 0_u8);
+  let window = &output[0_u64..8_u64];
+  let view = &pixel_input[0_u64..24_u64];
+  let result = grayscale(input: view, output: window);
+  match result {
+    Ok(value: success) => {
+    }
+    Err(error: failure) => {
+      return exit_status(code: 1_u8);
+    }
+  }
+  if output[0_u64] == 0_u8 {
+  } else {
+    return exit_status(code: 1_u8);
+  }
+  if output[1_u64] == 255_u8 {
+  } else {
+    return exit_status(code: 1_u8);
+  }
+  if output[2_u64] == 85_u8 {
+  } else {
+    return exit_status(code: 1_u8);
+  }
+  if output[3_u64] == 85_u8 {
+  } else {
+    return exit_status(code: 1_u8);
+  }
+  if output[4_u64] == 85_u8 {
+  } else {
+    return exit_status(code: 1_u8);
+  }
+  if output[5_u64] == 170_u8 {
+  } else {
+    return exit_status(code: 1_u8);
+  }
+  if output[6_u64] == 2_u8 {
+  } else {
+    return exit_status(code: 1_u8);
+  }
+  if output[7_u64] == 253_u8 {
+  } else {
+    return exit_status(code: 1_u8);
+  }
+  return publish_report(factory: &factory, output: &out, source: window);
+}

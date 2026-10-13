@@ -1,0 +1,284 @@
+alias ExitStatus = std::process::ExitStatus;
+alias exit_status = std::process::exit_status;
+alias HandleFactory = std::io::HandleFactory;
+alias OutputStream = std::io::OutputStream;
+alias IoError = std::io::IoError;
+alias write_once = std::io::write_once;
+
+fn vacant<T: drop, const n: u64>() -> result: Ring<Option<T>, n> pure contract {
+  ensures result.len >= n;
+  ensures result.cap <= result.len;
+} {
+  doc "Builds a window of n slots, every one holding None.";
+  let built = ring_new::<Option<T>, n>();
+  for @fill (
+    at in 0_u64..n,
+    invariant grown: built.len >= at,
+    invariant bounded: built.len <= at,
+    invariant spare: built.cap - built.len + at >= n
+  ) {
+    let empty = None<T>();
+    place_back(window: &built, value: move empty);
+  }
+  return move built;
+}
+
+fn filled<T: copy, const n: u64>(value: T) -> result: Ring<T, n> pure contract {
+  ensures result.len >= n;
+  ensures result.cap <= result.len;
+} {
+  doc "Builds a window of n slots, every one holding a copy of value; the copy bound is what admits the bare repeated use.";
+  let built = ring_new::<T, n>();
+  for @fill (
+    at in 0_u64..n,
+    invariant grown: built.len >= at,
+    invariant bounded: built.len <= at,
+    invariant spare: built.cap - built.len + at >= n
+  ) {
+    place_back(window: &built, value: value);
+  }
+  return move built;
+}
+
+fn take_at<T: drop, const n: u64>(window: &Ring<T, n>, at: u64) -> taken: T writes(window) contract {
+  requires at + 2_u64 <= window^.len;
+  ensures window^.len + 1_u64 == entry(window)^.len;
+} {
+  doc "Removes the element at at, moving the last element into its place. The exchange is the built-in swap, which no source body could write without a hole [OP-11, WIN-3].";
+  let endv = take_back(window: window);
+  swap(first: &window^[at], second: &endv);
+  return move endv;
+}
+
+fn try_place<T: drop, const n: u64>(window: &Ring<T, n>, value: T) -> unplaced: Option<T> writes(window.next), writes(window.len) contract {
+  ensures window^.len <= entry(window)^.len + 1_u64;
+  ensures window^.len >= entry(window)^.len;
+} {
+  doc "Appends one value, handing it back when the window is full; the fullness test is the length against the written capacity, and the standing identity len + (cap - len) = cap turns it into place_back's requirement [MSR-2].";
+  let held = window^.len;
+  let fits = held < n;
+  if fits {
+    place_back(window: window, value: move value);
+    return None<T>();
+  }
+  return Some<T>(value: move value);
+}
+
+fn try_take<T: drop, const n: u64>(window: &Ring<T, n>) -> taken: Option<T> writes(window.last), writes(window.len) contract {
+  ensures window^.len <= entry(window)^.len;
+  ensures window^.len + 1_u64 >= entry(window)^.len;
+} {
+  doc "Removes one value from the end, or reports that the window is empty.";
+  let held = window^.len;
+  let any = held > 0_u64;
+  if any {
+    let one = take_back(window: window);
+    return Some<T>(value: move one);
+  }
+  return None<T>();
+}
+
+fn rebase<T: drop, const n: u64>(window: Ring<T, n>, spare: Ring<T, n>) -> rebased: Ring<T, n> pure contract {
+  requires spare.len <= 0_u64;
+  ensures rebased.len >= window.len;
+  ensures rebased.len <= window.len;
+} {
+  doc "Moves every element of a wrapped window into a fresh one, in order, so the result does not wrap. Both operands arrive by value, so every access is rooted in local storage and the row is empty [EFF-1, EFF-2].";
+  let count = window.len;
+  let built = move spare;
+  for @rot (
+    at in 0_u64..count,
+    invariant left: window.len + at >= count,
+    invariant gone: window.len + at <= count,
+    invariant made_lo: built.len >= at,
+    invariant made_hi: built.len <= at,
+    invariant spare_lo: built.cap - built.len + at >= n,
+    invariant spare_hi: built.cap - built.len + at <= n
+  ) {
+    let one = take_front(window: &window);
+    place_back(window: &built, value: move one);
+  }
+  return move built;
+}
+
+fn low_byte(v: u64) -> result: u8 pure {
+  let low = iand(v, 255_u64);
+  let byte = cvt::<u64, u8>(low);
+  return byte;
+}
+
+fn spell(destination: &[u8], at: u64, value: u64) -> result: u64 writes(destination) {
+  doc "Writes the eight little-endian bytes of value at the given offset, skipping any slot the range does not have.";
+  let cursor = at;
+  let rest = value;
+  loop @octets {
+    let limit = at +wrap 8_u64;
+    let done = cursor >= limit;
+    if done {
+      break @octets;
+    }
+    let spare = destination^.len;
+    let writable = cursor < spare;
+    if writable {
+      let byte = low_byte(v: rest);
+      set destination^[cursor] = byte;
+    }
+    set rest = irotr(rest, 8_u32);
+    set cursor = cursor +wrap 1_u64;
+  }
+  return at +wrap 8_u64;
+}
+
+fn publish_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], length: u64) -> result: Result<unit, IoError> reads(source), writes(factory), writes(output) waits contract {
+  define source_length = source^.len;
+  requires length <= source_length;
+} {
+  doc "Publishes one prefix of the source range, reattempting until the host has accepted every byte or refused it.";
+  let sent = 0_u64;
+  loop @publish {
+    let pending = sent < length;
+    if pending {
+    } else {
+      break @publish;
+    }
+    let no_deadline = None<std::time::Instant>();
+    let wait_cancel_1 = std::time::cancel_never();
+    let wait_outcome_1 = write_once(factory: factory, output: output, source: source, start: sent, end: length, deadline: no_deadline, cancel: &wait_cancel_1);
+    std::time::close_cancel_watch(watch: move wait_cancel_1);
+    match wait_outcome_1 {
+      Ok(value: next) => {
+        set sent = next;
+      }
+      Err(error: problem) => {
+        return Err<unit, IoError>(error: problem);
+      }
+    }
+  }
+  return Ok<unit, IoError>(value: unit);
+}
+
+fn publish_report(factory: &HandleFactory, output: &OutputStream, source: &[u8]) -> status: ExitStatus reads(source), writes(factory), writes(output) waits {
+  doc "Trial adaptation: publish the actual observations with the maintained stdin_echo partial-write retry; status 250 reports publication failure.";
+  let length = source^.len;
+  match publish_all(factory: factory, output: output, source: source, length: length) {
+    Ok(value: published) => {
+      return exit_status(code: 0_u8);
+    }
+    Err(error: problem) => {
+      return exit_status(code: 250_u8);
+    }
+  }
+}
+
+fn main(inputs: std::process::Inputs) -> status: ExitStatus pure waits {
+  doc "Trial adaptation: exercise all six generic circular-storage helpers and publish filled/vacant, full/empty boundary, replacement removal and rebase observations.";
+  let std::process::Inputs(args: unused_args, drivers: unused_driver_count, cwd: directory, stdout: out, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let std::fs::Directory(read: directory_read, write: directory_write) = move directory;
+  std::fs::close_directory_write(factory: &factory, directory: move directory_write);
+  std::fs::close_directory(factory: &factory, directory: move directory_read);
+  let report = array_filled::<u8, 160>(value: 0_u8);
+  let report_window = &report[0_u64..160_u64];
+  let vacant_slots = vacant::<u8, 4>();
+  let vacant_count = vacant_slots.len;
+  let full = filled::<u8, 4>(value: 7_u8);
+  let full_count = full.len;
+  let full_first = full[0_u64];
+  let full_last = full[3_u64];
+  let full_refused = try_place::<u8, 4>(window: &full, value: 8_u8);
+  let refusal_value = 0_u64;
+  match full_refused {
+    Some(value: returned) => {
+      set refusal_value = cvt::<u8, u64>(returned);
+    }
+    None() => {
+      return exit_status(code: 1_u8);
+    }
+  }
+  let after_refusal = full.len;
+  let empty = ring_new::<u8, 4>();
+  let empty_taken = try_take::<u8, 4>(window: &empty);
+  let empty_tag = 0_u64;
+  match empty_taken {
+    Some(value: unexpected) => {
+      return exit_status(code: 2_u8);
+    }
+    None() => {
+    }
+  }
+  let three = ring_new::<u8, 4>();
+  place_back(window: &three, value: 21_u8);
+  place_back(window: &three, value: 22_u8);
+  place_back(window: &three, value: 23_u8);
+  let removed = take_at::<u8, 4>(window: &three, at: 0_u64);
+  let remaining = three.len;
+  let remaining_first = three[0_u64];
+  let remaining_last = three[1_u64];
+  let unplaced = try_place::<u8, 4>(window: &three, value: 24_u8);
+  let insertion_tag = 0_u64;
+  match unplaced {
+    Some(value: refused) => {
+      return exit_status(code: 3_u8);
+    }
+    None() => {
+    }
+  }
+  let after_insertion = three.len;
+  let back = try_take::<u8, 4>(window: &three);
+  let taken = 0_u64;
+  match back {
+    Some(value: taken_byte) => {
+      set taken = cvt::<u8, u64>(taken_byte);
+    }
+    None() => {
+      return exit_status(code: 4_u8);
+    }
+  }
+  let after_take = three.len;
+  let wrapped = ring_new::<u8, 4>();
+  place_back(window: &wrapped, value: 10_u8);
+  place_back(window: &wrapped, value: 11_u8);
+  place_back(window: &wrapped, value: 12_u8);
+  place_back(window: &wrapped, value: 13_u8);
+  let discarded_first = take_front(window: &wrapped);
+  let discarded_second = take_front(window: &wrapped);
+  place_back(window: &wrapped, value: 14_u8);
+  let fresh = ring_new::<u8, 4>();
+  let flat = rebase::<u8, 4>(window: move wrapped, spare: move fresh);
+  let flat_count = flat.len;
+  let flat_head = flat.head;
+  if flat_count != 3_u64 {
+    return exit_status(code: 5_u8);
+  }
+  let flat_first = flat[0_u64];
+  let flat_second = flat[1_u64];
+  let flat_third = flat[2_u64];
+  let recorded_0 = spell(destination: report_window, at: 0_u64, value: vacant_count);
+  let recorded_8 = spell(destination: report_window, at: 8_u64, value: full_count);
+  let widened_16 = cvt::<u8, u64>(full_first);
+  let recorded_16 = spell(destination: report_window, at: 16_u64, value: widened_16);
+  let widened_24 = cvt::<u8, u64>(full_last);
+  let recorded_24 = spell(destination: report_window, at: 24_u64, value: widened_24);
+  let recorded_32 = spell(destination: report_window, at: 32_u64, value: refusal_value);
+  let recorded_40 = spell(destination: report_window, at: 40_u64, value: after_refusal);
+  let recorded_48 = spell(destination: report_window, at: 48_u64, value: empty_tag);
+  let widened_56 = cvt::<u8, u64>(removed);
+  let recorded_56 = spell(destination: report_window, at: 56_u64, value: widened_56);
+  let recorded_64 = spell(destination: report_window, at: 64_u64, value: remaining);
+  let widened_72 = cvt::<u8, u64>(remaining_first);
+  let recorded_72 = spell(destination: report_window, at: 72_u64, value: widened_72);
+  let widened_80 = cvt::<u8, u64>(remaining_last);
+  let recorded_80 = spell(destination: report_window, at: 80_u64, value: widened_80);
+  let recorded_88 = spell(destination: report_window, at: 88_u64, value: insertion_tag);
+  let recorded_96 = spell(destination: report_window, at: 96_u64, value: after_insertion);
+  let recorded_104 = spell(destination: report_window, at: 104_u64, value: taken);
+  let recorded_112 = spell(destination: report_window, at: 112_u64, value: after_take);
+  let recorded_120 = spell(destination: report_window, at: 120_u64, value: flat_count);
+  let recorded_128 = spell(destination: report_window, at: 128_u64, value: flat_head);
+  let widened_136 = cvt::<u8, u64>(flat_first);
+  let recorded_136 = spell(destination: report_window, at: 136_u64, value: widened_136);
+  let widened_144 = cvt::<u8, u64>(flat_second);
+  let recorded_144 = spell(destination: report_window, at: 144_u64, value: widened_144);
+  let widened_152 = cvt::<u8, u64>(flat_third);
+  let recorded_152 = spell(destination: report_window, at: 152_u64, value: widened_152);
+  return publish_report(factory: &factory, output: &out, source: report_window);
+}
