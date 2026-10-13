@@ -1,0 +1,27 @@
+#!/usr/bin/env python3
+"""Observe a native status; optionally require the literal case environment."""
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+binary, result = sys.argv[1:]
+result = Path(result)
+if (Path(__file__).parent / "env").exists():
+    if os.environ.get("DOC_TRIAL_SENTINEL") != "literal value $() # kept":
+        print("case environment missing or evaluated", file=sys.stderr)
+        sys.exit(1)
+with (result / "program-stdout.txt").open("wb") as out, (result / "program-stderr.txt").open("wb") as err:
+    child = subprocess.Popen([binary], stdin=subprocess.DEVNULL, stdout=out, stderr=err)
+    try:
+        status = child.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        child.kill()
+        child.wait(timeout=1)
+        print("native timeout", file=sys.stderr)
+        sys.exit(1)
+(result / "program-status.txt").write_text(str(status) + "\n")
+print("status=%d" % status)
+if (result / "program-stdout.txt").read_bytes():
+    sys.exit(1)
+sys.exit(0 if status == 0 else 1)

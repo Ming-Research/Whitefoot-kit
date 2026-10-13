@@ -1,0 +1,226 @@
+alias ExitStatus = std::process::ExitStatus;
+alias exit_status = std::process::exit_status;
+
+const prefix_input: Array<u8, 5> =[43_u8, 50_u8, 43_u8, 51_u8, 52_u8];
+
+const prefix_incomplete: Array<u8, 2> =[43_u8, 50_u8];
+
+enum Expression {
+  Literal(value: u64);
+  Add(left: Box<Expression>, right: Box<Expression>);
+}
+
+enum ParseError {
+  Truncated();
+  InvalidToken();
+}
+
+struct ParseOutput {
+  node: Box<Expression>;
+  next: u64;
+}
+
+fn parse_expression(input: &[u8], offset: u64) -> result: Result<ParseOutput, ParseError> reads(input) {
+  doc "There is one heap and allocation is total, so a cell formation has no refusal arm and the parser carries only the two errors its own grammar can produce [STOR-8, TYPE-9].";
+  let size = input^.len;
+  let available = offset < size;
+  if available {
+  } else {
+    let truncated_error = ParseError::Truncated();
+    return Err<ParseOutput, ParseError>(error: truncated_error);
+  }
+  let token = input^[offset];
+  let next = offset + 1_u64;
+  let is_add = token == 43_u8;
+  if is_add {
+    match parse_expression(input: input, offset: next) {
+      Err(error: left_error) => {
+        return Err<ParseOutput, ParseError>(error: left_error);
+      }
+      Ok(value: left_output) => {
+        let right_offset = left_output.next;
+        match parse_expression(input: input, offset: right_offset) {
+          Err(error: right_error) => {
+            return Err<ParseOutput, ParseError>(error: right_error);
+          }
+          Ok(value: right_output) => {
+            let final_offset = right_output.next;
+            let left_node = move left_output.node;
+            let right_node = move right_output.node;
+            let expression = Expression::Add(left: move left_node, right: move right_node);
+            let node = box_new::<Expression>(value: move expression);
+            let output = ParseOutput(node: move node, next: final_offset);
+            return Ok<ParseOutput, ParseError>(value: move output);
+          }
+        }
+      }
+    }
+  } else {
+    let below_digit = token < 48_u8;
+    if below_digit {
+      let low_error = ParseError::InvalidToken();
+      return Err<ParseOutput, ParseError>(error: low_error);
+    }
+    let above_digit = token > 57_u8;
+    if above_digit {
+      let high_error = ParseError::InvalidToken();
+      return Err<ParseOutput, ParseError>(error: high_error);
+    }
+    let digit_byte = token -wrap 48_u8;
+    let digit = cvt::<u8, u64>(digit_byte);
+    let expression = Expression::Literal(value: digit);
+    let node = box_new::<Expression>(value: move expression);
+    let output = ParseOutput(node: move node, next: next);
+    return Ok<ParseOutput, ParseError>(value: move output);
+  }
+}
+
+fn evaluate(expression: &Box<Expression>) -> result: Result<u64, Overflow> reads(expression) {
+  doc "A Box's content is its field inner, and matching through a reference binds each payload as a reference naming the scrutinee path [TYPE-9, OWN-13].";
+  match expression^.inner {
+    Literal(value: literal_value) => {
+      return Ok<u64, Overflow>(value: literal_value^);
+    }
+    Add(left: node_left, right: node_right) => {
+      let left_value = propagate evaluate(expression: node_left);
+      let right_value = propagate evaluate(expression: node_right);
+      return left_value +checked right_value;
+    }
+  }
+}
+
+alias HandleFactory = std::io::HandleFactory;
+alias OutputStream = std::io::OutputStream;
+alias IoError = std::io::IoError;
+alias write_once = std::io::write_once;
+
+fn low_byte(v: u64) -> result: u8 pure {
+  let low = iand(v, 255_u64);
+  let byte = cvt::<u64, u8>(low);
+  return byte;
+}
+
+fn spell(destination: &[u8], at: u64, value: u64) -> result: u64 writes(destination) {
+  doc "Writes the eight little-endian bytes of value at the given offset, skipping any slot the range does not have.";
+  let cursor = at;
+  let rest = value;
+  loop @octets {
+    let limit = at +wrap 8_u64;
+    let done = cursor >= limit;
+    if done {
+      break @octets;
+    }
+    let spare = destination^.len;
+    let writable = cursor < spare;
+    if writable {
+      let byte = low_byte(v: rest);
+      set destination^[cursor] = byte;
+    }
+    set rest = irotr(rest, 8_u32);
+    set cursor = cursor +wrap 1_u64;
+  }
+  return at +wrap 8_u64;
+}
+
+fn publish_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], length: u64) -> result: Result<unit, IoError> reads(source), writes(factory), writes(output) waits contract {
+  define source_length = source^.len;
+  requires length <= source_length;
+} {
+  doc "Publishes one prefix of the source range, reattempting until the host has accepted every byte or refused it.";
+  let sent = 0_u64;
+  loop @publish {
+    let pending = sent < length;
+    if pending {
+    } else {
+      break @publish;
+    }
+    let no_deadline = None<std::time::Instant>();
+    let wait_cancel_1 = std::time::cancel_never();
+    let wait_outcome_1 = write_once(factory: factory, output: output, source: source, start: sent, end: length, deadline: no_deadline, cancel: &wait_cancel_1);
+    std::time::close_cancel_watch(watch: move wait_cancel_1);
+    match wait_outcome_1 {
+      Ok(value: next) => {
+        set sent = next;
+      }
+      Err(error: problem) => {
+        return Err<unit, IoError>(error: problem);
+      }
+    }
+  }
+  return Ok<unit, IoError>(value: unit);
+}
+
+fn publish_report(factory: &HandleFactory, output: &OutputStream, source: &[u8]) -> status: ExitStatus reads(source), writes(factory), writes(output) waits {
+  doc "Trial adaptation: publish the actual observations with the maintained stdin_echo partial-write retry; status 250 reports publication failure.";
+  let length = source^.len;
+  match publish_all(factory: factory, output: output, source: source, length: length) {
+    Ok(value: published) => {
+      return exit_status(code: 0_u8);
+    }
+    Err(error: problem) => {
+      return exit_status(code: 250_u8);
+    }
+  }
+}
+
+fn main(inputs: std::process::Inputs) -> status: ExitStatus pure waits {
+  doc "Trial adaptation: retain Result parsing and evaluation; publish consumption, evaluated value and the observed incomplete-input error kind.";
+  let std::process::Inputs(cwd: directory, handles: factory, stdout: out, ..) = move inputs;
+  let std::fs::Directory(read: directory_read, write: directory_write) = move directory;
+  std::fs::close_directory_write(factory: &factory, directory: move directory_write);
+  std::fs::close_directory(factory: &factory, directory: move directory_read);
+  let report = slots_new::<u8, 24>();
+  for (
+    at in 0_u64..24_u64,
+    invariant grown: report.len == at
+  ) {
+    place_back(window: &report, value: 0_u8);
+  }
+  let report_window = &report[0_u64..24_u64];
+  let input = &prefix_input[0_u64..5_u64];
+  let parsed = parse_expression(input: input, offset: 0_u64);
+  match move parsed {
+    Ok(value: output) => {
+      let consumed = output.next;
+      let recorded_0 = spell(destination: report_window, at: 0_u64, value: consumed);
+      if consumed == 5_u64 {
+      } else {
+        return exit_status(code: 1_u8);
+      }
+      let root = move output.node;
+      match evaluate(expression: &root) {
+        Ok(value: evaluated) => {
+          let recorded_8 = spell(destination: report_window, at: 8_u64, value: evaluated);
+          if evaluated == 9_u64 {
+          } else {
+            return exit_status(code: 1_u8);
+          }
+        }
+        Err(error: overflow) => {
+          return exit_status(code: 1_u8);
+        }
+      }
+    }
+    Err(error: parse_error) => {
+      return exit_status(code: 1_u8);
+    }
+  }
+  let incomplete = &prefix_incomplete[0_u64..2_u64];
+  let incomplete_result = parse_expression(input: incomplete, offset: 0_u64);
+  match move incomplete_result {
+    Ok(value: unexpected_output) => {
+      return exit_status(code: 1_u8);
+    }
+    Err(error: expected_error) => {
+      match expected_error {
+        Truncated() => {
+          let recorded_error = spell(destination: report_window, at: 16_u64, value: 1_u64);
+        }
+        InvalidToken() => {
+          let recorded_error = spell(destination: report_window, at: 16_u64, value: 2_u64);
+        }
+      }
+    }
+  }
+  return publish_report(factory: &factory, output: &out, source: report_window);
+}

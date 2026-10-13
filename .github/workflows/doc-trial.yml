@@ -49,5 +49,6 @@ jobs:
             tests/doc-trial/build/results/**/stdout.txt
             tests/doc-trial/build/results/**/stderr.txt
             tests/doc-trial/build/results/**/status.txt
+            tests/doc-trial/build/results/**/program*.txt
             tests/doc-trial/build/results/summary.md
             tests/doc-trial/whitefoot.pin

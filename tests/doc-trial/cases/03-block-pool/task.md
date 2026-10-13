@@ -1,0 +1,5 @@
+Build a pool of eight reusable blocks, each with room for 256 bytes. Taking a block provides the remaining pool and either a lease or an indication that no free block exists. A lease must never be silently discarded: it must be returned or explicitly consumed. Take one lease from the initially full pool, then return it. Observe and verify the free counts before taking, while the lease is held, and after returning it.
+
+Write the three computed free counts as eight-byte unsigned little-endian integers, in that order: 8, 7, 8. Stdout is exactly 24 bytes. Return status 2 if the initial count is wrong, 3 if no lease is available, 4 if the final count is wrong, and 5 if the remaining pool has no room to return the lease; consume the lease on that last failure path.
+
+Write a single file `main.wf` with entry `main`. Use the standard process, filesystem, IO and time interfaces for startup and byte output. On successful computation and output, exit with status 0. If stdout publication fails, exit with status 250. Write exactly the bytes specified, with no text, separators or trailing newline.

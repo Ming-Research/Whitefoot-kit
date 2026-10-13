@@ -1,0 +1,5 @@
+Implement an eight-tap finite impulse response filter. Every coefficient is one eighth, and the preceding history begins at zero. Feed 64 samples: the first is 8 and the remaining 63 are zero. For each sample, calculate the weighted sum of the current sample and its seven predecessors using strict binary64 multiplication and addition. Verify that the sum of all 64 outputs is exactly 8.
+
+Write the 64 computed outputs in sample order, followed by their computed sum. Each value occupies eight bytes: its IEEE 754 binary64 representation in little-endian order. The first eight outputs are 1, the following 56 are positive zero, and the final sum is 8, giving exactly 520 stdout bytes. Return status 1 if a filter bound or the sum check fails. No integer pattern matching is required.
+
+Write a single file `main.wf` with entry `main`. Use the standard process, filesystem, IO and time interfaces for startup and byte output. On successful computation and output, exit with status 0. If stdout publication fails, exit with status 250. Write exactly the bytes specified, with no text, separators or trailing newline.

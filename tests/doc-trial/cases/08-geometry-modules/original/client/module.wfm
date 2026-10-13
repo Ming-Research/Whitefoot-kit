@@ -1,0 +1,1 @@
+public fn main(inputs: std::process::Inputs) -> status: std::process::ExitStatus pure waits doc "Reports the geometry trial fixtures as little-endian values.";

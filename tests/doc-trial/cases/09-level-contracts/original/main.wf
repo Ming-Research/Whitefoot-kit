@@ -1,0 +1,239 @@
+alias ExitStatus = std::process::ExitStatus;
+alias HandleFactory = std::io::HandleFactory;
+alias Inputs = std::process::Inputs;
+alias IoError = std::io::IoError;
+alias OutputStream = std::io::OutputStream;
+alias close_directory = std::fs::close_directory;
+alias exit_status = std::process::exit_status;
+alias write_once = std::io::write_once;
+
+const unlisted: u64 = 18446744073709551615_u64;
+
+const depth_ceiling: u64 = 4096_u64;
+
+nocopy struct LevelIndex {
+  slots: Box<Segments<u64>>;
+  positions: Box<Array<u64>>;
+}
+
+fn level_index(parents: &[u32], depths: &[u32]) -> index: Option<LevelIndex> reads(parents), reads(depths) contract {
+  requires depths^.len == parents^.len;
+  requires parents^.len <= 4294967294_u64;
+  ensures when Some(value: levels): levels.positions.inner.len == parents^.len;
+  ensures when Some(value: levels): forall listed(d in 0_u64..levels.slots.inner.len, k in 0_u64..levels.slots.inner[d].len) when levels.slots.inner[d][k] != unlisted: levels.positions.inner[levels.slots.inner[d][k]] == k, depths^[levels.slots.inner[d][k]] == d;
+  ensures when Some(value: levels): forall up(e in 0_u64..parents^.len) when parents^[e] < parents^.len: depths^[parents^[e]] + 1_u64 == depths^[e];
+} {
+  doc "The tree levels of the elements, from the depths the traversal's walk recorded: a counted pass checks that each element's parent precedes it, or is the document, and lies one level above it, and counts each depth; a second groups the elements by depth in preorder with each one's position in its level. The postconditions state what inherit_level requires: a level lists distinct elements, each at its own position, and a parent lies one level above its element. None when a parent neither precedes its element nor is the document, a depth disagrees with its parent's, or the tree is deeper than depth_ceiling.";
+  let n = parents^.len;
+  let ceiling_levels = depth_ceiling + 1_u64;
+  let sizes = box_array_filled::<u64>(count: ceiling_levels, value: 0_u64);
+  let deepest = 0_u64;
+  for (
+    at in 0_u64..n,
+    invariant forall above(e in 0_u64..at) when parents^[e] < n: parents^[e] < e, depths^[parents^[e]] + 1_u64 == depths^[e]
+  ) {
+    let raw = cvt::<u32, u64>(parents^[at]);
+    let depth = cvt::<u32, u64>(depths^[at]);
+    if raw == n {
+    } else if raw < at {
+      let upper = cvt::<u32, u64>(depths^[raw]);
+      let below = upper + 1_u64;
+      if below != depth {
+        return None<LevelIndex>();
+      }
+    } else {
+      return None<LevelIndex>();
+    }
+    set deepest = imax(deepest, depth);
+    if depth < ceiling_levels {
+      let seen = sizes.inner[depth];
+      if seen < n {
+        set sizes.inner[depth] = seen + 1_u64;
+      } else {
+        return None<LevelIndex>();
+      }
+    } else {
+      return None<LevelIndex>();
+    }
+  }
+  if deepest > depth_ceiling {
+    return None<LevelIndex>();
+  }
+  let rows_wanted = deepest + 1_u64;
+  let made = box_segments_filled::<u64>(lengths: &sizes.inner[0_u64..rows_wanted], value: unlisted);
+  let slots = move made;
+  let fill = box_array_filled::<u64>(count: rows_wanted, value: 0_u64);
+  let positions = box_array_filled::<u64>(count: n, value: 0_u64);
+  let rows = slots.inner.len;
+  for (
+    at in 0_u64..n,
+    invariant forall fresh(d in 0_u64..rows, k in 0_u64..slots.inner[d].len) when slots.inner[d][k] != unlisted: slots.inner[d][k] < at,
+    invariant forall grouped(d in 0_u64..rows, k in 0_u64..slots.inner[d].len) when slots.inner[d][k] != unlisted: positions.inner[slots.inner[d][k]] == k, depths^[slots.inner[d][k]] == d
+  ) {
+    let depth = cvt::<u32, u64>(depths^[at]);
+    let within_rows = depth < rows;
+    let within_levels = depth < rows_wanted;
+    let known = band(within_rows, within_levels);
+    if known {
+      let offset = fill.inner[depth];
+      let segment = &slots.inner[depth];
+      if offset < segment^.len {
+        set segment^[offset] = at;
+        set positions.inner[at] = offset;
+        set fill.inner[depth] = offset + 1_u64;
+      } else {
+        return None<LevelIndex>();
+      }
+    } else {
+      return None<LevelIndex>();
+    }
+  }
+  let levels = LevelIndex(slots: move slots, positions: move positions);
+  return Some<LevelIndex>(value: move levels);
+}
+
+fn low_byte(v: u64) -> result: u8 pure {
+  let low = iand(v, 255_u64);
+  let byte = cvt::<u64, u8>(low);
+  return byte;
+}
+
+fn spell(destination: &[u8], at: u64, value: u64) -> result: u64 writes(destination) {
+  doc "Writes the eight little-endian bytes of value at the given offset, skipping any slot the range does not have.";
+  let cursor = at;
+  let rest = value;
+  loop @octets {
+    let limit = at +wrap 8_u64;
+    let done = cursor >= limit;
+    if done {
+      break @octets;
+    }
+    let spare = destination^.len;
+    let writable = cursor < spare;
+    if writable {
+      let byte = low_byte(v: rest);
+      set destination^[cursor] = byte;
+    }
+    set rest = irotr(rest, 8_u32);
+    set cursor = cursor +wrap 1_u64;
+  }
+  return at +wrap 8_u64;
+}
+
+fn publish_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], length: u64) -> result: Result<unit, IoError> reads(source), writes(factory), writes(output) waits contract {
+  define source_length = source^.len;
+  requires length <= source_length;
+} {
+  doc "Publishes one prefix of the source range, reattempting until the host has accepted every byte or refused it.";
+  let sent = 0_u64;
+  loop @publish {
+    let pending = sent < length;
+    if pending {
+    } else {
+      break @publish;
+    }
+    let no_deadline = None<std::time::Instant>();
+    let wait_cancel_1 = std::time::cancel_never();
+    let wait_outcome_1 = write_once(factory: factory, output: output, source: source, start: sent, end: length, deadline: no_deadline, cancel: &wait_cancel_1);
+    std::time::close_cancel_watch(watch: move wait_cancel_1);
+    match wait_outcome_1 {
+      Ok(value: next) => {
+        set sent = next;
+      }
+      Err(error: problem) => {
+        return Err<unit, IoError>(error: problem);
+      }
+    }
+  }
+  return Ok<unit, IoError>(value: unit);
+}
+
+fn emit(factory: &HandleFactory, output: &OutputStream, value: u64) -> result: Result<unit, IoError> writes(factory), writes(output) waits {
+  doc "Trial adaptation: publishes each computed observation as eight little-endian bytes, using the parallel range-fold encoding and stdin-echo partial-write loop.";
+  let bytes = box_array_filled::<u8>(count: 8_u64, value: 0_u8);
+  let window = &bytes.inner[0_u64..8_u64];
+  let filled = spell(destination: window, at: 0_u64, value: value);
+  let published = propagate publish_all(factory: factory, output: output, source: window, length: 8_u64);
+  return Ok<unit, IoError>(value: unit);
+}
+
+fn accepted(index: Option<LevelIndex>) -> result: u64 pure {
+  match move index {
+    Some(value: levels) => {
+      return 1_u64;
+    }
+    None() => {
+      return 0_u64;
+    }
+  }
+}
+
+fn trial(factory: &HandleFactory, output: &OutputStream) -> result: Result<unit, IoError> writes(factory), writes(output) waits {
+  doc "Trial adaptation: exercises the selected six-node fixture and three refused fixtures, publishing the actual groups, inverse positions and acceptance tags.";
+  let parents = box_array_filled::<u32>(count: 6_u64, value: 0_u32);
+  set parents.inner[0_u64] = 6_u32;
+  set parents.inner[3_u64] = 1_u32;
+  set parents.inner[4_u64] = 1_u32;
+  set parents.inner[5_u64] = 2_u32;
+  let depths = box_array_filled::<u32>(count: 6_u64, value: 2_u32);
+  set depths.inner[0_u64] = 0_u32;
+  set depths.inner[1_u64] = 1_u32;
+  set depths.inner[2_u64] = 1_u32;
+  let index = level_index(parents: &parents.inner[0_u64..6_u64], depths: &depths.inner[0_u64..6_u64]);
+  match move index {
+    Some(value: levels) => {
+      let tag = propagate emit(factory: factory, output: output, value: 1_u64);
+      let rows = levels.slots.inner.len;
+      let row_count = propagate emit(factory: factory, output: output, value: rows);
+      for (depth in 0_u64..rows) {
+        let row = &levels.slots.inner[depth];
+        let count = row^.len;
+        let row_length = propagate emit(factory: factory, output: output, value: count);
+        for (offset in 0_u64..count) {
+          let node = row^[offset];
+          let item = propagate emit(factory: factory, output: output, value: node);
+        }
+      }
+      let count = levels.positions.inner.len;
+      let position_count = propagate emit(factory: factory, output: output, value: count);
+      for (node in 0_u64..count) {
+        let position = levels.positions.inner[node];
+        let item = propagate emit(factory: factory, output: output, value: position);
+      }
+    }
+    None() => {
+      let tag = propagate emit(factory: factory, output: output, value: 0_u64);
+    }
+  }
+  set parents.inner[1_u64] = 2_u32;
+  let bad_parent = level_index(parents: &parents.inner[0_u64..6_u64], depths: &depths.inner[0_u64..6_u64]);
+  let parent_tag = accepted(index: move bad_parent);
+  let parent_output = propagate emit(factory: factory, output: output, value: parent_tag);
+  set parents.inner[1_u64] = 0_u32;
+  set depths.inner[3_u64] = 1_u32;
+  let bad_depth = level_index(parents: &parents.inner[0_u64..6_u64], depths: &depths.inner[0_u64..6_u64]);
+  let depth_tag = accepted(index: move bad_depth);
+  let depth_output = propagate emit(factory: factory, output: output, value: depth_tag);
+  set depths.inner[3_u64] = 2_u32;
+  set depths.inner[0_u64] = 4097_u32;
+  let excessive = level_index(parents: &parents.inner[0_u64..6_u64], depths: &depths.inner[0_u64..6_u64]);
+  let excessive_tag = accepted(index: move excessive);
+  let excessive_output = propagate emit(factory: factory, output: output, value: excessive_tag);
+  return Ok<unit, IoError>(value: unit);
+}
+
+fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+  doc "Trial adaptation: closes startup directory permissions and reports publication failures with status one.";
+  let Inputs(args: unused_args, drivers: unused_driver_count, cwd: unused_cwd_directory, stdout: out, stderr: unused_stderr, handles: entry_factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let std::fs::Directory(read: unused_cwd, write: unused_cwd_write) = move unused_cwd_directory;
+  std::fs::close_directory_write(factory: &entry_factory, directory: move unused_cwd_write);
+  close_directory(factory: &entry_factory, directory: move unused_cwd);
+  match trial(factory: &entry_factory, output: &out) {
+    Ok(value: done) => {
+      return exit_status(code: 0_u8);
+    }
+    Err(error: problem) => {
+      return exit_status(code: 1_u8);
+    }
+  }
+}

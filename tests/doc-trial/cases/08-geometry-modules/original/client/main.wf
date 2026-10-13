@@ -1,0 +1,159 @@
+alias geometry = pkg::geometry;
+alias LayoutUnit = pkg::geometry::LayoutUnit;
+alias Point = pkg::geometry::Point;
+alias Rect = pkg::geometry::Rect;
+alias Size = pkg::geometry::Size;
+alias ExitStatus = std::process::ExitStatus;
+alias HandleFactory = std::io::HandleFactory;
+alias Inputs = std::process::Inputs;
+alias IoError = std::io::IoError;
+alias OutputStream = std::io::OutputStream;
+alias close_directory = std::fs::close_directory;
+alias exit_status = std::process::exit_status;
+alias write_once = std::io::write_once;
+
+fn low_byte(v: u64) -> result: u8 pure {
+  let low = iand(v, 255_u64);
+  let byte = cvt::<u64, u8>(low);
+  return byte;
+}
+
+fn spell(destination: &[u8], at: u64, value: u64) -> result: u64 writes(destination) {
+  doc "Writes the eight little-endian bytes of value at the given offset, skipping any slot the range does not have.";
+  let cursor = at;
+  let rest = value;
+  loop @octets {
+    let limit = at +wrap 8_u64;
+    let done = cursor >= limit;
+    if done {
+      break @octets;
+    }
+    let spare = destination^.len;
+    let writable = cursor < spare;
+    if writable {
+      let byte = low_byte(v: rest);
+      set destination^[cursor] = byte;
+    }
+    set rest = irotr(rest, 8_u32);
+    set cursor = cursor +wrap 1_u64;
+  }
+  return at +wrap 8_u64;
+}
+
+fn publish_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], length: u64) -> result: Result<unit, IoError> reads(source), writes(factory), writes(output) waits contract {
+  define source_length = source^.len;
+  requires length <= source_length;
+} {
+  doc "Publishes one prefix of the source range, reattempting until the host has accepted every byte or refused it.";
+  let sent = 0_u64;
+  loop @publish {
+    let pending = sent < length;
+    if pending {
+    } else {
+      break @publish;
+    }
+    let no_deadline = None<std::time::Instant>();
+    let wait_cancel_1 = std::time::cancel_never();
+    let wait_outcome_1 = write_once(factory: factory, output: output, source: source, start: sent, end: length, deadline: no_deadline, cancel: &wait_cancel_1);
+    std::time::close_cancel_watch(watch: move wait_cancel_1);
+    match wait_outcome_1 {
+      Ok(value: next) => {
+        set sent = next;
+      }
+      Err(error: problem) => {
+        return Err<unit, IoError>(error: problem);
+      }
+    }
+  }
+  return Ok<unit, IoError>(value: unit);
+}
+
+fn signed_bits(value: i32) -> bits: u64 pure {
+  let wide = cvt::<i32, i64>(value);
+  let bits = reinterpret::<i64, u64>(wide);
+  return bits;
+}
+
+fn bool_word(value: Bool) -> word: u64 pure {
+  if value {
+    return 1_u64;
+  }
+  return 0_u64;
+}
+
+fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+  doc "Trial client adaptation: exercises the separately published geometry interface and reports actual conversions and spatial predicates, without reducing them to a silent success status.";
+  let Inputs(args: unused_args, drivers: unused_driver_count, cwd: unused_cwd_directory, stdout: out, stderr: unused_stderr, handles: entry_factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let std::fs::Directory(read: unused_cwd, write: unused_cwd_write) = move unused_cwd_directory;
+  std::fs::close_directory_write(factory: &entry_factory, directory: move unused_cwd_write);
+  close_directory(factory: &entry_factory, directory: move unused_cwd);
+  let integer = geometry::unit_from_pixels(pixels: 2_i32);
+  let high = geometry::unit_from_pixels(pixels: 2147483647_i32);
+  let low = geometry::unit_from_pixels(pixels: -2147483648_i32);
+  let floating = geometry::unit_from_f64(pixels: 1.5_f64);
+  let back = geometry::unit_to_f64(value: floating);
+  let tie_one = geometry::unit_from_f64(pixels: 0.0078125_f64);
+  let tie_three = geometry::unit_from_f64(pixels: 0.0234375_f64);
+  let one = geometry::unit_from_pixels(pixels: 1_i32);
+  let added = geometry::unit_add(left: high, right: one);
+  let subtracted = geometry::unit_sub(left: low, right: one);
+  let x10 = geometry::unit_from_pixels(pixels: 10_i32);
+  let y20 = geometry::unit_from_pixels(pixels: 20_i32);
+  let x12 = geometry::unit_from_pixels(pixels: 12_i32);
+  let y23 = geometry::unit_from_pixels(pixels: 23_i32);
+  let x13 = geometry::unit_from_pixels(pixels: 13_i32);
+  let y24 = geometry::unit_from_pixels(pixels: 24_i32);
+  let width = geometry::unit_from_pixels(pixels: 3_i32);
+  let height = geometry::unit_from_pixels(pixels: 4_i32);
+  let origin = Point(x: x10, y: y20);
+  let size = Size(width: width, height: height);
+  let rect = Rect(origin: origin, size: size);
+  let inner = Point(x: x12, y: y23);
+  let right_edge = Point(x: x13, y: y23);
+  let bottom_edge = Point(x: x12, y: y24);
+  let touching_origin = Point(x: x13, y: y20);
+  let touching = Rect(origin: touching_origin, size: size);
+  let top_left = geometry::rect_contains(rect: rect, point: origin);
+  let interior = geometry::rect_contains(rect: rect, point: inner);
+  let right = geometry::rect_contains(rect: rect, point: right_edge);
+  let bottom = geometry::rect_contains(rect: rect, point: bottom_edge);
+  let overlaps = geometry::rect_intersects(first: rect, second: touching);
+  let integer_word = signed_bits(value: integer.raw);
+  let high_word = signed_bits(value: high.raw);
+  let low_word = signed_bits(value: low.raw);
+  let floating_word = signed_bits(value: floating.raw);
+  let back_word = reinterpret::<f64, u64>(back);
+  let tie_one_word = signed_bits(value: tie_one.raw);
+  let tie_three_word = signed_bits(value: tie_three.raw);
+  let added_word = signed_bits(value: added.raw);
+  let subtracted_word = signed_bits(value: subtracted.raw);
+  let top_left_word = bool_word(value: top_left);
+  let interior_word = bool_word(value: interior);
+  let right_word = bool_word(value: right);
+  let bottom_word = bool_word(value: bottom);
+  let overlaps_word = bool_word(value: overlaps);
+  let report = box_array_filled::<u8>(count: 112_u64, value: 0_u8);
+  let window = &report.inner[0_u64..112_u64];
+  let encoded_0 = spell(destination: window, at: 0_u64, value: integer_word);
+  let encoded_1 = spell(destination: window, at: 8_u64, value: high_word);
+  let encoded_2 = spell(destination: window, at: 16_u64, value: low_word);
+  let encoded_3 = spell(destination: window, at: 24_u64, value: floating_word);
+  let encoded_4 = spell(destination: window, at: 32_u64, value: back_word);
+  let encoded_5 = spell(destination: window, at: 40_u64, value: tie_one_word);
+  let encoded_6 = spell(destination: window, at: 48_u64, value: tie_three_word);
+  let encoded_7 = spell(destination: window, at: 56_u64, value: added_word);
+  let encoded_8 = spell(destination: window, at: 64_u64, value: subtracted_word);
+  let encoded_9 = spell(destination: window, at: 72_u64, value: top_left_word);
+  let encoded_10 = spell(destination: window, at: 80_u64, value: interior_word);
+  let encoded_11 = spell(destination: window, at: 88_u64, value: right_word);
+  let encoded_12 = spell(destination: window, at: 96_u64, value: bottom_word);
+  let encoded_13 = spell(destination: window, at: 104_u64, value: overlaps_word);
+  match publish_all(factory: &entry_factory, output: &out, source: window, length: 112_u64) {
+    Ok(value: published) => {
+    }
+    Err(error: problem) => {
+      return exit_status(code: 1_u8);
+    }
+  }
+  return exit_status(code: 0_u8);
+}

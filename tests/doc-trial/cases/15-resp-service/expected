@@ -1,0 +1,14 @@
+pipeline=2b504f4e470d0a2b4f4b0d0a24350d0a6170706c650d0a242d310d0a2d4552522076616c7565206973206e6f7420616e20696e7465676572206f72206f7574206f662072616e67650d0a3a310d0a3a300d0a3a310d0a
+split=2b4f4b0d0a2431360d0a6163726f73732074776f2073656e64730d0a
+client-0: replies=250 valid=1
+client-1: replies=250 valid=1
+client-2: replies=250 valid=1
+client-3: replies=250 valid=1
+client-4: replies=250 valid=1
+client-5: replies=250 valid=1
+client-6: replies=250 valid=1
+client-7: replies=250 valid=1
+increments: unique=2000 range=1..2000
+get=24340d0a323030300d0a
+clients=9
+exit=0

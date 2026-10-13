@@ -1,0 +1,5 @@
+Implement a byte-oriented percent decoder. Replace a percent sign followed by two hexadecimal digits with the decoded byte, accepting either letter case. Preserve malformed or incomplete sequences unchanged. Decode the eleven ASCII bytes A%42%4a%zz% into a destination with eleven byte positions, initially all 204. The destination has room for the entire input. Verify that seven bytes were produced and that the next destination byte remains 204.
+
+Write the seven computed decoded bytes (ASCII ABJ%zz%), then the computed produced length as an eight-byte unsigned little-endian integer (7), then the observed next destination byte (204). Stdout is exactly 16 bytes. Return status 2 if the destination is too short and status 1 if any decoded-byte, length or sentinel observation is wrong.
+
+Write a single file `main.wf` with entry `main`. Use the standard process, filesystem, IO and time interfaces for startup and byte output. On successful computation and output, exit with status 0. If stdout publication fails, exit with status 250. Write exactly the bytes specified, with no text, separators or trailing newline.

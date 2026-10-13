@@ -1,0 +1,174 @@
+#!/usr/bin/env python3
+"""Bounded RESP2 fixture; stdout is the deterministic observation transcript."""
+import os
+from pathlib import Path
+import re
+import socket
+import subprocess
+import sys
+import threading
+import time
+
+
+def request(*parts):
+    parts = [part.encode("ascii") for part in parts]
+    return (b"*%d\r\n" % len(parts)
+            + b"".join(b"$%d\r\n" % len(part) + part + b"\r\n" for part in parts))
+
+
+def main():
+    binary, result = sys.argv[1:]
+    result = Path(result)
+    deadline = time.monotonic() + 17
+    peers = []
+    child = None
+
+    def remaining():
+        left = deadline - time.monotonic()
+        if left <= 0:
+            raise TimeoutError("service fixture deadline")
+        return left
+
+    def send(peer, data):
+        peer.settimeout(min(2, remaining()))
+        peer.sendall(data)
+
+    def receive(peer, length):
+        data = bytearray()
+        while len(data) < length:
+            peer.settimeout(min(2, remaining()))
+            part = peer.recv(length - len(data))
+            if not part:
+                raise ValueError("EOF before complete reply")
+            data.extend(part)
+        return bytes(data)
+
+    def exact(peer, wanted):
+        observed = receive(peer, len(wanted))
+        if observed != wanted:
+            raise ValueError("reply: expected %r, observed %r" % (wanted, observed))
+        return observed
+
+    try:
+        # No readiness probe consumes a tenth connection. The first successful
+        # connect below is the control client retained through the final GET.
+        with socket.socket() as lease:
+            lease.bind(("127.0.0.1", 0))
+            port = lease.getsockname()[1]
+        with (result / "program-stdout.txt").open("wb") as stdout, (result / "program-stderr.txt").open("wb") as stderr:
+            child = subprocess.Popen([binary, str(port), "9", "-", "0"],
+                                     stdin=subprocess.DEVNULL, stdout=stdout, stderr=stderr,
+                                     env=os.environ.copy())
+
+            def connect():
+                while True:
+                    if child.poll() is not None:
+                        raise ValueError("service exited before all clients connected")
+                    try:
+                        peer = socket.create_connection(("127.0.0.1", port), min(.2, remaining()))
+                        peer.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                        peers.append(peer)
+                        return peer
+                    except (ConnectionRefusedError, socket.timeout):
+                        time.sleep(min(.01, remaining()))
+
+            control = connect()
+            pipeline = [request("PING"), request("SET", "fruit", "apple"),
+                        request("GET", "fruit"), request("GET", "absent"),
+                        request("INCR", "fruit"), request("DEL", "fruit"),
+                        request("DEL", "fruit"), request("INCR", "total")]
+            send(control, b"".join(pipeline))
+            piped = exact(control, b"+PONG\r\n+OK\r\n$5\r\napple\r\n$-1\r\n"
+                          b"-ERR value is not an integer or out of range\r\n:1\r\n:0\r\n:1\r\n")
+            print("pipeline=" + piped.hex())
+
+            split = request("SET", "split", "across two sends")
+            send(control, split[:11])
+            control.settimeout(min(.1, remaining()))
+            try:
+                early = control.recv(1)
+            except socket.timeout:
+                pass
+            else:
+                raise ValueError("incomplete request produced data or EOF: %r" % early)
+            send(control, split[11:] + request("GET", "split"))
+            divided = exact(control, b"+OK\r\n$16\r\nacross two sends\r\n")
+            print("split=" + divided.hex())
+
+            # All eight peers are open together while the control peer stays
+            # silent. A serial connection handler cannot complete this fixture.
+            counters = [connect() for _ in range(8)]
+            gate = threading.Barrier(8)
+            values = [None] * 8
+            errors = [None] * 8
+
+            def increment(index, peer):
+                try:
+                    gate.wait(timeout=min(2, remaining()))
+                    observed = []
+                    for _ in range(250):
+                        send(peer, request("INCR", "hits"))
+                        line = bytearray()
+                        while not line.endswith(b"\r\n"):
+                            if len(line) >= 32:
+                                raise ValueError("overlong integer reply")
+                            line.extend(receive(peer, 1))
+                        if re.fullmatch(rb":[1-9][0-9]*\r\n", line) is None:
+                            raise ValueError("invalid INCR reply: %r" % line)
+                        value = int(line[1:-2])
+                        if value > 2000 or (observed and value <= observed[-1]):
+                            raise ValueError("INCR replies out of range or out of order")
+                        observed.append(value)
+                    values[index] = observed
+                except Exception as error:
+                    errors[index] = error
+
+            threads = [threading.Thread(target=increment, args=(i, peer), daemon=True)
+                       for i, peer in enumerate(counters)]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(timeout=remaining())
+                if thread.is_alive():
+                    raise TimeoutError("increment client did not finish")
+            for error in errors:
+                if error is not None:
+                    raise error
+            if sorted(value for client in values for value in client) != list(range(1, 2001)):
+                raise ValueError("increment replies do not cover 1 through 2000 exactly once")
+            for index, client in enumerate(values):
+                print("client-%d: replies=%d valid=1" % (index, len(client)))
+            print("increments: unique=2000 range=1..2000")
+            send(control, request("GET", "hits"))
+            final = exact(control, b"$4\r\n2000\r\n")
+            print("get=" + final.hex())
+
+            for peer in peers:
+                peer.shutdown(socket.SHUT_WR)
+            for peer in peers:
+                peer.settimeout(min(2, remaining()))
+                if peer.recv(1) != b"":
+                    raise ValueError("unsolicited reply after requests finished")
+                peer.close()
+            status = child.wait(timeout=remaining())
+            (result / "program-status.txt").write_text(str(status) + "\n")
+        if status != 0:
+            raise ValueError("service exit status %d" % status)
+        if (result / "program-stdout.txt").read_bytes():
+            raise ValueError("service must not write to stdout")
+        print("clients=9")
+        print("exit=%d" % status)
+        return 0
+    except Exception as error:
+        print("RESP fixture failed: %s" % error, file=sys.stderr)
+        return 1
+    finally:
+        for peer in peers:
+            peer.close()
+        if child is not None and child.poll() is None:
+            child.kill()
+            child.wait(timeout=1)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

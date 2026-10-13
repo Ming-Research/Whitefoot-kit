@@ -1,0 +1,12 @@
+pkg::time: [];
+pkg::io: [pkg::time];
+pkg::text: [];
+pkg::fs: [pkg::io, pkg::text];
+pkg::net: [pkg::io, pkg::time];
+pkg::process: [pkg::io, pkg::text, pkg::fs, pkg::time];
+pkg::collections::vector: [];
+pkg::collections::deque: [];
+pkg::collections::slab: [];
+pkg::collections::hash_map: [];
+pkg::collections::priority_queue: [];
+pkg::collections::ordered_map: [];

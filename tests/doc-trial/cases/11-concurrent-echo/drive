@@ -1,0 +1,98 @@
+#!/usr/bin/env python3
+"""Drive one echo image; stdout is a deterministic observation transcript."""
+import contextlib
+import socket
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+
+def main():
+    binary, result_directory = sys.argv[1:]
+    result = Path(result_directory)
+    result.mkdir(parents=True, exist_ok=True)
+    deadline = time.monotonic() + 15.0
+    peers = []
+    process = None
+
+    def remaining():
+        left = deadline - time.monotonic()
+        if left <= 0:
+            raise TimeoutError("echo trial exceeded its total deadline")
+        return left
+
+    def connect(port, retry):
+        while True:
+            stream = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            stream.settimeout(min(1.0, remaining()))
+            try:
+                stream.connect(("127.0.0.1", port))
+                return stream
+            except OSError:
+                stream.close()
+                if not retry or process.poll() is not None:
+                    raise
+                time.sleep(min(0.03, remaining()))
+
+    try:
+        # The first successful connection is peer zero, never a readiness probe.
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as reservation:
+            reservation.bind(("127.0.0.1", 0))
+            port = reservation.getsockname()[1]
+        with (result / "program.stdout.txt").open("wb") as stdout, \
+             (result / "program.stderr.txt").open("wb") as stderr:
+            process = subprocess.Popen([binary, str(port)], stdin=subprocess.DEVNULL,
+                                       stdout=stdout, stderr=stderr)
+            for peer in range(12):
+                peers.append(connect(port, retry=(peer == 0)))
+            transcript = []
+            for peer in reversed(range(12)):
+                stream = peers[peer]
+                sent = bytes((peer, peer + 1, peer + 2))
+                stream.settimeout(remaining())
+                stream.sendall(sent)
+                stream.shutdown(socket.SHUT_WR)
+                returned = bytearray()
+                while True:
+                    stream.settimeout(remaining())
+                    chunk = stream.recv(4)
+                    if not chunk:
+                        break
+                    returned.extend(chunk)
+                    if len(returned) > len(sent):
+                        raise ValueError(f"peer {peer}: excess echo bytes")
+                if returned != sent:
+                    raise ValueError(f"peer {peer}: wrong echo {returned.hex()}")
+                transcript.append(f"peer {peer:02d}: {returned.hex()} eof")
+                stream.close()
+            status = process.wait(timeout=remaining())
+        (result / "program.status.txt").write_text(f"{status}\n", encoding="ascii")
+        if status != 0:
+            print(f"echo process exited {status}", file=sys.stderr)
+            return status if status > 0 else 128 - status
+        if (result / "program.stdout.txt").stat().st_size != 0:
+            raise ValueError("echo process unexpectedly wrote stdout")
+        if (result / "program.stderr.txt").stat().st_size != 0:
+            raise ValueError("echo process unexpectedly wrote stderr")
+        print("\n".join(transcript))
+        print("accepted: 12; process exit: 0")
+        return 0
+    except (OSError, ValueError, TimeoutError, subprocess.TimeoutExpired) as error:
+        print(f"echo drive failed: {error}", file=sys.stderr)
+        return 1
+    finally:
+        for stream in peers:
+            with contextlib.suppress(OSError):
+                stream.close()
+        if process is not None and process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=0.5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=1.0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

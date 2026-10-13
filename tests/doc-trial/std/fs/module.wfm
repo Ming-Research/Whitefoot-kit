@@ -1,0 +1,118 @@
+alias HandleFactory = pkg::io::HandleFactory;
+alias IoError = pkg::io::IoError;
+alias ReadStop = pkg::io::ReadStop;
+alias HostString = pkg::text::HostString;
+
+public opaque nocopy struct RelativePath {
+}
+
+public opaque nodrop struct DirectoryRead {
+}
+
+public opaque nodrop struct DirectoryWrite {
+}
+
+public struct Directory {
+  public read: DirectoryRead;
+  public write: DirectoryWrite;
+}
+
+public opaque nodrop struct ReadFile {
+}
+
+public opaque nodrop struct WriteFile {
+}
+
+public opaque nodrop struct DirectorySource {
+}
+
+public enum PathError {
+  PathInvalid();
+}
+
+public enum ListStop {
+  ListEnd();
+  ListFailed(public error: IoError);
+}
+
+public fn relative_path(value: HostString) -> result: Result<RelativePath, PathError> pure doc "Returns value as a path relative to a directory, or PathInvalid when it cannot name one.";
+
+public fn open_read(factory: &HandleFactory, root: &DirectoryRead, path: &RelativePath) -> result: Result<ReadFile, IoError> reads(root), reads(path), writes(factory) waits doc "Opens the file at path below root for reading.";
+
+public fn read_at(factory: &HandleFactory, file: &ReadFile, destination: &[u8], file_offset: u64, start: u64, end: u64) -> result: Result<u64, ReadStop> writes(factory), writes(file), writes(destination) waits contract {
+  requires start <= end;
+  requires end <= destination^.len;
+  ensures when Ok(value: next): start <= next;
+  ensures when Ok(value: next): next <= end;
+} doc "Reads bytes of file at file_offset into destination from start toward end with one host read; Ok carries the index after the last byte read, and ReadEnd reports the end of the file.";
+
+public fn open_directory(factory: &HandleFactory, root: &DirectoryRead, name: &[u8], start: u64, end: u64) -> result: Result<DirectoryRead, IoError> reads(root), reads(name), writes(factory) waits contract {
+  requires start <= end;
+  requires end <= name^.len;
+} doc "Opens the directory that the bytes of name from start to end name below root.";
+
+public fn open_directory_write(factory: &HandleFactory, root: &DirectoryWrite, name: &[u8], start: u64, end: u64) -> result: Result<DirectoryWrite, IoError> reads(root), reads(name), writes(factory) waits contract {
+  requires start <= end;
+  requires end <= name^.len;
+} doc "Opens the write half of the directory that the bytes of name from start to end name below root, as open_append names a file [PRE-2], creating it empty when no entry has that name. An existing directory is opened with its entries kept. A host refusal, including a name that names a file or other non-directory entry, is an IoError.";
+
+public fn open_directory_source(factory: &HandleFactory, directory: &DirectoryRead) -> result: Result<DirectorySource, IoError> reads(directory), writes(factory) waits doc "Opens the listing of the entries of directory.";
+
+public fn directory_next(source: &DirectorySource, destination: &[u8], start: u64, end: u64) -> (result: Result<unit, ListStop>, next: u64, entries: u64) writes(source), writes(destination) waits contract {
+  requires start <= end;
+  requires end <= destination^.len;
+  ensures start <= next;
+  ensures next <= end;
+} doc "Writes the names of the next entries of source into destination from start toward end; next is the index after the bytes written, entries counts the names, and ListEnd reports that no entry remains.";
+
+public fn open_file(factory: &HandleFactory, root: &DirectoryRead, name: &[u8], start: u64, end: u64) -> result: Result<ReadFile, IoError> reads(root), reads(name), writes(factory) waits contract {
+  requires start <= end;
+  requires end <= name^.len;
+} doc "Opens the file that the bytes of name from start to end name below root for reading.";
+
+public fn open_append(factory: &HandleFactory, root: &DirectoryWrite, name: &[u8], start: u64, end: u64) -> result: Result<WriteFile, IoError> reads(root), reads(name), writes(factory) waits contract {
+  requires start <= end;
+  requires end <= name^.len;
+} doc "Opens the file that the bytes of name from start to end name below root for appending, creating it empty when no entry has that name.";
+
+public fn append_once(factory: &HandleFactory, file: &WriteFile, source: &[u8], start: u64, end: u64) -> result: Result<u64, IoError> reads(source), writes(factory), writes(file) waits contract {
+  requires start <= end;
+  requires end <= source^.len;
+  ensures when Ok(value: next): start <= next;
+  ensures when Ok(value: next): next <= end;
+} doc "Appends bytes of source from start toward end to the end of file with one host write; Ok carries the index after the last byte appended.";
+
+public fn sync_file(factory: &HandleFactory, file: &WriteFile) -> result: Result<unit, IoError> writes(factory), writes(file) waits doc "Hands every byte appended to file before this call to the host's durability mechanism; Ok reports that the host accepted them.";
+
+public fn truncate_file(factory: &HandleFactory, file: &WriteFile, length: u64) -> result: Result<unit, IoError> writes(factory), writes(file) waits doc "Sets the length of file to length bytes, removing the bytes past it or adding zero bytes up to it; the next append writes after them. Ok reports that the host set the length.";
+
+public fn rename_file(factory: &HandleFactory, root: &DirectoryWrite, from: &[u8], from_start: u64, from_end: u64, to: &[u8], to_start: u64, to_end: u64) -> result: Result<unit, IoError> reads(from), reads(to), writes(factory), writes(root) waits contract {
+  requires from_start <= from_end;
+  requires from_end <= from^.len;
+  requires to_start <= to_end;
+  requires to_end <= to^.len;
+} doc "Renames the file selected by from[from_start..from_end] to to[to_start..to_end], both names below root as open_append names a file [PRE-2], replacing any entry at the destination atomically: an observer sees the whole old file or the whole renamed file at the destination, with no absent or partial intermediate state. Ok reports that the host renamed the file; a host refusal, including a missing source name, is an IoError.";
+
+public fn move_file(factory: &HandleFactory, from_root: &DirectoryWrite, from: &[u8], from_start: u64, from_end: u64, to_root: &DirectoryWrite, to: &[u8], to_start: u64, to_end: u64) -> result: Result<unit, IoError> reads(from), reads(to), writes(factory), writes(from_root), writes(to_root) waits contract {
+  requires from_start <= from_end;
+  requires from_end <= from^.len;
+  requires to_start <= to_end;
+  requires to_end <= to^.len;
+} doc "Renames the file selected by from[from_start..from_end] below from_root to to[to_start..to_end] below to_root, each name below its root as open_append names a file, with the atomic replacement and outcome of rename_file [PRE-2]. The two directories must be on one host file system; a move between file systems is a host refusal.";
+
+public fn remove_file(factory: &HandleFactory, root: &DirectoryWrite, name: &[u8], start: u64, end: u64) -> result: Result<unit, IoError> reads(name), writes(factory), writes(root) waits contract {
+  requires start <= end;
+  requires end <= name^.len;
+} doc "Removes the name given by the bytes of name from start to end below root as open_append names a file [PRE-2]. Ok reports that the host removed the name; a host refusal, including a missing name, is an IoError.";
+
+public fn sync_directory(factory: &HandleFactory, root: &DirectoryWrite) -> result: Result<unit, IoError> writes(factory), writes(root) waits doc "Hands every directory entry changed below root before this call to the host's durability mechanism; Ok reports that the host accepted them.";
+
+public fn close_read(factory: &HandleFactory, file: ReadFile) -> result: Result<unit, IoError> writes(factory) waits doc "Closes file.";
+
+public fn close_write(factory: &HandleFactory, file: WriteFile) -> result: Result<unit, IoError> writes(factory) waits doc "Closes file.";
+
+public fn close_directory(factory: &HandleFactory, directory: DirectoryRead) -> result: Result<unit, IoError> writes(factory) waits doc "Closes directory.";
+
+public fn close_directory_write(factory: &HandleFactory, directory: DirectoryWrite) -> result: Result<unit, IoError> writes(factory) waits doc "Closes the write half of a directory.";
+
+public fn close_directory_source(factory: &HandleFactory, source: DirectorySource) -> result: Result<unit, IoError> writes(factory) waits doc "Closes the directory listing source.";
