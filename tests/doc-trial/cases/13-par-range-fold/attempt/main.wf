@@ -54,13 +54,20 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
 
   let buffer = array_filled::<u8, 8>(value: 0_u8);
   set buffer[0_u64] = cvt.wrap::<u64, u8>(sum);
-  set buffer[1_u64] = cvt.wrap::<u64, u8>(ishr(sum, 8_u32));
-  set buffer[2_u64] = cvt.wrap::<u64, u8>(ishr(sum, 16_u32));
-  set buffer[3_u64] = cvt.wrap::<u64, u8>(ishr(sum, 24_u32));
-  set buffer[4_u64] = cvt.wrap::<u64, u8>(ishr(sum, 32_u32));
-  set buffer[5_u64] = cvt.wrap::<u64, u8>(ishr(sum, 40_u32));
-  set buffer[6_u64] = cvt.wrap::<u64, u8>(ishr(sum, 48_u32));
-  set buffer[7_u64] = cvt.wrap::<u64, u8>(ishr(sum, 56_u32));
+  let shift1 = ishr(sum, 8_u32);
+  set buffer[1_u64] = cvt.wrap::<u64, u8>(shift1);
+  let shift2 = ishr(sum, 16_u32);
+  set buffer[2_u64] = cvt.wrap::<u64, u8>(shift2);
+  let shift3 = ishr(sum, 24_u32);
+  set buffer[3_u64] = cvt.wrap::<u64, u8>(shift3);
+  let shift4 = ishr(sum, 32_u32);
+  set buffer[4_u64] = cvt.wrap::<u64, u8>(shift4);
+  let shift5 = ishr(sum, 40_u32);
+  set buffer[5_u64] = cvt.wrap::<u64, u8>(shift5);
+  let shift6 = ishr(sum, 48_u32);
+  set buffer[6_u64] = cvt.wrap::<u64, u8>(shift6);
+  let shift7 = ishr(sum, 56_u32);
+  set buffer[7_u64] = cvt.wrap::<u64, u8>(shift7);
 
   let window = &buffer[0_u64..8_u64];
   let no_deadline = None<std::time::Instant>();

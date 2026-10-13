@@ -58,7 +58,8 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     }
 
     let fir_sum = 0.0_f64;
-    for (j in history_start..(i + 1_u64)) {
+    let history_end = i + 1_u64;
+    for (j in history_start..history_end) {
       let sample_value = if j == 0_u64 {
         give 8.0_f64;
       } else {

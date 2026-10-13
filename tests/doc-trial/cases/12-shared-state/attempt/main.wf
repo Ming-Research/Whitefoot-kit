@@ -31,7 +31,7 @@ fn consume(queue: Shared<Ring<u64, 8>>, total: Shared<u64>) -> result: unit pure
   return unit;
 }
 
-fn write_u64(factory: &HandleFactory, output: &OutputStream, value: u64) -> result: Result<unit, std::io::IoError> reads(factory), writes(factory), writes(output) waits {
+fn write_u64(factory: &HandleFactory, output: &OutputStream, value: u64) -> result: Result<unit, std::io::IoError> writes(factory), writes(output) waits {
   let bytes = array_filled::<u8, 8>(value: 0_u8);
   set bytes[0_u64] = cvt.wrap::<u64, u8>(value);
   let shifted_1 = ishr(value, 8_u32);

@@ -50,9 +50,11 @@ fn crlf_pos(buf: &[u8], from: u64) -> result: Option<u64> reads(buf) {
   let i = from;
   let len = buf^.len;
   loop {
-    if i + 1_u64 < len {
+    let i_plus = i + 1_u64;
+    if i_plus < len {
       if buf^[i] == 13_u8 {
-        let next_is_lf = buf^[i + 1_u64] == 10_u8;
+        let i_next = buf^[i_plus];
+        let next_is_lf = i_next == 10_u8;
         if next_is_lf {
           return Some<u64>(value: i);
         }
@@ -118,7 +120,8 @@ fn handle_client(factory: &std::io::HandleFactory, conn: std::net::TcpConnection
       if pos >= rpos {
         break @process_requests;
       }
-      if rbuf[pos] != 42_u8 {
+      let curr_byte = rbuf[pos];
+      if curr_byte != 42_u8 {
         break @process_requests;
       }
       let pos_plus = pos + 1_u64;
@@ -151,7 +154,8 @@ fn handle_client(factory: &std::io::HandleFactory, conn: std::net::TcpConnection
                       set req_valid = False();
                       break @scan_args;
                     }
-                    if rbuf[offset] != 36_u8 {
+                    let offset_byte = rbuf[offset];
+                    if offset_byte != 36_u8 {
                       set req_valid = False();
                       break @scan_args;
                     }

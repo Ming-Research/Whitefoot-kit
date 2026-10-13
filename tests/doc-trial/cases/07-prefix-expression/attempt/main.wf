@@ -12,6 +12,7 @@ enum ParseResult {
 
 fn parse_expr(input: &[u8], pos: u64) -> result: ParseResult reads(input) contract {
   requires pos <= input^.len;
+  ensures when Success(value: v, next_pos: p): p <= input^.len;
 } {
   if pos >= input^.len {
     return ParseResult::Truncated();

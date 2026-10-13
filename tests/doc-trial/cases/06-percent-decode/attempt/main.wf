@@ -145,11 +145,11 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let byte5_correct = output[5_u64] == 122_u8;
   let byte6_correct = output[6_u64] == 37_u8;
   let bytes_ok = band(byte0_correct, byte1_correct);
-  let bytes_ok = band(bytes_ok, byte2_correct);
-  let bytes_ok = band(bytes_ok, byte3_correct);
-  let bytes_ok = band(bytes_ok, byte4_correct);
-  let bytes_ok = band(bytes_ok, byte5_correct);
-  let bytes_ok = band(bytes_ok, byte6_correct);
+  set bytes_ok = band(bytes_ok, byte2_correct);
+  set bytes_ok = band(bytes_ok, byte3_correct);
+  set bytes_ok = band(bytes_ok, byte4_correct);
+  set bytes_ok = band(bytes_ok, byte5_correct);
+  set bytes_ok = band(bytes_ok, byte6_correct);
   if bnot(bytes_ok) {
     return exit_status(code: 1_u8);
   }
