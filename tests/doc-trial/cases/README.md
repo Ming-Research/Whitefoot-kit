@@ -157,3 +157,15 @@ Do not include std implementation bodies or reference case code in the
 writer's handout. The compiler release supplies its own std implementations;
 these files are the writer's interface reference. Keep the source revision
 above explicit when recording a trial run against a newer compiler release.
+
+## Running a trial
+
+`driver/trial.sh <hroot> <guide.md> <language-dir> <rounds>` runs three
+independent Haiku sessions per case on the developer's machine (writing files
+only; `driver/session.sh` runs one turn and records every file the session
+touched outside its directory in `outside-<round>.txt`), commits the attempts
+to this branch as `attempt/`, `attempt-2/` and `attempt-3/`, waits for the
+`doc-trial` workflow to build and compare them in CI, and returns each
+session's compiler output or run result as its next prompt. `<language-dir>`
+is an unpacked language package of the pinned release (its `lib/std` is handed
+out). `CASES_DIR=cases-set2` selects the second set.
