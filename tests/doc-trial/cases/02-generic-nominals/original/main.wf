@@ -1,5 +1,9 @@
 alias ExitStatus = std::process::ExitStatus;
 alias exit_status = std::process::exit_status;
+alias HandleFactory = std::io::HandleFactory;
+alias OutputStream = std::io::OutputStream;
+alias IoError = std::io::IoError;
+alias write_once = std::io::write_once;
 
 struct Pair<T: Int> {
   left: T;
@@ -34,11 +38,6 @@ fn present<T: Int>(value: T) -> result: Choice<T> pure {
 fn checked_sum<T: Int>(left: T, right: T) -> result: Result<T, Overflow> pure {
   return left +checked right;
 }
-
-alias HandleFactory = std::io::HandleFactory;
-alias OutputStream = std::io::OutputStream;
-alias IoError = std::io::IoError;
-alias write_once = std::io::write_once;
 
 fn low_byte(v: u64) -> result: u8 pure {
   let low = iand(v, 255_u64);

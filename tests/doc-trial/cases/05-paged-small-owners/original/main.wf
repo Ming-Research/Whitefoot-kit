@@ -1,6 +1,10 @@
 alias ExitStatus = std::process::ExitStatus;
 alias exit_status = std::process::exit_status;
 alias MemoryMeter = std::process::MemoryMeter;
+alias HandleFactory = std::io::HandleFactory;
+alias OutputStream = std::io::OutputStream;
+alias IoError = std::io::IoError;
+alias write_once = std::io::write_once;
 
 fn counted(meter: &MemoryMeter, before: u64, expected: u64, report: &[u8], report_at: u64) -> result: Bool writes(meter), writes(report) {
   doc "Trial adaptation: retain the baseline comparison and save its observed heap delta into a stack report before any host publication.";
@@ -128,11 +132,6 @@ fn small_owners(meter: &MemoryMeter, before: u64, report: &[u8]) -> result: u8 w
   }
   return 0_u8;
 }
-
-alias HandleFactory = std::io::HandleFactory;
-alias OutputStream = std::io::OutputStream;
-alias IoError = std::io::IoError;
-alias write_once = std::io::write_once;
 
 fn low_byte(v: u64) -> result: u8 pure {
   let low = iand(v, 255_u64);

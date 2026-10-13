@@ -1,5 +1,9 @@
 alias ExitStatus = std::process::ExitStatus;
 alias exit_status = std::process::exit_status;
+alias HandleFactory = std::io::HandleFactory;
+alias OutputStream = std::io::OutputStream;
+alias IoError = std::io::IoError;
+alias write_once = std::io::write_once;
 
 const percent_input: Array<u8, 11> =[65_u8, 37_u8, 52_u8, 50_u8, 37_u8, 52_u8, 97_u8, 37_u8, 122_u8, 122_u8, 37_u8];
 
@@ -103,11 +107,6 @@ fn decode(out: &[u8], src: &[u8]) -> result: u64 reads(src), writes(out) contrac
   }
   return output_index;
 }
-
-alias HandleFactory = std::io::HandleFactory;
-alias OutputStream = std::io::OutputStream;
-alias IoError = std::io::IoError;
-alias write_once = std::io::write_once;
 
 fn low_byte(v: u64) -> result: u8 pure {
   let low = iand(v, 255_u64);

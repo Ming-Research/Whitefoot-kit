@@ -1,5 +1,9 @@
 alias ExitStatus = std::process::ExitStatus;
 alias exit_status = std::process::exit_status;
+alias HandleFactory = std::io::HandleFactory;
+alias OutputStream = std::io::OutputStream;
+alias IoError = std::io::IoError;
+alias write_once = std::io::write_once;
 
 struct Link {
   value: u64;
@@ -99,11 +103,6 @@ fn repeated_sum(head: &Option<Box<Link>>) -> result: u64 reads(head) {
   }
   return total;
 }
-
-alias HandleFactory = std::io::HandleFactory;
-alias OutputStream = std::io::OutputStream;
-alias IoError = std::io::IoError;
-alias write_once = std::io::write_once;
 
 fn low_byte(v: u64) -> result: u8 pure {
   let low = iand(v, 255_u64);

@@ -1,5 +1,9 @@
 alias ExitStatus = std::process::ExitStatus;
 alias exit_status = std::process::exit_status;
+alias HandleFactory = std::io::HandleFactory;
+alias OutputStream = std::io::OutputStream;
+alias IoError = std::io::IoError;
+alias write_once = std::io::write_once;
 
 const prefix_input: Array<u8, 5> =[43_u8, 50_u8, 43_u8, 51_u8, 52_u8];
 
@@ -88,11 +92,6 @@ fn evaluate(expression: &Box<Expression>) -> result: Result<u64, Overflow> reads
     }
   }
 }
-
-alias HandleFactory = std::io::HandleFactory;
-alias OutputStream = std::io::OutputStream;
-alias IoError = std::io::IoError;
-alias write_once = std::io::write_once;
 
 fn low_byte(v: u64) -> result: u8 pure {
   let low = iand(v, 255_u64);

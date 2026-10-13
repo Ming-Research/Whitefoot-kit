@@ -1,5 +1,9 @@
 alias ExitStatus = std::process::ExitStatus;
 alias exit_status = std::process::exit_status;
+alias HandleFactory = std::io::HandleFactory;
+alias OutputStream = std::io::OutputStream;
+alias IoError = std::io::IoError;
+alias write_once = std::io::write_once;
 
 struct Block {
   bytes: Slots<u8, 256>;
@@ -76,11 +80,6 @@ fn pool_release(pool: BlockPool, lease: Lease) -> rest: BlockPool pure contract 
   return_free(free: &pool.free, block: move back);
   return move pool;
 }
-
-alias HandleFactory = std::io::HandleFactory;
-alias OutputStream = std::io::OutputStream;
-alias IoError = std::io::IoError;
-alias write_once = std::io::write_once;
 
 fn low_byte(v: u64) -> result: u8 pure {
   let low = iand(v, 255_u64);
