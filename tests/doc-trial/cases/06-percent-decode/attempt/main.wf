@@ -86,7 +86,7 @@ fn percent_decode(input: &[u8], output: &Slots<u8, 11>) -> result: u64 pure {
 }
 
 fn main(inputs: std::process::Inputs) -> result: unit waits {
-  let std::process::Inputs(args: args, drivers: _drivers, cwd: _cwd, stdout: out, stderr: _err, handles: factory, stdin: _input, clock: _clock, wall_clock: _wall_clock, stops: _stops, memory_meter: _memory_meter) = move inputs;
+  let std::process::Inputs(args: args, drivers: drivers, cwd: cwd, stdout: out, stderr: err, handles: factory, stdin: input, clock: clock, wall_clock: wall_clock, stops: stops, memory_meter: meter) = move inputs;
   release::<std::text::Rope>(value: move args);
 
   let test_input: Array<u8, 11> = ['A'_u8, '%'_u8, '4'_u8, '2'_u8, '%'_u8, '4'_u8, 'a'_u8, '%'_u8, 'z'_u8, 'z'_u8, '%'_u8];

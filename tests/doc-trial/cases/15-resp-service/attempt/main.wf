@@ -31,7 +31,7 @@ fn main(inputs: process::Inputs) -> result: process::ExitStatus waits {
         None() => return process::exit_status(code: 1_u8),
       }
     }
-    Err(err: _) => return process::exit_status(code: 1_u8),
+    Err(err: port_error) => return process::exit_status(code: 1_u8),
   };
 
   let address = net::socket_address_v4(a: 127_u8, b: 0_u8, c: 0_u8, d: 1_u8, port: port);
@@ -53,7 +53,7 @@ fn main(inputs: process::Inputs) -> result: process::ExitStatus waits {
     let accept_result = net::tcp_accept(factory: &handles, listener: &listener, deadline: None<time::Instant>(), cancel: &cancel);
     let accepted = match move accept_result {
       Ok(value: conn) => conn,
-      Err(err: e) => {
+      Err(err: accept_err) => {
         break;
       }
     };
@@ -78,7 +78,7 @@ fn parse_u16(arg: &text::HostString) -> result: Option<u16> reads(arg) pure {
   let copy_result = text::host_copy_bytes(value: arg, destination: &buf[0_u64..5], start: 0_u64, end: len);
   let read_bytes = match move copy_result {
     Ok(value: next) => next,
-    Err(err: _) => return None<u16>(),
+    Err(err: copy_err) => return None<u16>(),
   };
 
   return parse_u16_from_bytes(bytes: &buf[0_u64..read_bytes]);
@@ -271,7 +271,7 @@ enum Request {
   Incr(key: GrowVector<u8, 1024>);
 }
 
-fn parse_resp_request(data: &Slots<u8>, filled: u64) -> result: Result<ParsedRequest, unit> reads(data) pure {
+fn parse_resp_request(data: &Slots<u8>, filled: u64) -> result: Result<ParsedRequest, unit> reads(data) {
   if filled == 0_u64 {
     return Err<ParsedRequest, unit>(error: unit);
   }
@@ -363,7 +363,7 @@ fn find_crlf(data: &Slots<u8>, start: u64, filled: u64) -> result: Option<u64> r
   return None<u64>();
 }
 
-fn parse_command(parts: &Array<GrowVector<u8, 1024>, 5>, count: u64) -> result: Option<Request> reads(parts) pure {
+fn parse_command(parts: &Array<GrowVector<u8, 1024>, 5>, count: u64) -> result: Option<Request> reads(parts) {
   if count == 0_u64 {
     return None<Request>();
   }
@@ -438,7 +438,7 @@ fn parse_command(parts: &Array<GrowVector<u8, 1024>, 5>, count: u64) -> result: 
   return None<Request>();
 }
 
-fn copy_vector(src: &GrowVector<u8, 1024>) -> result: GrowVector<u8, 1024> reads(src) pure {
+fn copy_vector(src: &GrowVector<u8, 1024>) -> result: GrowVector<u8, 1024> reads(src) {
   let result = vector::grow_vector_new::<u8, 1024>();
   let src_len = src.storage.inner.len;
   for (i in 0_u64..src_len) {
@@ -517,7 +517,7 @@ fn handle_request(request: Request, store: &std::shared::Shared<Box<Store>>) -> 
           append_bytes(vec: &response, bytes: &"\r\n"[0_u64..2]);
           return Response(storage: move response);
         }
-        Err(err: _) => {
+        Err(err: incr_err) => {
           append_bytes(vec: &response, bytes: &"-ERR value is not an integer or out of range\r\n"[0_u64..47]);
           return Response(storage: move response);
         }

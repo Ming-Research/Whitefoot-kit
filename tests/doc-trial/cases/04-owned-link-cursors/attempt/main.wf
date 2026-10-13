@@ -7,7 +7,8 @@ fn build_list(index: u64) -> result: Option<Box<Node>> pure {
   if index >= 64_u64 {
     return None<Box<Node>>();
   }
-  let rest = build_list(index: index +wrap 1_u64);
+  let next_index = index +wrap 1_u64;
+  let rest = build_list(index: next_index);
   let node = Node(value: index, next: move rest);
   return Some<Box<Node>>(value: box_new::<Node>(value: move node));
 }
@@ -79,13 +80,20 @@ fn write_u64_le(output: &mut [u8], offset: u64, value: u64) -> result: unit writ
   let b7 = cvt.wrap::<u64, u8>(lshr(value, 56_u32));
 
   set output^[offset] = b0;
-  set output^[offset +wrap 1_u64] = b1;
-  set output^[offset +wrap 2_u64] = b2;
-  set output^[offset +wrap 3_u64] = b3;
-  set output^[offset +wrap 4_u64] = b4;
-  set output^[offset +wrap 5_u64] = b5;
-  set output^[offset +wrap 6_u64] = b6;
-  set output^[offset +wrap 7_u64] = b7;
+  let off1 = offset +wrap 1_u64;
+  set output^[off1] = b1;
+  let off2 = offset +wrap 2_u64;
+  set output^[off2] = b2;
+  let off3 = offset +wrap 3_u64;
+  set output^[off3] = b3;
+  let off4 = offset +wrap 4_u64;
+  set output^[off4] = b4;
+  let off5 = offset +wrap 5_u64;
+  set output^[off5] = b5;
+  let off6 = offset +wrap 6_u64;
+  set output^[off6] = b6;
+  let off7 = offset +wrap 7_u64;
+  set output^[off7] = b7;
   return unit;
 }
 

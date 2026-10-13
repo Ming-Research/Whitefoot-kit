@@ -192,12 +192,12 @@ fn main(inputs: std::process::Inputs) -> result: std::process::ExitCode waits {
           pos1 = next_pos;
           val1 = evaluated_val;
         }
-        Err(_) => {
+        Err(e) => {
           return std::process::exit(code: 1_u8);
         }
       }
     }
-    Err(_) => {
+    Err(e) => {
       return std::process::exit(code: 1_u8);
     }
   }
@@ -206,7 +206,7 @@ fn main(inputs: std::process::Inputs) -> result: std::process::ExitCode waits {
 
   let error_marker: u64;
   match move parse_result2 {
-    Ok(_) => {
+    Ok(result2) => {
       return std::process::exit(code: 1_u8);
     }
     Err(err) => {

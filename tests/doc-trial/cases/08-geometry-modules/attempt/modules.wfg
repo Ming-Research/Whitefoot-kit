@@ -1,9 +1,8 @@
-module geometry {
+module : geometry {
   path = "geometry";
 }
 
-module client {
+module : client {
   path = "client";
   depends = [geometry];
-  entry = main;
 }

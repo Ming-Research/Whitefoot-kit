@@ -1,8 +1,3 @@
-use std::process;
-use std::io;
-use std::fs;
-use std::time;
-
 fn u64_to_le_bytes(value: u64, buffer: &[u8], offset: u64) writes(buffer) contract {
   requires offset + 8_u64 <= buffer^.len;
 } {

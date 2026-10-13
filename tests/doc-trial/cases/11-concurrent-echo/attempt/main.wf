@@ -24,10 +24,10 @@ fn echo_peer(factory: &std::io::HandleFactory, recv: &std::net::TcpReceive, send
       Ok(value: bytes_read) => {
         let write_result = std::net::send_once(send: send, source: &buffer, start: 0_u64, end: bytes_read, deadline: None<std::time::Instant>(), cancel: cancel);
         match move write_result {
-          Ok(value: _) => {
+          Ok(value: bytes_sent) => {
             continue;
           }
-          Err(value: _) => {
+          Err(value: write_err) => {
             break;
           }
         }
@@ -37,7 +37,7 @@ fn echo_peer(factory: &std::io::HandleFactory, recv: &std::net::TcpReceive, send
           std::io::ReadEnd() => {
             break;
           }
-          std::io::ReadFailed(error: _) => {
+          std::io::ReadFailed(error: read_err) => {
             break;
           }
         }
@@ -49,7 +49,7 @@ fn echo_peer(factory: &std::io::HandleFactory, recv: &std::net::TcpReceive, send
 }
 
 fn main(inputs: std::process::Inputs) -> result: std::process::ExitStatus {
-  let std::process::Inputs(args: args, drivers: _, cwd: cwd, stdout: _, stderr: _, handles: handles, stdin: _, clock: _, wall_clock: _, stops: _, memory_meter: _) = move inputs;
+  let std::process::Inputs(args: args, drivers: unused_drivers, cwd: cwd, stdout: unused_stdout, stderr: unused_stderr, handles: handles, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_meter) = move inputs;
 
   let count = std::text::args_count(args: &args);
   if count != 2_u64 {
@@ -82,24 +82,24 @@ fn main(inputs: std::process::Inputs) -> result: std::process::ExitStatus {
     }
     let accept_result = std::net::tcp_accept(factory: &handles, listener: &listener, deadline: None<std::time::Instant>(), cancel: &cancel);
     let accepted = propagate accept_result;
-    let std::net::AcceptedConnection(connection: conn, peer: _) = move accepted;
+    let std::net::AcceptedConnection(connection: conn, peer: peer_addr) = move accepted;
     place_back(window: &connections, value: move conn);
     set i = i + 1_u64;
     continue;
   }
 
   let close_listener_result = std::net::close_listener(factory: &handles, listener: move listener);
-  let _ = move close_listener_result;
+  let listener_closed = move close_listener_result;
 
   let j = 11_u64;
   loop {
     let current_conn = connections^[j];
     let std::net::TcpConnection(receive: recv, send: snd) = move current_conn;
-    let _ = echo_peer(factory: &handles, recv: &recv, send: &snd, cancel: &cancel);
+    let echo_result = echo_peer(factory: &handles, recv: &recv, send: &snd, cancel: &cancel);
     let close_recv_result = std::net::close_receive(factory: &handles, receive: move recv);
     let close_send_result = std::net::close_send(factory: &handles, send: move snd);
-    let _ = move close_recv_result;
-    let _ = move close_send_result;
+    let recv_closed = move close_recv_result;
+    let send_closed = move close_send_result;
 
     if j == 0_u64 {
       break;
@@ -111,8 +111,8 @@ fn main(inputs: std::process::Inputs) -> result: std::process::ExitStatus {
   let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd;
   let close_dir_read_result = std::fs::close_directory(factory: &handles, directory: move cwd_read);
   let close_dir_write_result = std::fs::close_directory_write(factory: &handles, directory: move cwd_write);
-  let _ = move close_dir_read_result;
-  let _ = move close_dir_write_result;
+  let dir_read_closed = move close_dir_read_result;
+  let dir_write_closed = move close_dir_write_result;
 
   return std::process::exit_status(code: 0_u8);
 }

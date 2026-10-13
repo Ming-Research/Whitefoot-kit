@@ -72,14 +72,14 @@ fn main(inputs: std::process::Inputs) -> result: u32 waits {
 fn encode_f64_le(value: f64) -> result: Array<u8, 8> pure {
   let bits = value_bits(value: value);
 
-  let byte0 = cvt::<u64, u8>(bits bitand 0xFF_u64);
-  let byte1 = cvt::<u64, u8>(ishr(bits, 8_u32) bitand 0xFF_u64);
-  let byte2 = cvt::<u64, u8>(ishr(bits, 16_u32) bitand 0xFF_u64);
-  let byte3 = cvt::<u64, u8>(ishr(bits, 24_u32) bitand 0xFF_u64);
-  let byte4 = cvt::<u64, u8>(ishr(bits, 32_u32) bitand 0xFF_u64);
-  let byte5 = cvt::<u64, u8>(ishr(bits, 40_u32) bitand 0xFF_u64);
-  let byte6 = cvt::<u64, u8>(ishr(bits, 48_u32) bitand 0xFF_u64);
-  let byte7 = cvt::<u64, u8>(ishr(bits, 56_u32) bitand 0xFF_u64);
+  let byte0 = cvt::<u64, u8>(bits bitand 255_u64);
+  let byte1 = cvt::<u64, u8>(ishr(bits, 8_u32) bitand 255_u64);
+  let byte2 = cvt::<u64, u8>(ishr(bits, 16_u32) bitand 255_u64);
+  let byte3 = cvt::<u64, u8>(ishr(bits, 24_u32) bitand 255_u64);
+  let byte4 = cvt::<u64, u8>(ishr(bits, 32_u32) bitand 255_u64);
+  let byte5 = cvt::<u64, u8>(ishr(bits, 40_u32) bitand 255_u64);
+  let byte6 = cvt::<u64, u8>(ishr(bits, 48_u32) bitand 255_u64);
+  let byte7 = cvt::<u64, u8>(ishr(bits, 56_u32) bitand 255_u64);
 
   return [byte0, byte1, byte2, byte3, byte4, byte5, byte6, byte7];
 }

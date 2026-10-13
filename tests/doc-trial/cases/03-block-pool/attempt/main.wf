@@ -100,9 +100,9 @@ fn main(inputs: std::process::Inputs) -> result: std::process::ExitStatus {
 
   let return_result = return_block(pool: &pool, lease: move lease);
   match move return_result {
-    Ok(value: _) => {
+    Ok(value: ok_result) => {
     }
-    Err(value: _) => {
+    Err(value: err_result) => {
       return std::process::exit_status(code: 5_u8);
     }
   };
@@ -130,10 +130,10 @@ fn main(inputs: std::process::Inputs) -> result: std::process::ExitStatus {
   );
 
   match move write_result {
-    Ok(value: _) => {
+    Ok(value: bytes_written) => {
       return std::process::exit_status(code: 0_u8);
     }
-    Err(value: _) => {
+    Err(value: write_error) => {
       return std::process::exit_status(code: 250_u8);
     }
   };

@@ -1,4 +1,4 @@
-fn increment_counter(counter: std::Shared<u64>) -> result: unit {
+fn increment_counter(counter: Shared<u64>) -> result: unit pure {
   for (i in 0_u64..20000_u64) {
     atomic count = &counter {
       set count^ = count^ +wrap 1_u64;
@@ -8,10 +8,10 @@ fn increment_counter(counter: std::Shared<u64>) -> result: unit {
 }
 
 struct Queue {
-  ring: Ring<u64, 8>;
+  ring: Slots<u64, 8>;
 }
 
-fn produce(queue: std::Shared<Queue>, value_start: u64) -> result: unit {
+fn produce(queue: Shared<Queue>, value_start: u64) -> result: unit pure {
   for (i in 0_u64..5000_u64) {
     let value = value_start + i;
     loop () {
@@ -26,7 +26,7 @@ fn produce(queue: std::Shared<Queue>, value_start: u64) -> result: unit {
   return unit;
 }
 
-fn consume(queue: std::Shared<Queue>, total: std::Shared<u64>) -> result: unit {
+fn consume(queue: Shared<Queue>, total: Shared<u64>) -> result: unit pure {
   for (i in 0_u64..5000_u64) {
     loop () {
       atomic q = &queue, t = &total {
@@ -41,15 +41,15 @@ fn consume(queue: std::Shared<Queue>, total: std::Shared<u64>) -> result: unit {
   return unit;
 }
 
-fn main(inputs: std::process::Inputs) -> result: std::process::ExitStatus {
-  let std::process::Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_dir, stdout: out, stderr: unused_err, handles: factory, stdin: unused_in, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_mem) = move inputs;
+fn main(inputs: pkg::process::Inputs) -> result: pkg::process::ExitStatus {
+  let pkg::process::Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_dir, stdout: out, stderr: unused_err, handles: factory, stdin: unused_in, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_mem) = move inputs;
 
-  std::fs::close_directory_write(factory: &factory, directory: move cwd_dir);
+  pkg::fs::close_directory_write(factory: &factory, directory: move cwd_dir);
 
   let counter = shared_new::<u64>(value: 0_u64);
 
-  let ring = Ring<u64, 8>(len: 0_u64, head: 0_u64, capacity: 8_u64);
-  let queue_struct = Queue(ring: ring);
+  let ring = slots_new::<u64, 8>();
+  let queue_struct = Queue(ring: move ring);
   let queue = shared_new::<Queue>(value: move queue_struct);
   let total = shared_new::<u64>(value: 0_u64);
 
@@ -117,7 +117,7 @@ fn main(inputs: std::process::Inputs) -> result: std::process::ExitStatus {
   atomic counter_val = &counter {
     let cv = counter_val^;
     if cv != 320000_u64 {
-      return std::process::exit_status(code: 1_u8);
+      return pkg::process::exit_status(code: 1_u8);
     }
     set final_counter = cv;
   }
@@ -127,11 +127,11 @@ fn main(inputs: std::process::Inputs) -> result: std::process::ExitStatus {
     let ql = queue_val^.ring.len;
 
     if tv != 49990000_u64 {
-      return std::process::exit_status(code: 2_u8);
+      return pkg::process::exit_status(code: 2_u8);
     }
 
     if ql != 0_u64 {
-      return std::process::exit_status(code: 3_u8);
+      return pkg::process::exit_status(code: 3_u8);
     }
 
     set final_total = tv;
@@ -165,23 +165,23 @@ fn main(inputs: std::process::Inputs) -> result: std::process::ExitStatus {
   let b22 = cvt.wrap::<u64, u8>(ishr(final_len, 48_u32));
   let b23 = cvt.wrap::<u64, u8>(ishr(final_len, 56_u32));
 
-  let output_buffer = Array<u8, 24>([b0, b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17, b18, b19, b20, b21, b22, b23]);
+  let output_buffer: Array<u8, 24> = [b0, b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17, b18, b19, b20, b21, b22, b23];
 
-  let option_cancel = std::time::cancel_never();
-  let write_result = std::io::write_once(factory: &factory, output: &out, source: &output_buffer[0_u64..24_u64], start: 0_u64, end: 24_u64, deadline: None<std::time::Instant>(), cancel: &option_cancel);
+  let option_cancel = pkg::time::cancel_never();
+  let write_result = pkg::io::write_once(factory: &factory, output: &out, source: &output_buffer[0_u64..24_u64], start: 0_u64, end: 24_u64, deadline: None<pkg::time::Instant>(), cancel: &option_cancel);
 
   match move write_result {
     Ok(value: written) => {
       if written == 24_u64 {
-        std::time::close_cancel_watch(watch: move option_cancel);
-        return std::process::exit_status(code: 0_u8);
+        pkg::time::close_cancel_watch(watch: move option_cancel);
+        return pkg::process::exit_status(code: 0_u8);
       }
-      std::time::close_cancel_watch(watch: move option_cancel);
-      return std::process::exit_status(code: 4_u8);
+      pkg::time::close_cancel_watch(watch: move option_cancel);
+      return pkg::process::exit_status(code: 4_u8);
     }
     Err(value: error) => {
-      std::time::close_cancel_watch(watch: move option_cancel);
-      return std::process::exit_status(code: 4_u8);
+      pkg::time::close_cancel_watch(watch: move option_cancel);
+      return pkg::process::exit_status(code: 4_u8);
     }
   }
 }
