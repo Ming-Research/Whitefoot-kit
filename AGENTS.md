@@ -60,9 +60,9 @@ specification-update item has arrived.
 ## Coverage: the trial
 
 The guide is validated by dictation: code taken from existing repositories
-is turned into a task that says only what to write, and a fresh Haiku
-session that reads only the guide, the standard library's interfaces and the
-task writes it, revising from the compiler's rejections. The trial set covers
+is turned into a task that says only what to write, and fresh Haiku
+sessions that read only the guide, the standard library's interfaces and the
+task write it, revising from the compiler's rejections. The trial set covers
 fifteen categories, one segment each, chosen for coverage, not count:
 
 1. computation and control flow; 2. structs, enums, generics and
@@ -72,9 +72,12 @@ capabilities; 3. ownership; 4. references and cursors; 5. storage choice;
 atomic statements; 13. `--par`; 14. an interpreter; 15. a whole
 multithreaded program, dictated as requirements only.
 
-A segment passes when its program is accepted within three compilations, its
-observable behavior equals the original's, and the session read no file
-other than the guide, the interfaces and the task. Every segment's
+Each segment is dictated to three independent sessions. A session succeeds
+when its program is accepted within three compilations, its observable
+behavior equals the original's, and it read no file other than the guide,
+the interfaces and the task; the segment passes when at least two of its
+three sessions succeed, since one session's outcome varies too much between
+runs to judge the guide. Every segment's
 observable output carries its computed results, so a program that only
 returns success fails. A change that rewrites a section of the guide reruns
 the trial for the categories that section serves; the owner's acceptance
@@ -106,4 +109,5 @@ The completion review marks each item:
   as such.
 - K5. No citation of a file the reader does not have.
 - K6. A trial result cited in a pull request names the guide revision, the
-  compiler release and each segment's outcome.
+  compiler release, each segment's outcome and the result of each of its
+  three sessions.
