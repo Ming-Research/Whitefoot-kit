@@ -23,28 +23,28 @@ fn main(inputs: std::process::Inputs) -> result: unit pure {
     give 1_u64;
   } else {
     give 0_u64;
-  };
+  }
 
   let parents2 = Array::<u32, 6>(6_u32, 2_u32, 0_u32, 1_u32, 1_u32, 2_u32);
   let tag2 = if is_valid_tree(parents: &parents2, depths: &depths, len: len) {
     give 1_u64;
   } else {
     give 0_u64;
-  };
+  }
 
   let depths3 = Array::<u32, 6>(0_u32, 1_u32, 1_u32, 1_u32, 2_u32, 2_u32);
   let tag3 = if is_valid_tree(parents: &parents, depths: &depths3, len: len) {
     give 1_u64;
   } else {
     give 0_u64;
-  };
+  }
 
   let depths4 = Array::<u32, 6>(4097_u32, 1_u32, 1_u32, 2_u32, 2_u32, 2_u32);
   let tag4 = if is_valid_tree(parents: &parents, depths: &depths4, len: len) {
     give 1_u64;
   } else {
     give 0_u64;
-  };
+  }
 
   let output = box_slots_new::<u8>(capacity: 168_u64);
   let mut_out = &output.inner;

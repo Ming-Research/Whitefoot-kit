@@ -131,8 +131,7 @@ fn main(inputs: std::process::Inputs) -> result: std::process::ExitStatus pure {
   let diff_after_separate_release = heap_after_separate_release - baseline;
 
   let paged_bytes = box_paged_new::<Array<u8, 0>>(capacity: 1_u64);
-  let zero_elem = [];
-  place_back(window: &paged_bytes.inner, value: zero_elem);
+  place_back(window: &paged_bytes.inner, value: [0_u8; 0]);
   grow_paged(cell: &paged_bytes, capacity: 3_u64);
   let heap_at_bytes_three = std::process::heap_in_use(meter: &meter);
   let diff_bytes_three = heap_at_bytes_three - baseline;

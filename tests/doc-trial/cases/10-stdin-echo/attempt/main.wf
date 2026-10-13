@@ -8,7 +8,7 @@ fn main(inputs: std::process::Inputs) -> result: u8 pure {
   return code;
 }
 
-fn echo_loop(input: std::io::Input, output: std::io::Output, buffer: &Slots<u8, 8192>) -> result: u8 reads(buffer) {
+fn echo_loop(input: std::io::Stdin, output: std::io::Stdout, buffer: &Slots<u8, 8192>) -> result: u8 reads(buffer) {
   loop {
     let read_result = std::io::read_next(handle: &input, window: buffer);
     match move read_result {
@@ -29,7 +29,7 @@ fn echo_loop(input: std::io::Input, output: std::io::Output, buffer: &Slots<u8, 
   }
 }
 
-fn write_all(data: &[u8], output: &std::io::Output) -> result: u8 reads(data) {
+fn write_all(data: &[u8], output: &std::io::Stdout) -> result: u8 reads(data) {
   let offset = 0_u64;
   loop (
     invariant bounds: offset <= data^.len

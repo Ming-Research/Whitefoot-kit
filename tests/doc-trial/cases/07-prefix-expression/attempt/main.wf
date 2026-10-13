@@ -31,15 +31,20 @@ fn parse_digit_or_plus(bytes: &Array<u8, 5>, pos: u64) -> result: Result<ParseRe
   if byte == '+'_u8 {
     let next_pos = pos + 1_u64;
     return parse_plus_args(bytes: bytes, pos: next_pos);
-  } else if byte >= '0'_u8 && byte <= '9'_u8 {
-    let digit_val = byte - '0'_u8;
-    let expr = Expression::Digit(value: digit_val);
-    let next_pos = pos + 1_u64;
-    let result = ParseResult(expr: move expr, next_pos: next_pos);
-    return Ok<ParseResult, ParseError>(move result);
   } else {
-    let err = ParseError::InvalidToken();
-    return Err<ParseResult, ParseError>(move err);
+    let is_digit_start = byte >= '0'_u8;
+    let is_digit_end = byte <= '9'_u8;
+    let is_digit = band(is_digit_start, is_digit_end);
+    if is_digit {
+      let digit_val = byte - '0'_u8;
+      let expr = Expression::Digit(value: digit_val);
+      let next_pos = pos + 1_u64;
+      let result = ParseResult(expr: move expr, next_pos: next_pos);
+      return Ok<ParseResult, ParseError>(move result);
+    } else {
+      let err = ParseError::InvalidToken();
+      return Err<ParseResult, ParseError>(move err);
+    }
   }
 }
 
@@ -120,15 +125,20 @@ fn parse_digit_or_plus_2(bytes: &Array<u8, 2>, pos: u64) -> result: Result<Parse
   if byte == '+'_u8 {
     let next_pos = pos + 1_u64;
     return parse_plus_args_2(bytes: bytes, pos: next_pos);
-  } else if byte >= '0'_u8 && byte <= '9'_u8 {
-    let digit_val = byte - '0'_u8;
-    let expr = Expression::Digit(value: digit_val);
-    let next_pos = pos + 1_u64;
-    let result = ParseResult(expr: move expr, next_pos: next_pos);
-    return Ok<ParseResult, ParseError>(move result);
   } else {
-    let err = ParseError::InvalidToken();
-    return Err<ParseResult, ParseError>(move err);
+    let is_digit_start = byte >= '0'_u8;
+    let is_digit_end = byte <= '9'_u8;
+    let is_digit = band(is_digit_start, is_digit_end);
+    if is_digit {
+      let digit_val = byte - '0'_u8;
+      let expr = Expression::Digit(value: digit_val);
+      let next_pos = pos + 1_u64;
+      let result = ParseResult(expr: move expr, next_pos: next_pos);
+      return Ok<ParseResult, ParseError>(move result);
+    } else {
+      let err = ParseError::InvalidToken();
+      return Err<ParseResult, ParseError>(move err);
+    }
   }
 }
 

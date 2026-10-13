@@ -35,7 +35,8 @@ fn remove_evens(head: &Option<Box<Node>>) -> result: unit writes(head) {
         return unit;
       }
       Some(value: node) => {
-        if (node.inner.value & 1_u64) == 0_u64 {
+        let is_even = (node.inner.value & 1_u64) == 0_u64;
+        if is_even {
           let next = node.inner.next;
           set head^ = move next;
           continue;

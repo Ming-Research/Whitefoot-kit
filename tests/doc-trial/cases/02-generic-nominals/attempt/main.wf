@@ -39,7 +39,7 @@ fn main(inputs: std::process::Inputs) -> result: u32 pure {
     Err(value: err) => {
       give 0_u8;
     }
-  };
+  }
 
   if byte_sum != 3_u8 {
     return 1_u32;
@@ -52,7 +52,7 @@ fn main(inputs: std::process::Inputs) -> result: u32 pure {
     Err(value: err) => {
       give 1_u64;
     }
-  };
+  }
 
   let signed_sum = match signed_sum_result {
     Ok(value: sum) => {
@@ -61,7 +61,7 @@ fn main(inputs: std::process::Inputs) -> result: u32 pure {
     Err(value: err) => {
       give -4_i64;
     }
-  };
+  }
 
   if signed_sum != 5_i64 {
     return 1_u32;
@@ -74,7 +74,7 @@ fn main(inputs: std::process::Inputs) -> result: u32 pure {
     Absent() => {
       give 0_u8;
     }
-  };
+  }
 
   if optional_value != 19_u8 {
     return 1_u32;
@@ -87,7 +87,7 @@ fn main(inputs: std::process::Inputs) -> result: u32 pure {
     Absent() => {
       give 0_i64;
     }
-  };
+  }
 
   if choice1_val != 3_i64 {
     return 1_u32;
@@ -100,7 +100,7 @@ fn main(inputs: std::process::Inputs) -> result: u32 pure {
     Absent() => {
       give 0_i64;
     }
-  };
+  }
 
   if choice2_val != -5_i64 {
     return 1_u32;

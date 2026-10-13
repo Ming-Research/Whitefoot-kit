@@ -186,7 +186,7 @@ fn main(inputs: pkg::process::Inputs) -> result: pkg::process::ExitStatus pure w
   let s23 = ishr(final_len, 56_u32);
   let b23 = cvt.wrap::<u64, u8>(s23);
 
-  let output_buffer: Array<u8, 24> = [b0, b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17, b18, b19, b20, b21, b22, b23];
+  let output_buffer = [b0, b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17, b18, b19, b20, b21, b22, b23];
 
   let option_cancel = pkg::time::cancel_never();
   let write_result = pkg::io::write_once(factory: &factory, output: &out, source: &output_buffer[0_u64..24_u64], start: 0_u64, end: 24_u64, deadline: None<pkg::time::Instant>(), cancel: &option_cancel);
