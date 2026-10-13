@@ -10,7 +10,8 @@ fn build_list(index: u64) -> result: Option<Box<Node>> pure {
   let next_index = index +wrap 1_u64;
   let rest = build_list(index: next_index);
   let node = Node(value: index, next: move rest);
-  return Some<Box<Node>>(value: box_new::<Node>(value: move node));
+  let boxed = box_new::<Node>(value: move node);
+  return Some<Box<Node>>(value: move boxed);
 }
 
 fn sum_list(head: &Option<Box<Node>>) -> result: u64 reads(head) {

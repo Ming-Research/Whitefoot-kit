@@ -1,4 +1,4 @@
-fn u64_to_le_bytes(value: u64, buffer: &[u8], offset: u64) writes(buffer) contract {
+fn u64_to_le_bytes(value: u64, buffer: &[u8], offset: u64) -> result: unit writes(buffer) contract {
   requires offset + 8_u64 <= buffer^.len;
 } {
   let b0 = cvt.wrap::<u64, u8>(value);
@@ -24,6 +24,7 @@ fn u64_to_le_bytes(value: u64, buffer: &[u8], offset: u64) writes(buffer) contra
   set buffer^[offset + 5_u64] = b5;
   set buffer^[offset + 6_u64] = b6;
   set buffer^[offset + 7_u64] = b7;
+  return unit;
 }
 
 fn main(inputs: move std::process::Inputs) -> result: std::process::ExitStatus pure {

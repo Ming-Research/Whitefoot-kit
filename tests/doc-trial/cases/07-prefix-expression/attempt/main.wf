@@ -22,9 +22,9 @@ fn parse_digit_or_plus(bytes: &Array<u8, 5>, pos: u64) -> result: Result<(Expres
 
   let byte = bytes^[pos];
 
-  if byte == '+' {
+  if byte == '+'_u8 {
     return parse_plus_args(bytes: bytes, pos: pos + 1_u64);
-  } else if byte >= '0' && byte <= '9' {
+  } else if byte >= '0'_u8 && byte <= '9'_u8 {
     let digit_val = byte - '0';
     let expr = Expression::Digit(value: digit_val);
     return Ok<(Expression, u64), ParseError>((expr, pos + 1_u64));
@@ -104,9 +104,9 @@ fn parse_digit_or_plus_2(bytes: &Array<u8, 2>, pos: u64) -> result: Result<(Expr
 
   let byte = bytes^[pos];
 
-  if byte == '+' {
+  if byte == '+'_u8 {
     return parse_plus_args_2(bytes: bytes, pos: pos + 1_u64);
-  } else if byte >= '0' && byte <= '9' {
+  } else if byte >= '0'_u8 && byte <= '9'_u8 {
     let digit_val = byte - '0';
     let expr = Expression::Digit(value: digit_val);
     return Ok<(Expression, u64), ParseError>((expr, pos + 1_u64));

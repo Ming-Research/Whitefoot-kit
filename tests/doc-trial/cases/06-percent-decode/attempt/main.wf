@@ -131,10 +131,12 @@ fn main(inputs: std::process::Inputs) -> result: unit waits {
   let output_window = &output_buffer[0_u64..16_u64];
   let write_result = std::io::write_once(factory: &factory, writer: move out, window: output_window);
   match move write_result {
-    Ok(value: _) => {
+    Ok(value: ok_val) => {
+      let ignore_ok = ok_val;
       return unit;
     }
-    Err(value: _) => {
+    Err(value: err_val) => {
+      let ignore_err = err_val;
       std::process::exit(status: 250_u32);
     }
   }

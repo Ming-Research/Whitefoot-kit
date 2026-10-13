@@ -62,8 +62,8 @@ fn main(inputs: process::Inputs) -> result: process::ExitStatus waits {
     spawn serve_client(connection: move accepted.connection, store: move store_handle, handles: io::factory_share(factory: &handles), clock: time::clock_share(clock: &clock));
   }
 
-  let _ = net::close_listener(factory: &handles, listener: move listener);
-  let _ = time::close_cancel_watch(watch: move cancel);
+  let close_listener_result = net::close_listener(factory: &handles, listener: move listener);
+  let close_cancel_result = time::close_cancel_watch(watch: move cancel);
 
   return process::exit_status(code: 0_u8);
 }
@@ -201,7 +201,7 @@ fn serve_client(connection: net::TcpConnection, store: std::shared::Shared<Box<S
     let buf_slice = &buffer.data.storage.inner[window_start..window_end];
     let cancel = time::cancel_never();
     let read_result = net::receive_next(receive: &receive, destination: &buf_slice, start: 0_u64, end: available, deadline: None<time::Instant>(), cancel: &cancel);
-    let _ = time::close_cancel_watch(watch: move cancel);
+    let cancel_close_result = time::close_cancel_watch(watch: move cancel);
 
     let bytes_read = match move read_result {
       Ok(value: n) => {
@@ -231,8 +231,8 @@ fn serve_client(connection: net::TcpConnection, store: std::shared::Shared<Box<S
 
           let cancel = time::cancel_never();
           let send_buf = &response.storage.inner[0_u64..response.storage.inner.len];
-          let _ = net::send_once(send: &send, source: &send_buf, start: 0_u64, end: response.storage.inner.len, deadline: None<time::Instant>(), cancel: &cancel);
-          let _ = time::close_cancel_watch(watch: move cancel);
+          let send_result = net::send_once(send: &send, source: &send_buf, start: 0_u64, end: response.storage.inner.len, deadline: None<time::Instant>(), cancel: &cancel);
+          let cancel_close_result = time::close_cancel_watch(watch: move cancel);
 
           set buffer.filled = buffer.filled - req_len;
           if buffer.filled > 0_u64 {
@@ -246,8 +246,8 @@ fn serve_client(connection: net::TcpConnection, store: std::shared::Shared<Box<S
     }
   }
 
-  let _ = net::close_receive(factory: &handles, receive: move receive);
-  let _ = net::close_send(factory: &handles, send: move send);
+  let close_receive_result = net::close_receive(factory: &handles, receive: move receive);
+  let close_send_result = net::close_send(factory: &handles, send: move send);
   return unit;
 }
 
@@ -556,7 +556,7 @@ fn store_del(store: &Box<Store>, key: &GrowVector<u8, 1024>) -> result: Bool wri
   let search_result = store_find_entry(store: store, key: key);
   match move search_result {
     Some(value: idx) => {
-      let _ = vector::grow_vector_remove(values: &store.inner.entries, index: idx);
+      let removed = vector::grow_vector_remove(values: &store.inner.entries, index: idx);
       return True();
     }
     None() => {

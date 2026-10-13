@@ -1,7 +1,7 @@
 fn parse_port(buffer: &[u8], len: u64) -> port: u16 pure {
   let result = 0_u64;
   let i = 0_u64;
-  loop (invariant i <= len) {
+  loop (invariant bound: i <= len) {
     if i >= len {
       break;
     }
@@ -76,7 +76,7 @@ fn main(inputs: std::process::Inputs) -> result: std::process::ExitStatus {
   let connections: Slots<std::net::TcpConnection, 12> = slots_new::<std::net::TcpConnection, 12>();
 
   let i = 0_u64;
-  loop (invariant i <= 12_u64) {
+  loop (invariant count: i <= 12_u64) {
     if i >= 12_u64 {
       break;
     }

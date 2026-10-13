@@ -60,7 +60,7 @@ fn execute(instructions: &[Instruction], initial_counter: u64) -> result: u64 re
   }
 }
 
-fn main(inputs: move std::process::Inputs) -> result: std::process::ExitStatus {
+fn main(inputs: std::process::Inputs) -> result: std::process::ExitStatus {
   let std::process::Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: output, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
 
   std::fs::close_directory_write(factory: &factory, directory: move cwd_directory);

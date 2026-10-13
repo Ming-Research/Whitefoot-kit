@@ -20,7 +20,8 @@ fn take_block(pool: &BlockPool) -> result: Option<Lease> writes(pool.free_map) {
   for (i in 0_u64..8_u64) {
     if pool.free_map[i] {
       set pool.free_map[i] = false;
-      return Some<Lease>(value: Lease(block_index: i));
+      let lease = Lease(block_index: i);
+      return Some<Lease>(value: move lease);
     }
   }
   return None<Lease>();
