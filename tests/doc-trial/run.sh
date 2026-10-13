@@ -13,6 +13,8 @@ mkdir -p "$out"
 out=$(cd "$out" && pwd)
 rm -rf "$out" && mkdir -p "$out"
 summary="$out/summary.md"
+sessions_summary="$out/summary-sessions.md"
+: > "$sessions_summary"
 echo "| case | original | attempt | verdict |" > "$summary"
 echo "|---|---|---|---|" >> "$summary"
 
@@ -71,35 +73,51 @@ for case in "$cases_dir"/*/; do
     o=$(side "$case" original "$out/$id/original")
     reference=$o
   fi
-  a=$(side "$case" attempt "$out/$id/attempt")
-  verdict=fail
-  if [ "${o%%:*}" = ran ] && [ "${a%%:*}" = ran ] \
-    && [ "$o" = "$a" ] \
-    && cmp -s "$out/$id/original/stdout.txt" "$out/$id/attempt/stdout.txt"; then
-    verdict=pass
-  fi
-  # Matching driver failures or two timed-out programs are not observations.
-  if [ -f "$case/drive" ] && { [ "$o" != ran:0 ] || [ "$a" != ran:0 ]; }; then
+  sessions_passed=0
+  for session in 1 2 3; do
+    name=attempt
+    row_id=$id
+    smoke_expectation="$case/smoke-verdict"
+    if [ "$session" -ne 1 ]; then
+      name="attempt-$session"
+      row_id="$id#$session"
+      smoke_expectation="$case/smoke-verdict-$session"
+      # An expectation without its attempt must fail, rather than skipping
+      # the smoke that establishes this session was independently compared.
+      [ -d "$case/$name" ] || [ -f "$smoke_expectation" ] || continue
+    fi
+    a=$(side "$case" "$name" "$out/$id/$name")
     verdict=fail
-  fi
-  case "$a" in ran:124|ran:137) verdict=fail ;; esac
-  [ "$a" = absent ] && verdict=pending
-  echo "| $id | $reference | $a | $verdict |" >> "$summary"
-  if [ -f "$case/smoke-verdict" ]; then
-    wanted=$(cat "$case/smoke-verdict")
-    if [ "$verdict" != "$wanted" ]; then
-      echo "Smoke $id: expected $wanted, observed $verdict" >&2
-      smoke_errors=$((smoke_errors + 1))
+    if [ "${o%%:*}" = ran ] && [ "${a%%:*}" = ran ] \
+      && [ "$o" = "$a" ] \
+      && cmp -s "$out/$id/original/stdout.txt" "$out/$id/$name/stdout.txt"; then
+      verdict=pass
     fi
-    # A comparison smoke must reach execution: compiler rejection is only
-    # the intended outcome of the dedicated rejection fixture.
-    if [ "${o%%:*}" != ran ] || \
-      { [ "$id" != 00-smoke-rejected ] && [ "${a%%:*}" != ran ]; } || \
-      { [ "$id" = 00-smoke-rejected ] && [ "$a" != rejected ]; }; then
-      echo "Smoke $id did not reach its intended compilation/execution stage" >&2
-      smoke_errors=$((smoke_errors + 1))
+    # Matching driver failures or two timed-out programs are not observations.
+    if [ -f "$case/drive" ] && { [ "$o" != ran:0 ] || [ "$a" != ran:0 ]; }; then
+      verdict=fail
     fi
-  fi
+    case "$a" in ran:124|ran:137) verdict=fail ;; esac
+    [ "$a" = absent ] && verdict=pending
+    echo "| $row_id | $reference | $a | $verdict |" >> "$summary"
+    [ "$verdict" = pass ] && sessions_passed=$((sessions_passed + 1))
+    if [ -f "$smoke_expectation" ]; then
+      wanted=$(cat "$smoke_expectation")
+      if [ "$verdict" != "$wanted" ]; then
+        echo "Smoke $row_id: expected $wanted, observed $verdict" >&2
+        smoke_errors=$((smoke_errors + 1))
+      fi
+      # A comparison smoke must reach execution: compiler rejection is only
+      # the intended outcome of the dedicated rejection fixture.
+      if [ "${o%%:*}" != ran ] || \
+        { { [ "$id" != 00-smoke-rejected ] || [ "$session" -ne 1 ]; } && [ "${a%%:*}" != ran ]; } || \
+        { [ "$id" = 00-smoke-rejected ] && [ "$session" -eq 1 ] && [ "$a" != rejected ]; }; then
+        echo "Smoke $row_id did not reach its intended compilation/execution stage" >&2
+        smoke_errors=$((smoke_errors + 1))
+      fi
+    fi
+  done
+  echo "$id $sessions_passed/3" >> "$sessions_summary"
 done
 cat "$summary"
 if [ "$smoke_errors" -ne 0 ]; then exit 1; fi

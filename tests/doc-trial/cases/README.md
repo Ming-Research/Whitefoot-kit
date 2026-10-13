@@ -1,18 +1,19 @@
 # Writing-guide trial cases
 
 The fifteen primary cases use the Primary selections in the selection report.
-Their `attempt/` directories are deliberately absent until a fresh writer
-creates them. Give the writer the writing guide, the standard-library
-interfaces described below, and that case's `task.md`. Do not expose the
+Their attempt directories are deliberately absent until independent writers
+create them. Dictate each segment to three independent sessions, writing
+`attempt/`, `attempt-2/` and `attempt-3/`. Give each writer the writing guide,
+the standard-library interfaces described below, and that case's `task.md`. Do not expose the
 reference sources, provenance, expected transcript, or driver implementation.
 The task describes behavior and byte output; the trial also needs source
 inspection to establish that the intended language forms were exercised.
 
 All builds and runs happen in CI, triggered by the owner. No new case or
 harness path has been executed locally; compiler acceptance and declared
-smoke outcomes await CI. The workflow selects the newest Whitefoot main
-release at run time; source provenance and interface handouts below are
-pinned to `d75f318d56318834785322bde3a3656fb93116a6`.
+smoke outcomes await CI. The workflow uses the release named in
+`tests/doc-trial/whitefoot.pin`; source provenance and interface handouts
+below are pinned to `d75f318d56318834785322bde3a3656fb93116a6`.
 
 ## Case files
 
@@ -22,8 +23,10 @@ pinned to `d75f318d56318834785322bde3a3656fb93116a6`.
 - `SOURCE.md`: source repository, revision, path and lines, adaptations,
   observable oracle and residual weaknesses. Downstream ports retain their
   full MIT notice beside the copied source or adapted fixture.
-- `original/`: adapted reference program. `attempt/`: writer's answer.
-  Both sides default to compiling `main.wf`.
+- `original/`: adapted reference program, built and run once per case.
+  `attempt/`: first writer's answer; optional `attempt-2/` and `attempt-3/`:
+  second and third writers' answers. Each side defaults to compiling `main.wf`
+  and uses the same case fixtures.
 - A side's optional `build`: compiler arguments, one literal argument per
   nonempty line, relative to that side's directory. No shell evaluation or
   word splitting occurs. The harness appends `-o` and its binary path.
@@ -55,7 +58,10 @@ pinned to `d75f318d56318834785322bde3a3656fb93116a6`.
 - Smoke-only `smoke-verdict`: `pass` or `fail`. CI requires the actual verdict
   to equal it, and the harness exits nonzero if any smoke expectation fails.
   Comparison smokes must also compile and reach execution; only the dedicated
-  rejection smoke may fail compilation, and must do so.
+  rejection smoke's first attempt may fail compilation, and must do so.
+  Optional `smoke-verdict-2` and `smoke-verdict-3` require the corresponding
+  attempts' verdicts and execution. An expectation without its attempt
+  directory yields a pending row and fails the smoke.
 
 The ordinary path compares byte-identical stdout and equal exit status,
 including intended nonzero statuses. Driver cases compare transcripts and
@@ -63,11 +69,21 @@ require driver success. Timeouts never pass. Missing attempts are `pending`.
 Trial failures remain report rows rather than stopping the run; smoke
 expectations check the comparison machinery independently.
 
+Each present additional attempt gets its own `summary.md` row, named
+`<case>#2` or `<case>#3`; the first attempt keeps the existing case name and
+row format. When additional directories are absent, existing comparison
+rows and smoke behavior are unchanged. `summary-sessions.md` records one
+`<case> N/3` line per case, counting passing comparisons; absent sessions
+count as zero. At least two successful independent sessions make a segment
+pass. The harness reports behavioral comparisons; source inspection, session
+independence and the three-compilation budget remain trial requirements
+outside this harness. A session count does not change the run's exit status.
+
 Results are under the requested output directory, one directory per case
 and side: `compile.txt`, `stdout.txt`, `stderr.txt`, `status.txt` and the
 compiled binary. Driver `stdout.txt` contains the transcript; `program*.txt`
 files retain native stdout, stderr and status. The workflow uploads all text
-results, the summary and the selected compiler pin. Native diagnostics on a
+results, both summaries and the selected compiler pin. Native diagnostics on a
 failed launch may be present even when no native status could be collected.
 
 ## Primary cases
@@ -104,6 +120,7 @@ Whitefoot `tests/programs/heap_run.wf` at the pinned revision as reference.
 | Path | Must pass | Must fail | What a wrong result changes |
 |---|---|---|---|
 | Default | 00-smoke-pass | 00-smoke-wrong, 00-smoke-rejected | Different native status, or compiler rejection |
+| Independent attempts | 00-smoke-sessions, 00-smoke-sessions#3 | 00-smoke-sessions#2 | First and third attempts return computed 12, second returns computed 8; sessions summary reports 2/3 |
 | drive | 00-smoke-drive-pass | 00-smoke-drive-wrong | Accepted native entry returns 1 instead of 0; driver records and rejects it |
 | Matching driver failure | — | 00-smoke-drive-common-failure | Both native entries return 1; even identical failure transcripts must fail |
 | env | 00-smoke-env-pass | 00-smoke-env-wrong | Driver first requires an exact sentinel containing spaces and literal shell metacharacters; wrong accepted entry then returns 1 |

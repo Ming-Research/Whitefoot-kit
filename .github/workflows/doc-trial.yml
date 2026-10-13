@@ -59,6 +59,12 @@ jobs:
         run: |
           make -C tests/doc-trial trial
           cat tests/doc-trial/build/results/summary.md >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo
+            echo '```text'
+            cat tests/doc-trial/build/results/summary-sessions.md
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Retest
         if: steps.retest.outputs.selected == 'true'
@@ -70,6 +76,12 @@ jobs:
             "tests/doc-trial/build/whitefoot/$release/whitefootc" \
             tests/doc-trial/build/results-set2
           cat tests/doc-trial/build/results-set2/summary.md >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo
+            echo '```text'
+            cat tests/doc-trial/build/results-set2/summary-sessions.md
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -82,10 +94,12 @@ jobs:
             tests/doc-trial/build/results/**/status.txt
             tests/doc-trial/build/results/**/program*.txt
             tests/doc-trial/build/results/summary.md
+            tests/doc-trial/build/results/summary-sessions.md
             tests/doc-trial/build/results-set2/**/compile.txt
             tests/doc-trial/build/results-set2/**/stdout.txt
             tests/doc-trial/build/results-set2/**/stderr.txt
             tests/doc-trial/build/results-set2/**/status.txt
             tests/doc-trial/build/results-set2/**/program*.txt
             tests/doc-trial/build/results-set2/summary.md
+            tests/doc-trial/build/results-set2/summary-sessions.md
             tests/doc-trial/whitefoot.pin
