@@ -8,7 +8,8 @@
 # $(WHITEFOOTC): a downloaded compiler keeps its archive's timestamp, which
 # can be older than an output built before the pin moved. This file defines
 # the targets compiler, pin-check, pin-ready, toolchain-check and toolchain
-# and the variables PIN, RELEASE, RELEASE_COMMIT and WHITEFOOTC.
+# and the variables PIN, RELEASE, RELEASE_COMMIT, WHITEFOOTC and
+# WHITEFOOT_LANGUAGE.
 #
 # A release's Linux compiler is built with one LLVM major, which its
 # manifest names as linux_llvm_major, and it fixes the forms that clang
@@ -24,7 +25,8 @@
 # `release = wf-exp-<12 hex digits>` naming an experiment release of an
 # unmerged commit, which only a work branch may pin (make pin-ready refuses
 # it). `make compiler` downloads the release's whitefootc for this host into
-# $(BUILD)/whitefoot/<release>/, checked against the release's SHA256SUMS and
+# $(BUILD)/whitefoot/<release>/, and its language package, when present,
+# into language/ there, checked against the release's SHA256SUMS and
 # manifest; `make WHITEFOOTC=<path> ...`, or WHITEFOOTC in the environment,
 # uses that compiler instead and downloads nothing. Including this
 # file leaves the project's default goal as it would be without it.
@@ -49,6 +51,7 @@ HOST := $(shell uname -s)-$(shell uname -m)
 HOST_CLANG ?= /usr/bin/clang
 ASSET := $(if $(filter Linux-x86_64,$(HOST)),whitefootc-linux-x86_64.tar.gz,$(if $(filter Darwin-arm64,$(HOST)),whitefootc-macos-arm64.tar.gz))
 WHITEFOOT := $(BUILD)/whitefoot/$(RELEASE)
+export WHITEFOOT_LANGUAGE := $(WHITEFOOT)/language
 PINNED_WHITEFOOTC := $(WHITEFOOT)/whitefootc
 
 .PHONY: compiler pin-check pin-ready toolchain-check toolchain
@@ -105,19 +108,38 @@ pin-check: $(PIN)
 # outputs built before, and both must not be reused.
 $(PINNED_WHITEFOOTC): | pin-check
 	@test -n "$(ASSET)" || { echo "Whitefoot publishes no compiler for $(HOST)" >&2; exit 1; }
-	@rm -rf $(WHITEFOOT).part && mkdir -p $(WHITEFOOT).part
-	@cd $(WHITEFOOT).part && for file in $(ASSET) SHA256SUMS whitefoot-release.json; do \
-		curl -fsSL --retry 3 -o $$file $(RELEASES)/$(RELEASE)/$$file || { \
-			echo "cannot download $$file of $(RELEASE); make it with: $(RELEASE_DISPATCH)" >&2; \
-			exit 1; }; \
-	done
-	@cd $(WHITEFOOT).part && test "$$(grep -c '  $(ASSET)$$' SHA256SUMS)" = 1 \
-		&& test "$$(grep -c '  whitefoot-release\.json$$' SHA256SUMS)" = 1 \
-		&& grep -E '  ($(ASSET)|whitefoot-release\.json)$$' SHA256SUMS | shasum -a 256 -c - \
-		|| { echo "$(RELEASE)'s compiler or manifest does not match its SHA256SUMS" >&2; exit 1; }
-	@cd $(WHITEFOOT).part && $(PY) -c 'import json, sys; m = json.load(open("whitefoot-release.json")); sys.exit(0 if m["tag"] == "$(RELEASE)" and m["commit"].startswith("$(RELEASE_COMMIT)") else "whitefoot-release.json does not describe $(RELEASE)")'
-	@cd $(WHITEFOOT).part && tar -xzf $(ASSET) && rm $(ASSET) && test -x whitefootc && touch whitefootc
-	@rm -rf $(WHITEFOOT) && mv $(WHITEFOOT).part $(WHITEFOOT)
+	@set -e; \
+	part="$(WHITEFOOT).part"; \
+	trap 'rm -rf "$$part"' 0; \
+	trap 'exit 1' 1 2 3 15; \
+	rm -rf "$$part"; mkdir -p "$$part"; \
+	( cd "$$part"; \
+		for file in $(ASSET) SHA256SUMS whitefoot-release.json; do \
+			curl -fsSL --retry 3 -o "$$file" "$(RELEASES)/$(RELEASE)/$$file" || { \
+				echo "cannot download $$file of $(RELEASE); make it with: $(RELEASE_DISPATCH)" >&2; \
+				exit 1; }; \
+		done; \
+		test "$$(grep -c '  $(ASSET)$$' SHA256SUMS)" = 1 \
+			&& test "$$(grep -c '  whitefoot-release\.json$$' SHA256SUMS)" = 1 \
+			&& grep -E '  ($(ASSET)|whitefoot-release\.json)$$' SHA256SUMS | shasum -a 256 -c - \
+			|| { echo "$(RELEASE)'s compiler or manifest does not match its SHA256SUMS" >&2; exit 1; }; \
+		language=$$($(PY) -c 'import json, sys; m = json.load(open("whitefoot-release.json")); m["tag"] == "$(RELEASE)" and m["commit"].startswith("$(RELEASE_COMMIT)") or sys.exit("whitefoot-release.json does not describe $(RELEASE)"); print(m.get("assets", {}).get("language") or "")'); \
+		if [ -n "$$language" ]; then \
+			curl -fsSL --retry 3 -o "$$language" "$(RELEASES)/$(RELEASE)/$$language" || { \
+				echo "cannot download $$language of $(RELEASE); make it with: $(RELEASE_DISPATCH)" >&2; \
+				exit 1; }; \
+			awk -v asset="$$language" '$$2 == asset { print }' SHA256SUMS > language.sha256; \
+			test "$$(grep -c '' language.sha256)" = 1 && shasum -a 256 -c language.sha256 \
+				|| { echo "$(RELEASE)'s language package does not match its SHA256SUMS (exactly one entry for $$language is required)" >&2; exit 1; }; \
+			mkdir language; tar -xzf "$$language" -C language; \
+			rm "$$language" language.sha256; \
+		else \
+			commit=$$($(PY) -c 'import json; print(json.load(open("whitefoot-release.json"))["commit"])'); \
+			echo "$(RELEASE) carries no language package; read the language at its commit with: gh api 'repos/Ming-Research/Whitefoot/contents/spec/kernel-spec.md?ref=$$commit' -H 'Accept: application/vnd.github.raw'"; \
+		fi; \
+		tar -xzf $(ASSET); rm $(ASSET); test -x whitefootc; touch whitefootc; \
+	); \
+	rm -rf "$(WHITEFOOT)"; mv "$$part" "$(WHITEFOOT)"
 	@echo "whitefootc $(RELEASE) for $(HOST) at $(PINNED_WHITEFOOTC)"
 
 # A revision bound for main pins a release of a commit on Whitefoot's main,

@@ -12,15 +12,21 @@ compiler; this kit is what you work with.
    before writing code: the syntax every program needs, how to design a
    sequential and a concurrent program, and the behavior the compiler accepts
    but that is wrong or slow.
-2. The standard library's interfaces, `std/<module>/module.wfm`, with the
-   module list in `std/modules.wfg`. Every host function, type and
+2. The standard library's interfaces, `lib/std/<module>/module.wfm`, with the
+   module list in `lib/std/modules.wfg`. Every host function, type and
    signature you call is declared there; never guess a name.
 3. The specification, `spec/kernel-spec.md`, which defines the language. Look
    up a rule there when the guide cites it in brackets, such as `[GRAM-9]`,
    or when the guide does not cover what you need.
 
-Read the standard-library interfaces and the specification at the commit
-your project's compiler was built from, never another version:
+After `make compiler`, the specification and standard-library interfaces are
+in `build/whitefoot/<release>/language/`, at the same commit as the compiler:
+`spec/kernel-spec.md`, `lib/std/<module>/module.wfm` and `lib/std/modules.wfg`.
+Including `whitefoot.mk` exports `WHITEFOOT_LANGUAGE` pointing to this directory.
+Read these files for your pinned release, never another version.
+
+Releases older than `wf-5dd90db143b1` carry no language package. Read the
+language at the compiler's commit with:
 
 ```sh
 gh api 'repos/Ming-Research/Whitefoot/contents/spec/kernel-spec.md?ref=<commit>' \
@@ -68,9 +74,10 @@ $(BUILD)/app: $(PIN) $(WHITEFOOTC) $(SOURCES)
 
 `whitefoot.pin` at the project's root names the release:
 `release = wf-<12 hex digits>`. `make compiler` downloads and checks that
-release's `whitefootc`; including the kit leaves the project's default goal
-as it was. [downstream.md](downstream.md) gives the rules for the pin,
-trying an unmerged Whitefoot change and upgrading Whitefoot.
+release's `whitefootc` and its language package when present; including the
+kit leaves the project's default goal as it was. [downstream.md](downstream.md)
+gives the rules for the pin, trying an unmerged Whitefoot change and upgrading
+Whitefoot.
 
 ## When the guide or a rejection did not help
 

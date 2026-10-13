@@ -6,7 +6,7 @@ This guide is for agents that write Whitefoot programs and is 1944 lines long. R
 - Parts 2 and 3 say how to design a sequential and a concurrent program: where data lives, who owns it, what the checker must be told, how contexts share state. Rejections cannot teach these.
 - Throughout, "Silent" marks behavior the compiler accepts but that is wrong or slow, with the way to check for it.
 
-Beside this guide you have the standard library's interfaces, `std/<module>/module.wfm`, listed in `std/modules.wfg`, and the specification. A rule id in brackets, such as [GRAM-9], names the specification rule that defines a form. Read an interface before calling anything in it; never guess a name.
+After `make compiler`, the release's language directory, `build/whitefoot/<release>/language/`, holds the standard library's interfaces, `lib/std/<module>/module.wfm`, listed in `lib/std/modules.wfg`, and the specification, `spec/kernel-spec.md`, at the same commit as the compiler. For releases older than `wf-5dd90db143b1`, read these files at the compiler's commit as README.md describes. A rule id in brackets, such as [GRAM-9], names the specification rule that defines a form. Read an interface before calling anything in it; never guess a name.
 
 Write the whole program from this guide, then compile it. After any rejection, identify its rule, find every other place in all files that breaks the same rule, and fix them all before compiling again. Apply a supplied `mechanical_fix`, then audit for the same fault elsewhere. For FORM-2, audit the whole layout: each ordinary statement, including a destructuring let, occupies one
 physical line; no blank line occurs inside an item; one blank line separates top-level items except runs of aliases, graph packages and graph rows (§12). Part 1 ends with "When the compiler says…", for rejections whose text does not lead to the fix.
@@ -391,7 +391,7 @@ fn main() -> status: ExitStatus pure {
 
 ### 14. Where do I discover the standard library API?
 
-Read `std/modules.wfg` for available module names, then `std/<module>/module.wfm` for exact public types, functions, parameter order, effects, waiting markers and contracts. Do not guess API names or infer a callee's obligations from its implementation. The specification's [PRE-1] contains prelude functions, while [PRE-2] declares the host modules. [MOD-10, FN-1, FN-8, FN-9]
+Read `lib/std/modules.wfg` for available module names, then `lib/std/<module>/module.wfm` for exact public types, functions, parameter order, effects, waiting markers and contracts. Do not guess API names or infer a callee's obligations from its implementation. The specification's [PRE-1] contains prelude functions, while [PRE-2] declares the host modules. [MOD-10, FN-1, FN-8, FN-9]
 
 The startup names are `std::process::Inputs` and `std::process::ExitStatus`. Streams and their factory are `std::io::InputStream`, `std::io::OutputStream`, `std::io::HandleFactory`. The `std::io` interface declares: [PRE-2, GRAM-11]
 
@@ -572,12 +572,12 @@ Read the collection's `module.wfm`: wrappers publish policy, bounds and ownershi
 
 | Requirement | Module to inspect | Behavior affecting design |
 |---|---|---|
-| Growing prefix | `std/collections/vector/module.wfm` | Doubles within ceiling; remove shifts, swap-remove moves a constant number. |
-| Runtime queue | `std/collections/deque/module.wfm` | Endpoints need room/nonemptiness; rebase replaces backing; visit per element. |
-| Sparse reusable slots | `std/collections/slab/module.wfm` | Index/generation handles; full insert returns owner; exhausted generations retire. |
-| Owning key/value lookup | `std/collections/hash_map/module.wfm` | Inline buckets; replacement/full insert return complete pairs; reserve/rehash relocate. |
+| Growing prefix | `lib/std/collections/vector/module.wfm` | Doubles within ceiling; remove shifts, swap-remove moves a constant number. |
+| Runtime queue | `lib/std/collections/deque/module.wfm` | Endpoints need room/nonemptiness; rebase replaces backing; visit per element. |
+| Sparse reusable slots | `lib/std/collections/slab/module.wfm` | Index/generation handles; full insert returns owner; exhausted generations retire. |
+| Owning key/value lookup | `lib/std/collections/hash_map/module.wfm` | Inline buckets; replacement/full insert return complete pairs; reserve/rehash relocate. |
 
-For next-item ordering inspect priority_queue; for sorted keys/ranges inspect ordered_map, also under std/collections. Neither promises stable physical indices.
+For next-item ordering inspect priority_queue; for sorted keys/ranges inspect ordered_map, also under lib/std/collections. Neither promises stable physical indices.
 
 Observation/edit callbacks return owned results; drain callbacks consume `nodrop` elements. Environment must be disjoint from backing [EFF-5]. Read measures: the vector constructor has no result postcondition [FN-9].
 
@@ -1176,7 +1176,7 @@ static storage itself is not a per-call local array.
 
 Read `module.wfm` before calling across a module boundary: acceptance depends on the interface [MOD-8].
 
-The distributed library inventory is `std/modules.wfg`; declarations are at `std/<module>/module.wfm`. Inside those files `pkg` names the library itself: an interface's `pkg::io::IoError` is `std::io::IoError` in your program [MOD-10]. Bundles name std modules directly; module programs list direct dependencies. Aliases are record-local and grant no dependency edge [MOD-4, MOD-5].
+The distributed library inventory is `lib/std/modules.wfg`; declarations are at `lib/std/<module>/module.wfm`. Inside those files `pkg` names the library itself: an interface's `pkg::io::IoError` is `std::io::IoError` in your program [MOD-10]. Bundles name std modules directly; module programs list direct dependencies. Aliases are record-local and grant no dependency edge [MOD-4, MOD-5].
 
 Read ownership capabilities, ordered parameters, effects, `waits`, contracts and `doc`. `opaque` denies ordinary construction and destructuring; accessible fields can remain visible. References retain caller ownership. `pure waits` is possible: effects describe reference-parameter changes; `waits` describes suspension [WAIT-1]. The result type alone does not state transfer completeness.
 
@@ -1327,7 +1327,7 @@ Publish only the successful prefix, then repeat until `ReadEnd` to process all i
 
 Choose whether a helper borrows a file or consumes it, and put cleanup outside any error propagation that would bypass it. A linear handle must be closed or returned on every path; a reference does not transfer that obligation [PRE-2, PROV-6].
 
-`arg_get` in `std/text/module.wfm` yields a `HostString`; `relative_path` consumes it into a `RelativePath` for `open_read` below a `DirectoryRead`. Byte-name APIs such as `open_file` and `open_append` require one direct child name, neither `.` nor `..` [PRE-2].
+`arg_get` in `lib/std/text/module.wfm` yields a `HostString`; `relative_path` consumes it into a `RelativePath` for `open_read` below a `DirectoryRead`. Byte-name APIs such as `open_file` and `open_append` require one direct child name, neither `.` nor `..` [PRE-2].
 
 This file reader gives a close failure precedence over the read outcome.
 ```whitefoot
@@ -1422,7 +1422,7 @@ Check source obligations and generated code separately; neither substitutes for 
 | Machine frames and recursive cycles | `whitefootc --stack-ledger program.wf -o program`. |
 | Interpreter arm splitting | `whitefootc --dispatch-ledger program.wf -o program`. |
 | Build phases and cache reuse | `whitefootc --report program.wf -o program`. For a module build use `--graph modules.wfg --entry main` instead of the source path. |
-| Owned heap versus residency | Read `std/process/module.wfm`: `heap_in_use` and `resident_bytes` measure different quantities. |
+| Owned heap versus residency | Read `lib/std/process/module.wfm`: `heap_in_use` and `resident_bytes` measure different quantities. |
 
 The stack ledger is target/build-specific and includes machine spills. An inlined callee has no separate row. Displayed recursive levels divide stack size by per-level cost; other frames and runtime code still need space, and linked runtime translation units are outside the ledger. It is not a proof of maximum input depth. A source-only `--check` supplies no machine frames.
 
