@@ -1544,8 +1544,8 @@ fn main() -> status: ExitStatus pure waits {
   let got = 0_u8;
   atomic slot = &map[bytes] {
     match slot^ {
-      Some(value: value) => {
-        set got = value^;
+      Some(value: stored) => {
+        set got = stored^;
       }
       None() => {
       }
