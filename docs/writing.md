@@ -1,6 +1,6 @@
 # Writing Whitefoot
 
-This guide is for agents that write Whitefoot programs and is 1965 lines long. Read all of it before writing code. If a file reader shows only part, read the rest in numbered ranges until the final section is received. Before writing concurrent code, read all of Part 3, including child completion and its examples.
+This guide is for agents that write Whitefoot programs and is 2029 lines long. Read all of it before writing code. If a file reader shows only part, read the rest in numbered ranges until the final section is received. Before writing concurrent code, read all of Part 3, including child completion and its examples.
 
 - Part 1, syntax, holds the forms every program needs. Most first rejections come from these forms; write them as shown, not as another language would.
 - Parts 2 and 3 say how to design a sequential and a concurrent program: where data lives, who owns it, what the checker must be told, how contexts share state. Rejections cannot teach these.
@@ -830,7 +830,53 @@ Silent failure and check: a `requires` clause removes the runtime failure altern
 
 ### Which evidence must travel with a successful result?
 
-Put a reusable success relation in a routed `ensures when Ok(value: ...)` or `ensures when Some(value: ...)`, then keep the outcome as an ordinary value until selection. Reason: the caller checks a signature and does not inspect the callee's body to rediscover why its payload is safe. Written routed `ensures` admits only Result’s `Ok` or Option’s `Some`, with one `value` binder; custom-enum routes cannot be written. Report a needed unsupported boundary; do not hide it with a redundant runtime guard [FN-9, CALL-6, ENT-5].
+Put a reusable success relation in a routed `ensures when Ok(value: ...)` or `ensures when Some(value: ...)`, then keep the outcome as an ordinary value until selection. Reason: the caller checks a signature and does not inspect the callee's body to rediscover why its payload is safe. Any own result whose concrete type is an enum takes routed clauses: `ensures when V(f: r): ...`, or `ensures when b is V(f: r): ...`, where `b` names the result, which picks one of several results. One clause binds one declared field whose type supplies integer data; write another clause for another field, and no clause relates two fields of one variant. A return of `V`, constructed or forwarded with `V`'s evidence, proves the clause; a return of another variant owes nothing. The caller gets the fact only in that variant's match arm. An interface member's implementation repeats the interface's routed clauses exactly [FN-4]. Current compiler: a routed clause in a generic template whose type parameter is bounded only by `copy` is rejected even for an integer instance; bound it by `Int`. Report a needed unsupported boundary; do not hide it with a redundant runtime guard [FN-9, CALL-4, CALL-6, ENT-5].
+
+A lookup that reports where it found a key publishes each location's bound, and its caller indexes without another bounds check:
+
+```whitefoot
+enum Slot {
+  Array(value: u64);
+  Node(value: u64);
+  Missing();
+}
+
+fn find_slot(array: &Box<Slots<u64>>, nodes: &Box<Slots<u64>>, key: u64) -> r: Slot reads(array), reads(nodes) contract {
+  ensures when Array(value: i): i < array^.inner.len;
+  ensures when Node(value: i): i < nodes^.inner.len;
+} {
+  for (i in 0_u64..array^.inner.len) {
+    if array^.inner[i] == key {
+      return Slot::Array(value: i);
+    }
+  }
+  for (j in 0_u64..nodes^.inner.len) {
+    if nodes^.inner[j] == key {
+      return Slot::Node(value: j);
+    }
+  }
+  return Slot::Missing();
+}
+
+fn store(array: &Box<Slots<u64>>, nodes: &Box<Slots<u64>>, key: u64, value: u64) -> r: Bool writes(array), writes(nodes) {
+  let slot = find_slot(array: array, nodes: nodes, key: key);
+  match slot {
+    Array(value: i) => {
+      set array^.inner[i] = value;
+      return True();
+    }
+    Node(value: j) => {
+      set nodes^.inner[j] = value;
+      return True();
+    }
+    Missing() => {
+      return False();
+    }
+  }
+}
+```
+
+The same form on Result and Option:
 
 ```whitefoot
 fn selected(value: i32, fail: Bool) -> result: Result<i32, Overflow> pure contract {
@@ -976,6 +1022,24 @@ Effect paths begin at the formal without `^`. Write covers reads/writes below it
 `next`, `last`, `filled` and `free` are effect-only window parts, never readable fields or borrow targets. `last` covers successive rear removals, not just one entry slot [WIN-2].
 
 `entry(window)` denotes entry storage; bare written-reference terms denote exit storage. Requirements permit larger arithmetic than published `ensures`, whose relation sides admit one supported datum displaced by a constant, plus at most one bare integer parameter with coefficient one on one side, as in `ensures after <= base + limit;`. Pass a scalar final total when publishing a relation to a larger sum [FN-9, MSR-3].
+
+A call inside a recursive cycle, to the function itself or to another function of the same call-graph cycle, receives the callee's postconditions, written `ensures` included, as induction hypotheses. A body never assumes its own `ensures` at entry, every exit still proves them, and writes to a reference argument after the call kill its facts as for any call. Split recursion can therefore bound its combination directly instead of using a loop or `+sat`: [DIAG-2, FN-9]
+
+```whitefoot
+fn halves(n: u64) -> total: u64 pure contract {
+  ensures total <= n;
+} {
+  if n <= 1_u64 {
+    return n;
+  }
+  let half = n / 2_u64;
+  let rest = n - half;
+  let a = halves(n: half);
+  let b = halves(n: rest);
+  let total = a + b;
+  return total;
+}
+```
 
 Contract `define` abbreviates proof expressions, expands recursively, executes/snapshots nothing and is unavailable in the body. Contract +/−/* are mathematical arithmetic; they do not prove body-operation domains. Calls/allocation/partial division, remainder and shifts are inadmissible; use total queries or relations [FN-8].
 
