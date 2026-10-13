@@ -113,7 +113,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
       return std::process::exit_status(code: 1_u8);
     }
   }
-
   for (i in 0_u64..12_u64) {
     let accept_result = std::net::tcp_accept(factory: &factory, listener: &listener, deadline: no_deadline, cancel: &cancel);
     match accept_result {

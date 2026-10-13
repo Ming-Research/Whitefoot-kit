@@ -44,7 +44,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     Err(error: unused_err2) => {
     }
   }
-  let history = slots_new::<f64, 8>();
+  let history = slots_new::<f64, 7>();
   let outputs = slots_new::<f64, 64>();
   let sum = 0.0_f64;
   for (
@@ -64,8 +64,8 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     }
     place_back(window: &outputs, value: out_val);
     set sum = fadd.strict(sum, out_val);
-    if history.len < 8_u64 {
-      place_back(window: &history, value: current);
+    if history.len < 7_u64 {
+      insert_at(window: &history, index: 0_u64, value: current);
     } else {
       let old = take_back(window: &history);
       insert_at(window: &history, index: 0_u64, value: current);

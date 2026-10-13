@@ -12,6 +12,13 @@ alias TcpConnection = std::net::TcpConnection;
 alias TcpReceive = std::net::TcpReceive;
 alias TcpSend = std::net::TcpSend;
 
+const pong_response: Array<u8, 7> = "+PONG\r\n";
+const ok_response: Array<u8, 5> = "+OK\r\n";
+const null_response: Array<u8, 5> = "$-1\r\n";
+const del_yes: Array<u8, 4> = ":1\r\n";
+const del_no: Array<u8, 4> = ":0\r\n";
+const error_response: Array<u8, 46> = "-ERR value is not an integer or out of range\r\n";
+
 struct Value {
   bytes: Box<Slots<u8>>;
 }
@@ -333,8 +340,7 @@ fn handle_client(factory: &HandleFactory, receive: TcpReceive, send: TcpSend, st
           let handled = False();
           if upper_first == 80_u8 {
             if count == 1_u64 {
-              let pong = "+PONG\r\n";
-              let send_outcome = send_all(send: &send, source: &pong[0_u64..7_u64], length: 7_u64, deadline: deadline, cancel: cancel);
+              let send_outcome = send_all(send: &send, source: &pong_response[0_u64..7_u64], length: 7_u64, deadline: deadline, cancel: cancel);
               match send_outcome {
                 Ok(value: unit) => {
                   set parsed_pos = after_cmd;
@@ -414,7 +420,6 @@ fn handle_client(factory: &HandleFactory, receive: TcpReceive, send: TcpSend, st
                     }
                   }
                 } else {
-                  let null_response = "$-1\r\n";
                   let send_outcome = send_all(send: &send, source: &null_response[0_u64..5_u64], length: 5_u64, deadline: deadline, cancel: cancel);
                   match send_outcome {
                     Ok(value: unit) => {
@@ -454,7 +459,6 @@ fn handle_client(factory: &HandleFactory, receive: TcpReceive, send: TcpSend, st
                   atomic slot = &store[key_slice] {
                     set slot^ = Some<Value>(value: move new_val);
                   }
-                  let ok_response = "+OK\r\n";
                   let send_outcome = send_all(send: &send, source: &ok_response[0_u64..5_u64], length: 5_u64, deadline: deadline, cancel: cancel);
                   match send_outcome {
                     Ok(value: unit) => {
@@ -493,9 +497,9 @@ fn handle_client(factory: &HandleFactory, receive: TcpReceive, send: TcpSend, st
                   }
                 }
                 let response = if existed {
-                  give ":1\r\n";
+                  give del_yes;
                 } else {
-                  give ":0\r\n";
+                  give del_no;
                 }
                 let send_outcome = send_all(send: &send, source: &response[0_u64..4_u64], length: 4_u64, deadline: deadline, cancel: cancel);
                 match send_outcome {
@@ -550,8 +554,7 @@ fn handle_client(factory: &HandleFactory, receive: TcpReceive, send: TcpSend, st
                   }
                 }
                 if error_occurred {
-                  let error_msg = "-ERR value is not an integer or out of range\r\n";
-                  let send_outcome = send_all(send: &send, source: &error_msg[0_u64..46_u64], length: 46_u64, deadline: deadline, cancel: cancel);
+                  let send_outcome = send_all(send: &send, source: &error_response[0_u64..46_u64], length: 46_u64, deadline: deadline, cancel: cancel);
                   match send_outcome {
                     Ok(value: unit) => {
                       set parsed_pos = key_parse.position;

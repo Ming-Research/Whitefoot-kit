@@ -43,9 +43,12 @@ fn hex_digit(byte: u8) -> result: Option<u8> pure {
 
 fn percent_decode(source: &[u8], destination: &[u8]) -> result: u64 reads(source), writes(destination) {
   let source_len = source^.len;
+  let dest_len = destination^.len;
   let dest_pos = 0_u64;
   let src_pos = 0_u64;
-  loop {
+  loop (
+    invariant bounded: dest_pos <= dest_len
+  ) {
     let src_at_end = src_pos >= source_len;
     if src_at_end {
       return dest_pos;
@@ -68,35 +71,47 @@ fn percent_decode(source: &[u8], destination: &[u8]) -> result: u64 reads(source
                 Some(value: second_val) => {
                   let high = first_val *wrap 16_u8;
                   let decoded = high +wrap second_val;
-                  set destination^[dest_pos] = decoded;
+                  if dest_pos < dest_len {
+                    set destination^[dest_pos] = decoded;
+                  }
                   set src_pos = second_pos +wrap 1_u64;
                   set dest_pos = dest_pos +wrap 1_u64;
                 }
                 None() => {
-                  set destination^[dest_pos] = current;
+                  if dest_pos < dest_len {
+                    set destination^[dest_pos] = current;
+                  }
                   set src_pos = src_pos +wrap 1_u64;
                   set dest_pos = dest_pos +wrap 1_u64;
                 }
               }
             }
             None() => {
-              set destination^[dest_pos] = current;
+              if dest_pos < dest_len {
+                set destination^[dest_pos] = current;
+              }
               set src_pos = src_pos +wrap 1_u64;
               set dest_pos = dest_pos +wrap 1_u64;
             }
           }
         } else {
-          set destination^[dest_pos] = current;
+          if dest_pos < dest_len {
+            set destination^[dest_pos] = current;
+          }
           set src_pos = src_pos +wrap 1_u64;
           set dest_pos = dest_pos +wrap 1_u64;
         }
       } else {
-        set destination^[dest_pos] = current;
+        if dest_pos < dest_len {
+          set destination^[dest_pos] = current;
+        }
         set src_pos = src_pos +wrap 1_u64;
         set dest_pos = dest_pos +wrap 1_u64;
       }
     } else {
-      set destination^[dest_pos] = current;
+      if dest_pos < dest_len {
+        set destination^[dest_pos] = current;
+      }
       set src_pos = src_pos +wrap 1_u64;
       set dest_pos = dest_pos +wrap 1_u64;
     }

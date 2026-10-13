@@ -62,16 +62,14 @@ fn parse(bytes: &[u8], pos: u64) -> result: ParseResult reads(bytes) contract {
         return error_result;
       }
     }
+  } else if is_digit {
+    let digit_value = byte - zero;
+    let digit_expr = Expression::Digit(value: digit_value);
+    let next_pos = pos + 1_u64;
+    return ParseResult::Success(expr: digit_expr, next: next_pos);
   } else {
-    if is_digit {
-      let digit_value = byte - zero;
-      let digit_expr = Expression::Digit(value: digit_value);
-      let next_pos = pos + 1_u64;
-      return ParseResult::Success(expr: digit_expr, next: next_pos);
-    } else {
-      let invalid_error = ParseError::InvalidToken();
-      return ParseResult::Error(error: invalid_error);
-    }
+    let invalid_error = ParseError::InvalidToken();
+    return ParseResult::Error(error: invalid_error);
   }
 }
 

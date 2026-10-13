@@ -64,7 +64,9 @@ fn run_echo(factory: &HandleFactory, input: &InputStream, output: &OutputStream)
   }
 }
 
-fn write_bytes(factory: &HandleFactory, output: &OutputStream, buffer: &[u8], bytes_read: u64) -> result: Bool reads(buffer), writes(factory), writes(output) waits {
+fn write_bytes(factory: &HandleFactory, output: &OutputStream, buffer: &[u8], bytes_read: u64) -> result: Bool reads(buffer), writes(factory), writes(output) waits contract {
+  requires bytes_read <= buffer^.len;
+} {
   let written = 0_u64;
   loop @write_loop {
     if written >= bytes_read {

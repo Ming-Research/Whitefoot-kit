@@ -84,11 +84,9 @@ fn validate_and_process(parents: &[u32], depths: &[u32]) -> result: ProcessResul
     }
     let parent = parents^[i];
     let depth = depths^[i];
-
     if depth > 4096_u32 {
       set is_valid = False();
     }
-
     let parent_u64 = cvt.checked::<u32, u64>(parent);
     let is_sentinel = match parent_u64 {
       Ok(value: pv) => {
