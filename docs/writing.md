@@ -359,7 +359,7 @@ pkg::client: [pkg::geometry, std::process];
 entry main = pkg::client::main;
 ```
 
-Public declarations belong in `module.wfm`; interface functions end with `doc "...";`, never a plain `;`. Definitions repeat the header without `public`. Aliases bind public declarations in direct dependencies and grant no graph edge. These four files complete the graph above; check the graph as one module program, not each file as a source bundle. [MOD-4, MOD-5, MOD-6, MOD-7, MOD-8]
+Public declarations belong in `module.wfm`; interface functions end with `doc "...";`, never a plain `;`. Definitions repeat the header without `public`. Aliases bind public declarations in direct dependencies and grant no graph edge. A qualified path is never an operand: bind a constant such as `pkg::limits::cap` with `alias cap = pkg::limits::cap;` and write `cap` [MOD-5]. These four files complete the graph above; check the graph as one module program, not each file as a source bundle. [MOD-4, MOD-5, MOD-6, MOD-7, MOD-8]
 
 `geometry/module.wfm`:
 
@@ -499,7 +499,7 @@ Require heap independence with first-item `program no_heap;` or graph entry `no_
 
 Choose `&[T]` for contiguous consumers and `&Run<T>` for possibly paged logical access: the kind states the representation promise. `Run` is not an owned value type [TYPE-8, REF-4].
 
-`&a[lo..hi]` requires `lo <= hi <= a.len`; length is captured `hi - lo`, indexing is relative to lo. Alias with `let other = part;`; reslice with `&part^[a..b]`, preserving its kind [REF-1, REF-4].
+`&a[lo..hi]` requires `lo <= hi <= a.len`; length is captured `hi - lo`, indexing is relative to lo. Alias with `let other = part;`; reslice with `&part^[a..b]`, preserving its kind [REF-1, REF-4]. When `part` is a range-reference variable, that `let` makes `other` a range alias identified through `part`: length, element and subrange facts proved on either hold on both, while neither is rebound by `set` anywhere in the body. A conditional initializer (a value `if` or `match`) or any rebinding makes `other` a separate reference with no shared facts, and a write through either kills the facts of both [ENT-2].
 
 ```whitefoot
 alias ExitStatus = std::process::ExitStatus;
