@@ -1680,11 +1680,11 @@ struct Meta {
 fn put(keys: Shared<ConcurrentHashMap<Entry>>, meta: Shared<Meta>, record: Entry, logged: Bool, timed: Bool) -> result: unit pure waits {
   let key_bytes = array_filled::<u8, 1>(value: 97_u8);
   let key = &key_bytes[0_u64..1_u64];
-  let held = bor(logged, timed);
+  let tracked = bor(logged, timed);
   atomic slot = &keys[key], m = &meta {
     let previous = m^.commit_sequence;
     set slot^ = Some<Entry>(value: record);
-    if held {
+    if tracked {
       let next = previous +wrap 1_u64;
       set m^.commit_sequence = next;
       set m^.commits = m^.commits +wrap 1_u64;
@@ -1704,7 +1704,7 @@ fn main() -> status: ExitStatus pure waits {
 }
 ```
 
-After: move the read under `if held`. The map group precedes `Meta`, so the false path avoids `meta` while all changes remain one transition.
+After: move the read under `if tracked`. The map group precedes `Meta`, so the false path avoids `meta` while all changes remain one transition.
 
 ```whitefoot
 alias ExitStatus = std::process::ExitStatus;
@@ -1721,10 +1721,10 @@ struct Meta {
 fn put(keys: Shared<ConcurrentHashMap<Entry>>, meta: Shared<Meta>, record: Entry, logged: Bool, timed: Bool) -> result: unit pure waits {
   let key_bytes = array_filled::<u8, 1>(value: 97_u8);
   let key = &key_bytes[0_u64..1_u64];
-  let held = bor(logged, timed);
+  let tracked = bor(logged, timed);
   atomic slot = &keys[key], m = &meta {
     set slot^ = Some<Entry>(value: record);
-    if held {
+    if tracked {
       let next = m^.commit_sequence +wrap 1_u64;
       set m^.commit_sequence = next;
       set m^.commits = m^.commits +wrap 1_u64;
@@ -1751,7 +1751,7 @@ The four limits of this compiler policy are:
 3. **Entries, key sets and guard reads acquire early.** Their groups acquire before the guard, with all earlier untaken groups. Moving a block use into a branch does not defer them. A guard that reads **no target** acquires **every group** before evaluation. Omit an unnecessary guard; when the program needs a guard, retain its meaning and inspect what it reads.
 4. **A primitive counter beside a map is already early.** A `Shared<u64>` counter acquires with the entry even if its use is conditional. A separate source struct such as `Meta` orders after the map and can remain untaken on the path that does not use it.
 
-**Silent failure:** a statistics read before the branch, a helper that reads metadata, or a target-free `when held` can make an optional object a lock on every request. Finishing with an object early does not release it early.
+**Silent failure:** a statistics read before the branch, a helper that reads metadata, or a target-free `when tracked` can make an optional object a lock on every request. Finishing with an object early does not release it early.
 
 **Check:** compile with `whitefootc --lock-ledger main.wf -o main`. It prints one line per target group of every atomic statement:
 
