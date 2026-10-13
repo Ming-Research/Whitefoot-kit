@@ -1,6 +1,6 @@
 # Writing Whitefoot
 
-This guide is for agents that write Whitefoot programs and is 1944 lines long. Read all of it before writing code. If a file reader shows only part, read the rest in numbered ranges until the final section is received. Before writing concurrent code, read all of Part 3, including child completion and its examples.
+This guide is for agents that write Whitefoot programs and is 1965 lines long. Read all of it before writing code. If a file reader shows only part, read the rest in numbered ranges until the final section is received. Before writing concurrent code, read all of Part 3, including child completion and its examples.
 
 - Part 1, syntax, holds the forms every program needs. Most first rejections come from these forms; write them as shown, not as another language would.
 - Parts 2 and 3 say how to design a sequential and a concurrent program: where data lives, who owns it, what the checker must be told, how contexts share state. Rejections cannot teach these.
@@ -8,14 +8,15 @@ This guide is for agents that write Whitefoot programs and is 1944 lines long. R
 
 After `make compiler`, the release's language directory, `build/whitefoot/<release>/language/`, holds the standard library's interfaces, `lib/std/<module>/module.wfm`, listed in `lib/std/modules.wfg`, and the specification, `spec/kernel-spec.md`, at the same commit as the compiler. For releases older than `wf-5dd90db143b1`, read these files at the compiler's commit as README.md describes. A rule id in brackets, such as [GRAM-9], names the specification rule that defines a form. Read an interface before calling anything in it; never guess a name.
 
-Write the whole program from this guide, then compile it. After any rejection, identify its rule, find every other place in all files that breaks the same rule, and fix them all before compiling again. Apply a supplied `mechanical_fix`, then audit for the same fault elsewhere. For FORM-2, audit the whole layout: each ordinary statement, including a destructuring let, occupies one
-physical line; no blank line occurs inside an item; one blank line separates top-level items except runs of aliases, graph packages and graph rows (§12). Part 1 ends with "When the compiler says…", for rejections whose text does not lead to the fix.
+Write the whole program from this guide, then compile it. Before repairing, identify the compiler input named by the task and diagnostic; edit that file, not a duplicate. After any rejection, identify its rule, apply a supplied `mechanical_fix`, and fix every violation of that rule in all compiler inputs before compiling again. For FORM-2, use the layout audit in §12. Part 1 ends with "When the compiler says…", for rejections whose text does not lead to the fix.
+
+Before delivery, inspect requirements the output oracle cannot establish: actual required storage, mandatory consumption, in-place updates, published guarantees, and real shared state.
 
 ## Part 1. Syntax you will need in every program
 
 ### 1. What is the complete function header?
 
-Write `fn name(parameter: Type) -> result_name: ResultType effects waits? contract? {`. The result binder and effect row are mandatory. `pure` is the empty row; `waits` follows the row, and `contract` follows `waits` when present. Parameters use `T`, `&T` or `&[T]`, without `move` or `&mut`. Results are owned values, never references. [GRAM-2, GRAM-3, FN-1, REF-3]
+Write `fn name(parameter: Type) -> result_name: ResultType effects waits? contract? {`. The result binder and effect row are mandatory. Choose `pure` alone for the empty row or a nonempty `reads`/`writes` list; never append `pure` to that list. `waits` follows the row, and `contract` follows `waits` when present. Parameters use `T`, `&T` or `&[T]`, without `move` or `&mut`. Results are owned values, never references. [GRAM-2, GRAM-3, EFF-1, FN-1, REF-3]
 
 Effect paths root at reference parameters, without `^`: `reads(source)`, `writes(counter.value)`. By-value parameters and locals add no enclosing row entry. Order reads before writes, each in parameter order; `writes(p)` covers reads below `p`. Declared paths and exhibited body accesses must cover each other. `pure` may allocate or wait. Audit each row before submission: only reference parameters can root entries; remove every read covered by a write and every narrower entry covered by an ancestor. [EFF-1, EFF-2, STOR-8]
 
@@ -65,7 +66,7 @@ The close calls return `Result<unit, IoError>`; this template discards their res
 
 ### 3. Where must I split an expression?
 
-An executable expression is an atom, a call, or one infix over two atoms. Atoms are literals, places, `move place` and `&place`. Call arguments, constructor fields, infix operands, indices and range endpoints are atoms; bind computations with `let` first. No expression grouping, precedence or chaining exists. Before submission, audit every call argument, constructor field, index, range endpoint and infix operand. Bind every computed operand first. After any atom error, repair all such positions, not only the marked one. [GRAM-5, GRAM-6, GRAM-9]
+An executable expression is an atom, a call, or one infix over two atoms. Atoms are literals, places, `move place` and `&place`. No expression grouping, precedence or chaining exists. Inspect every argument, constructor field, infix operand, index and range endpoint in every compiler input: each must be an atom. Nullary `None<T>()` and `Variant()` are calls too. Extract every computed operand into a preceding `let`; audit constructors as well as ordinary functions. [GRAM-5, GRAM-6, GRAM-9]
 
 ```whitefoot
 fn compose() -> result: u64 pure {
@@ -103,9 +104,9 @@ Table operations use positional operands, such as `iand(a, b)` and `fmul.strict(
 
 Bare integer arithmetic needs a proved domain: representable results for `+ - *`, nonzero divisor and no signed-minimum/`-1` pair for `/ %`, shift amount below the width. Exact left shift may discard high bits. Defined queries are total Bool operations; binding one proves nothing, but a true branch can establish its domain. [OP-2]
 
-Wrap arithmetic is modulo the width; wrap shifts mask the amount. Checked forms return `Result`; saturating forms clamp to type endpoints. Preserve the intended semantics when repairing a proof. There is no wrap/saturating division or remainder, or `ishl.checked`. [OP-1, OP-2, OP-8]
+Wrap arithmetic is modulo the width; wrap shifts mask the amount. Checked forms return `Result`; saturating forms clamp to type endpoints. Preserve the intended semantics when repairing a proof. Division and remainder have no wrap or saturating mode: choose exact with a proved domain or checked with a handled `Result`. There is no `ishl.checked`. [OP-1, OP-2, OP-8]
 
-Bool calls are `band(a, b)`, `bor(a, b)`, `bxor(a, b)`, `bnot(a)`, with already evaluated operands; use control flow for conditional evaluation. No `&& || !`, infix bitwise `& |`, or `bitand` exists. [OP-1, GRAM-5]
+Bit operations are calls: `ixor(a, b)`, never `a ixor b`. Bool calls are `band(a, b)`, `bor(a, b)`, `bxor(a, b)`, `bnot(a)`, with already evaluated operands; use control flow for conditional evaluation. No `&& || !`, infix bitwise `& |`, or `bitand` exists. [OP-1, GRAM-5]
 
 Rounding float arithmetic uses `fadd.strict fsub.strict fmul.strict fdiv.strict fsqrt.strict ffma.strict`. Float comparisons are `feq flt fle fgt fge fne`; use `feq(a, b)`, not `a == b`. Conversions write both types: `cvt::<u8, u32>(byte)` needs a proved exact domain. For rounded float-to-integer conversion, bind `froundeven(x)`, then use `cvt.checked::<f64, i32>` for an f64 input and i32 destination. `cvt.nearest` requires a float destination. Compare floats with `fge`/`flt`, not ordering infix operators. [OP-1, OP-3, OP-6]
 
@@ -128,7 +129,7 @@ let message = "hello";
 
 Write `let name = expression;`; the initializer determines the exact type and mode. There is no local type annotation, `mut` or `_` discard binder. Bind an unused field to an ordinary name such as `unused_clock`, or use an admitted rest marker. Replace a live value with `set place = expression;`; `let` does not imply immutability. [GRAM-4, TYPE-5, SET-1]
 
-Value names, including constants, match `[a-z][a-z0-9_]*`; type names `[A-Z][A-Za-z0-9]*`; labels `@[a-z][a-z0-9_]*`. Use a fresh nonreserved name; no local declaration still in scope, parameter, alias or competing module declaration may be shadowed. Audit every declaration: no `_` binder or uppercase value name. Initialize once with `let`, update with `set`. A moved value’s declaration still occupies its name until its block ends. [FORM-3, TYPE-6, OP-1]
+Value names, including constants, match `[a-z][a-z0-9_]*`; type names `[A-Z][A-Za-z0-9]*`; labels `@[a-z][a-z0-9_]*`. Before choosing a binder, check the reserved inventory below: `checked`, `wrap` and operation names cannot be lets. Use a fresh nonreserved name; no local declaration still in scope, parameter, alias or competing module declaration may be shadowed. Audit every declaration: no `_` binder or uppercase value name, including constants. Initialize once with `let`, update with `set`. A moved value’s declaration still occupies its name until its block ends. [FORM-3, TYPE-6, OP-1]
 
 Rejected: invalid binders or binding forms.
 
@@ -236,11 +237,20 @@ fn main() -> status: ExitStatus pure {
       return exit_status(code: 1_u8);
     }
   }
+  let optional = Some<u64>(value: number);
+  let chosen = match optional {
+    Some(value: selected) => {
+      give selected;
+    }
+    None() => {
+      give 0_u64;
+    }
+  }
   return exit_status(code: 0_u8);
 }
 ```
 
-A statement match produces no value; a let-initializer match uses give and no trailing semicolon. Remove the trailing semicolon after every let-value match or if; audit all occurrences after the first such rejection. Reference-derived scrutinees keep their owner and bind reference payloads. Affine/linear own scrutinees need `move`. [GRAM-7, GIVE-1, OWN-1, OWN-13]
+A statement match produces no value. A let-initializer match has braced arms; every continuing arm ends with `give`. Close the enclosing match with `}`, without a semicolon; the same applies to a let-value if. Reference-derived scrutinees keep their owner and bind reference payloads. Affine/linear own scrutinees need `move`. [GRAM-7, GIVE-1, OWN-1, OWN-13]
 
 ### 10. How do I construct a struct or enum variant?
 
@@ -285,6 +295,10 @@ fn main() -> status: ExitStatus pure {
 
 Prelude forms are `None<T>()`, `Some<T>(value: x)`, `Ok<T, E>(value: x)`, `Err<T, E>(error: e)`, with named fields. [PRE-1, GRAM-8]
 
+Tuple types and tuple values do not exist. Use a named struct for a multi-field `Result` payload. A function's ordered results use a result list and a destructuring `let`; they are not a stored tuple. [GRAM-2, GRAM-3, GRAM-4, GRAM-5, FN-1]
+
+For a stored Slots value or payload, use `Slots<T, N>` or `Box<Slots<T>>`. Bare runtime `Slots<T>` is admitted only as Box content, not as a local, result or payload. [TYPE-9]
+
 ### 11. How do I spell references, slices, fields and moves?
 
 `&place` forms a reference. A reference variable is not implicitly read as its value: use `r^`, `r^.field`, `r^[index]`, or `r^.len`. A half-open slice is `&array[lower..upper]`; a slice reference has `len`, not `cap`. A Box exposes its content as `cell.inner`. For an array `a`, `&a` is an array reference, not a slice reference. For a parameter `&[T]`, pass `&a[0_u64..length]` with a u64 endpoint. [GRAM-5, TYPE-5, TYPE-7, TYPE-9, REF-1, REF-4]
@@ -326,9 +340,9 @@ Bare copy values copy; affine or linear values need explicit `move place` to tra
 
 ### 12. Which bytes are canonical?
 
-Use UTF-8/LF and two spaces per brace depth. No tabs, trailing spaces, leading blank line or blank line inside an item. Put one blank line between top-level items, except adjacent aliases, graph packages and graph rows. End the last line with one LF, without a trailing blank line. Noncanonical bytes are rejected. [FORM-1, FORM-2]
+Use UTF-8/LF and two spaces per brace depth. No tabs, trailing spaces or leading blank line. End the last line with one LF, without a trailing blank line. Noncanonical bytes are rejected. [FORM-1, FORM-2]
 
-Audit canonical layout across every file: ordinary and destructuring statements stay on one physical line; no blank lines inside items; one blank line between top-level items except the stated runs. Function headers through `{` each occupy one line. Empty blocks use two lines. Join else as `} else {` or `} else if ... {`, and contract/body as `} {`. Write `Array<u8, 3>`, `f(x: a, y: b)`, `=[...]`, `&a[lo..hi]`, `r^`. Follow the complete files' layout. [FORM-2]
+Audit three regions separately across every compiler input: alias runs and graph package/row runs have no blank separator; other top-level items have one; item bodies have none. Ordinary statements, including destructuring lets, stay on one physical line. Control-flow blocks and value arms use canonical multiline layout. Function headers through `{` each occupy one line. Empty blocks use two lines. Join else as `} else {` or `} else if ... {`, and contract/body as `} {`. Write `Array<u8, 3>`, `f(x: a, y: b)`, `=[...]`, `&a[lo..hi]`, `r^`. Follow the complete files' layout. [FORM-2]
 
 No comments exist. `doc "...";` is declaration documentation, permitted at the start of a declaration body or as an interface declaration's documentation; do not insert it between executable statements. [FORM-4, GRAM-2]
 
@@ -413,7 +427,7 @@ Modes and operation names are prohibited for source function names, constants, v
 
 ### When the compiler says…
 
-After any rejection, audit all files for violations of the same rule and fix them all before compiling again. For FORM-2, audit the whole canonical layout in §12, including destructuring lets.
+Use the opening repair workflow; use §3 for atom positions and §12 for layout.
 
 | Diagnostic symptom | Form to check |
 | --- | --- |
@@ -454,6 +468,8 @@ Choose occupancy, residence and required views together: they determine initiali
 | Read-only fixed lookup data | Named const `Array<T, N>` | Immutable static storage; see the immutable-table section. |
 
 Runtime-capacity shapes, `Segments` and `Paged` live only inside Box; store/return the Box or borrow its content [TYPE-9]. Wrap it only for additional policy or state.
+
+For bulk records that loops scan field by field, keep one window or array per field, all indexed by the same record index, instead of one window of records. A scan then reads only the fields it uses, contiguously, and a field update writes only that field's storage. Pair fields in one record only when every access uses them together, such as a hash table's key and value slots. Keep the shared length in one place and append to every field window together, so one index names the same record in each.
 
 Inline and boxed prefix windows:
 
@@ -589,6 +605,8 @@ Choose copy, transfer or borrow: ownership follows fields, payloads, Box content
 
 Copy values are used bare; affine values transfer with `move` or take derived release; linear values must be consumed. `nocopy` removes copy; `nodrop` removes copy and drop. Neither attaches a finalizer. `Result` inherits its payload capabilities: match `Result<u64, IoError>` bare; move a Result owning `HostString`. Do not add `move` to every Result [OWN-1, STOR-3, PRE-2].
 
+Move is forbidden for concrete copy values. `Array<u8, N>`, `Option<u8>` and an unmarked `Pair<u8>` with copy fields are copy; `Box<Pair<u8>>` is not. After `MoveOfCopy`, inspect every move, including returns, using the instantiated type for concrete uses. Keep the generic template's move spelling under its written bounds, as the generic section explains. [OWN-1, FN-2]
+
 `cell.inner` reaches Box content; moving it consumes/frees the cell. `^` is for references only. Runtime-capacity shapes, Segments and Paged cannot move out of Box [TYPE-7, TYPE-9].
 
 ```whitefoot
@@ -613,6 +631,8 @@ fn main() -> status: ExitStatus pure {
 Final `..` releases omitted droppable fields in a consuming destructure; copy destructuring leaves its source live. Fields are in declaration order. Partial moves kill the whole root and cannot strand linear residual fields; destructure whole to give them distinct consumers [WIN-3, PROV-6].
 
 End ownership early with `release::<T>(value: move owner)` for `T: drop`; concrete copy values pass bare. A reference argument never consumes the resource [PRE-1, OWN-1].
+
+Release the owner unconditionally before observing heap use after disposal. Moving it into a helper transfers ownership; a return expression is evaluated before automatic exit release of bindings still live in that helper. An owner moved into the returned value is transferred, not released there. [OWN-1, STOR-3]
 
 **Cost and check.** Release visits owned elements/links: bindings in reverse declaration order, fields in declaration order, active enum payloads only, content before Box. Recursive release depth follows the value [PROV-6, STOR-3]. Check `--stack-ledger` and deepest intended structures; loop or `musttail` traversal does not guarantee constant-depth cleanup.
 
@@ -645,7 +665,7 @@ fn main() -> status: ExitStatus pure {
 }
 ```
 
-A consume kills its root; only a whole-binding assignment revives it. Joins require identical live/dead status [SET-1, LIV-1].
+A consume kills its root; only a whole-binding assignment revives it. Joins require identical live/dead status on the structural control graph, even for `if True()`: its false edge remains, including when there is no written else. [SET-1, LIV-1, FN-1]
 
 **Failure and check.** Loop ownership checks the structural backedge even after `break`/`return`. Rebuild consumed outer bindings, or consume iteration-local owners [OWN-11]. Read diagnostics for the root/predecessors/residual part and repair the complete transition.
 
@@ -928,6 +948,8 @@ Silent cost and check: Bool dataflow does not promise branchless machine code; i
 
 Declare the narrowest truthful reference effect row and state only genuine caller requirements and proved result/state relations. Reason: a call invalidates facts from its declared writes and publishes its declared guarantees, rather than reading its implementation [EFF-1, EFF-2, FN-8, FN-9].
 
+When a long call chain decides changes to state reached through reference parameters, compute the changes as owned values in `pure` or read-only helpers, and apply them in one shallow writer near the state's owner. The deciding helpers then carry no `writes` for that state, so the facts and independence their callers rely on survive the calls, and the mutation boundary stays visible in signatures; callers of the writer still inherit its projected writes. [EFF-1, EFF-2] This concerns ordinary state only: a shared object's state is outside the row, a `pure waits` function can change it, and its accesses follow the atomic-statement rules of Part 3. [SHARE-2]
+
 ```whitefoot
 struct Counter {
   value: u64;
@@ -963,7 +985,7 @@ Silent cost and check: broad writes kill caller facts and independence; omitted 
 
 ### Which relation should the checker carry around a loop?
 
-Put the maintained relation in the loop header; use a local invariant for a fact needed at one point. Reason: the header is the induction boundary where the checker proves the base and every continuing backedge [INV-1].
+Choose the maintained relation before writing the loop. For an empty append window, use `output.len == index` with a counted index starting at zero. For a byte decoder that does not expand input, maintain `produced <= consumed` and `input_length <= output_length`. Put the relation in the loop header; use a local invariant for a fact needed at one point. The header is the induction boundary where the checker proves the base and every continuing backedge. [INV-1]
 
 ```whitefoot
 fn filled<const n: u64>() -> result: Slots<u8, n> pure contract {
@@ -984,7 +1006,7 @@ The counted binder supplies its half-open range. Header invariants prove simulta
 
 A break exports only conclusions with surviving support. The header’s proof name expires, while its conclusion may survive. A write before break can invalidate it. Exact exhaustion conclusions survive only if every reaching continuation edge independently has them [ENT-5].
 
-Silent failure and check: examine base, every normal/continue backedge and each exit. The checker rejects failed induction and inserts no runtime tests. Reduce an unproved valid step before weakening arithmetic or adding a redundant guard.
+Silent failure and check: prove every next header, including the terminal next counted index, and every continuing path that skips work; inspect each exit separately. [INV-1, FN-1] Wrapping can reorder lookahead indices; establish a separate bound for each before indexing. [OP-2, OP-4] The checker rejects failed induction and inserts no runtime tests. Reduce an unproved valid step before weakening arithmetic or adding a redundant guard.
 
 ### What should be written when automatic proof is insufficient?
 
@@ -1680,8 +1702,7 @@ transitions, not lock timing, and `--par-ledger` is not a substitute.
 
 Mark every implicit join before arranging control flow. Put an action that enables a child before the statement that joins it [WAIT-3].
 
-A bound spawn joins before the first later statement **in its binding’s block** that names the binding **or contains an edge leaving that block**, otherwise at block end. An expression-statement spawn joins when its activation leaves by any edge. Bound results cannot be polled. A bound spawn inside a for-body joins no later than that iteration’s end. For many activities followed by final
-observations, launch expression spawns in a synchronous helper and observe after it returns. [WAIT-3]
+A bound spawn joins before the first later statement **in its binding’s block** that names the binding **or contains an edge leaving that block**, otherwise at block end. An expression-statement spawn joins when its activation leaves by any edge. Bound results cannot be polled. A bound spawn inside a for-body joins no later than that iteration’s end. Launch dependent producers and consumers with expression-statement spawns in one synchronous helper before it returns. Separate synchronous launchers may join producers before consumers start. Counted launch loops remain valid: expression-statement spawns join at activation exit, not iteration end. Observe final results after the shared helper returns. [WAIT-3]
 
 ```whitefoot
 alias ExitStatus = std::process::ExitStatus;
