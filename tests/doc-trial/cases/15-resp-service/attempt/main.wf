@@ -171,6 +171,14 @@ fn i64_to_resp(value: i64, buf: &[u8]) -> result: u64 writes(buf) {
   return if negative { give digits + 1_u64; } else { give digits; };
 }
 
+fn dummy_key(env: &unit, key: &Box<Array<u8>>) -> hash: u64 reads(key) {
+  return 0_u64;
+}
+
+fn dummy_equal(env: &unit, left: &Box<Array<u8>>, right: &Box<Array<u8>>) -> equal: Bool reads(left), reads(right) {
+  return True();
+}
+
 fn send_all(send: &TcpSend, factory: &HandleFactory, data: &[u8]) -> result: unit reads(data), writes(factory), writes(send) waits {
   let sent = 0_u64;
   loop {
@@ -182,10 +190,10 @@ fn send_all(send: &TcpSend, factory: &HandleFactory, data: &[u8]) -> result: uni
     let outcome = std::net::send_once(send: send, source: data, start: sent, end: data^.len, deadline: no_deadline, cancel: &cancel);
     std::time::close_cancel_watch(watch: move cancel);
     match move outcome {
-      Ok(value: next) => {
-        set sent = next;
+      Ok(value: next_sent) => {
+        set sent = next_sent;
       }
-      Err(error: unused_err) => {
+      Err(error: send_err) => {
         return unit;
       }
     }
@@ -206,14 +214,14 @@ fn handle_client(factory: &HandleFactory, conn: TcpConnection, store: &Shared<Ha
     let outcome = std::net::receive_next(receive: &receive, destination: &buffer.inner, start: buf_start, end: buf_end, deadline: no_deadline, cancel: &cancel);
     std::time::close_cancel_watch(watch: move cancel);
     match move outcome {
-      Ok(value: next) => {
+      Ok(value: next_bytes) => {
       }
       Err(error: stop) => {
         match stop {
           ReadEnd() => {
             break;
           }
-          ReadFailed(error: unused_problem) => {
+          ReadFailed(error: read_problem) => {
             break;
           }
         }
@@ -226,7 +234,7 @@ fn handle_client(factory: &HandleFactory, conn: TcpConnection, store: &Shared<Ha
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(args: argv, drivers: unused_drivers, cwd: directory, stdout: unused_stdout, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let Inputs(args: argv, drivers: program_drivers, cwd: directory, stdout: program_stdout, stderr: program_stderr, handles: factory, stdin: program_stdin, clock: program_clock, wall_clock: program_wall_clock, stops: program_stops, memory_meter: program_meter) = move inputs;
   let std::fs::Directory(read: cwd_read, write: cwd_write) = move directory;
   let close_write = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
   let close_read = std::fs::close_directory(factory: &factory, directory: move cwd_read);
@@ -260,12 +268,12 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
             }
           }
         }
-        Err(error: unused_size_err) => {
+        Err(error: copy_err) => {
           return exit_status(code: 1_u8);
         }
       }
     }
-    Err(error: unused_arg_err) => {
+    Err(error: arg_err) => {
       return exit_status(code: 1_u8);
     }
   }
@@ -275,7 +283,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     Ok(value: l) => {
       give l;
     }
-    Err(error: unused_err) => {
+    Err(error: listen_err) => {
       return exit_status(code: 1_u8);
     }
   };
@@ -298,7 +306,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
           break;
         }
       }
-      Err(error: unused_err) => {
+      Err(error: accept_err) => {
         break;
       }
     }

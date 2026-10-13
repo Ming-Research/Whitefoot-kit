@@ -41,17 +41,17 @@ fn parse_u16_from_bytes(bytes: &[u8], len: u64) -> result: Result<u16, unit> rea
               Ok(value: sum_result) => {
                 set value = sum_result;
               }
-              Err(error: _) => {
+              Err(error: unused_add_error) => {
                 return Err<u16, unit>(error: unit);
               }
             }
           }
-          Err(error: _) => {
+          Err(error: unused_mult_error) => {
             return Err<u16, unit>(error: unit);
           }
         }
       }
-      Err(error: _) => {
+      Err(error: unused_digit_error) => {
         return Err<u16, unit>(error: unit);
       }
     }
@@ -89,23 +89,23 @@ fn get_port(args: &std::text::Args) -> result: Result<u16, unit> reads(args) {
         end: len
       );
       match copy_result {
-        Ok(value: _) => {
+        Ok(value: unused_copied) => {
           let parse_result = parse_u16_from_bytes(bytes: &buffer[0_u64..len], len: len);
           match parse_result {
             Ok(value: port) => {
               return Ok<u16, unit>(value: port);
             }
-            Err(error: _) => {
+            Err(error: unused_parse_error) => {
               return Err<u16, unit>(error: unit);
             }
           }
         }
-        Err(error: _) => {
+        Err(error: unused_copy_error) => {
           return Err<u16, unit>(error: unit);
         }
       }
     }
-    Err(error: _) => {
+    Err(error: unused_arg_error) => {
       return Err<u16, unit>(error: unit);
     }
   }
@@ -147,7 +147,7 @@ fn echo_connection(connection: TcpConnection, factory: &HandleFactory) -> result
             Ok(value: num_sent) => {
               set sent = num_sent;
             }
-            Err(error: _) => {
+            Err(error: unused_send_error) => {
               break @receive_loop;
             }
           }
@@ -158,7 +158,7 @@ fn echo_connection(connection: TcpConnection, factory: &HandleFactory) -> result
           ReadEnd() => {
             break @receive_loop;
           }
-          ReadFailed(error: _) => {
+          ReadFailed(error: unused_read_failed_error) => {
             break @receive_loop;
           }
         }
@@ -192,7 +192,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     Ok(value: p) => {
       p
     }
-    Err(error: _) => {
+    Err(error: unused_port_error) => {
       return exit_status(code: 1_u8);
     }
   };
@@ -202,7 +202,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     Ok(value: l) => {
       l
     }
-    Err(error: _) => {
+    Err(error: unused_listen_error) => {
       return exit_status(code: 1_u8);
     }
   };
@@ -227,7 +227,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
         place_back(window: &connections, value: accepted_conn.connection);
         set accepted = accepted +wrap 1_u64;
       }
-      Err(error: _) => {
+      Err(error: unused_accept_error) => {
         break @accept_loop;
       }
     }

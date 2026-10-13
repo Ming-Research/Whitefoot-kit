@@ -31,7 +31,7 @@ fn parse_expr(bytes: &[u8], pos: u64) -> result: ParseResult reads(bytes) {
               Ok(value: result) => {
                 return ParseResult::Success(next_pos: pos2, value: result);
               }
-              Err(error: unused_overflow) => {
+              Err(error: overflow_error) => {
                 return ParseResult::Error(error_code: 3_u8);
               }
             }
@@ -137,7 +137,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let result2 = parse_expr(bytes: test2_buffer, pos: 0_u64);
   let test2_error = 0_u8;
   match result2 {
-    Success(next_pos: unused_pos, value: unused_val) => {
+    Success(next_pos: pos2, value: val2) => {
     }
     Error(error_code: err) => {
       set test2_error = err;
@@ -156,27 +156,27 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   }
   let write1 = write_u64_le(factory: &factory, output: &stdout_stream, value: test1_pos);
   match write1 {
-    Ok(value: unused_result) => {
+    Ok(value: ok_result) => {
     }
-    Err(error: unused_error) => {
+    Err(error: io_error) => {
       return exit_status(code: 250_u8);
     }
   }
   let test1_val_extended = test1_value;
   let write2 = write_u64_le(factory: &factory, output: &stdout_stream, value: test1_val_extended);
   match write2 {
-    Ok(value: unused_result) => {
+    Ok(value: ok_result2) => {
     }
-    Err(error: unused_error) => {
+    Err(error: io_error2) => {
       return exit_status(code: 250_u8);
     }
   }
   let test2_error_extended = cvt::<u8, u64>(test2_error);
   let write3 = write_u64_le(factory: &factory, output: &stdout_stream, value: test2_error_extended);
   match write3 {
-    Ok(value: unused_result) => {
+    Ok(value: ok_result3) => {
     }
-    Err(error: unused_error) => {
+    Err(error: io_error3) => {
       return exit_status(code: 250_u8);
     }
   }

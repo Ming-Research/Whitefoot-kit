@@ -1,7 +1,3 @@
-alias ExitStatus = std::process::ExitStatus;
-alias Inputs = std::process::Inputs;
-alias exit_status = std::process::exit_status;
-
 enum Operation {
   Add(value: u64);
   Decrement();
@@ -42,8 +38,8 @@ fn run_machine(program: &[Operation], initial_counter: u64) -> result: u64 pure 
   }
 }
 
-fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(cwd: directory, handles: factory, stdout: output, ..) = move inputs;
+fn main(inputs: std::process::Inputs) -> status: std::process::ExitStatus pure waits {
+  let std::process::Inputs(cwd: directory, handles: factory, stdout: output, ..) = move inputs;
   let std::fs::Directory(read: directory_read, write: directory_write) = move directory;
   std::fs::close_directory_write(factory: &factory, directory: move directory_write);
   std::fs::close_directory(factory: &factory, directory: move directory_read);
@@ -80,7 +76,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
           set sent = next;
         }
         Err(error: unused_error) => {
-          return exit_status(code: 2_u8);
+          return std::process::exit_status(code: 2_u8);
         }
       }
     } else {
@@ -89,8 +85,8 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   }
 
   if result == 3000_u64 {
-    return exit_status(code: 0_u8);
+    return std::process::exit_status(code: 0_u8);
   } else {
-    return exit_status(code: 1_u8);
+    return std::process::exit_status(code: 1_u8);
   }
 }

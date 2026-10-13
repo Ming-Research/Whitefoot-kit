@@ -1,8 +1,6 @@
 alias ExitStatus = std::process::ExitStatus;
 alias exit_status = std::process::exit_status;
 alias Inputs = std::process::Inputs;
-alias HandleFactory = std::io::HandleFactory;
-alias OutputStream = std::io::OutputStream;
 alias CancelWatch = std::time::CancelWatch;
 alias Instant = std::time::Instant;
 
@@ -15,27 +13,48 @@ fn increment_counter(counter: Shared<u64>) -> result: unit pure waits {
   return unit;
 }
 
-fn produce(queue: Shared<Box<Ring<u32>>>, value: u32) -> result: unit pure waits {
-  atomic q = &queue {
-    loop @wait {
-      if q^.inner.len < 8_u64 {
-        deque_push_back(values: q, value: value);
-        break @wait;
+fn producer(queue: Shared<Box<Ring<u32>>>, producer_id: u32) -> result: unit pure waits {
+  for (i in 0_u32..5000_u32) {
+    loop @place {
+      let placed = False();
+      atomic q = &queue {
+        if q^.inner.len < 8_u64 {
+          deque_push_back(values: q, value: i);
+          set placed = True();
+        }
+      }
+      if placed {
+        break @place;
       }
     }
   }
   return unit;
 }
 
-fn consume_one(queue: Shared<Box<Ring<u32>>>) -> result: Option<u32> pure waits {
-  let result = None<u32>();
-  atomic q = &queue {
-    if q^.inner.len > 0_u64 {
-      let item = deque_pop_front(values: q);
-      set result = Some<u32>(value: item);
+fn consumer(queue: Shared<Box<Ring<u32>>>, total: Shared<u64>) -> result: unit pure waits {
+  for (i in 0_u64..5000_u64) {
+    loop @take {
+      let item = None<u32>();
+      atomic q = &queue {
+        if q^.inner.len > 0_u64 {
+          let value = deque_pop_front(values: q);
+          set item = Some<u32>(value: value);
+        }
+      }
+      match item {
+        Some(value: v) => {
+          let as_u64 = cvt::<u32, u64>(v);
+          atomic sum = &total {
+            set sum^ = sum^ +wrap as_u64;
+          }
+          break @take;
+        }
+        None() => {
+        }
+      }
     }
   }
-  return result;
+  return unit;
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
@@ -65,26 +84,14 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     let counter_handle = shared_share::<u64>(shared: &counter);
     spawn increment_counter(counter: move counter_handle);
   }
-  for (p in 0_u32..20000_u32) {
+  for (p in 0_u32..4_u32) {
     let queue_handle = shared_share::<Box<Ring<u32>>>(shared: &queue);
-    spawn produce(queue: move queue_handle, value: p %wrap 5000_u32);
+    spawn producer(queue: move queue_handle, producer_id: p);
   }
-  for (c in 0_u64..20000_u64) {
+  for (c in 0_u64..4_u64) {
     let queue_handle = shared_share::<Box<Ring<u32>>>(shared: &queue);
     let total_handle = shared_share::<u64>(shared: &total);
-    spawn @consume_spawn {
-      let item = consume_one(queue: move queue_handle);
-      match item {
-        Some(value: v) => {
-          let as_u64 = cvt::<u32, u64>(v);
-          atomic sum = &total_handle {
-            set sum^ = sum^ +wrap as_u64;
-          }
-        }
-        None() => {
-        }
-      }
-    };
+    spawn consumer(queue: move queue_handle, total: move total_handle);
   }
   let final_counter = 0_u64;
   atomic count = &counter {

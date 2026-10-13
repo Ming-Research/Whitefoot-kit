@@ -4,7 +4,6 @@ alias exit_status = std::process::exit_status;
 alias HandleFactory = std::io::HandleFactory;
 alias OutputStream = std::io::OutputStream;
 alias Instant = std::time::Instant;
-alias CancelWatch = std::time::CancelWatch;
 
 fn mixer_round(state: u64) -> result: u64 pure {
   let rotated = irotl(state, 27_u32);

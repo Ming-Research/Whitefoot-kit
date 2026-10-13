@@ -68,7 +68,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     let byte_offset = i * 8_u64;
     let temp_bits = bits;
     for (k in 0_u64..8_u64) {
-      let byte_val = cvt::<u64, u8>(iand(temp_bits, 0xFF_u64));
+      let byte_val = cvt::<u64, u8>(iand(temp_bits, 255_u64));
       set output_bytes[byte_offset + k] = byte_val;
       set temp_bits = ishr(temp_bits, 8_u32);
     }
@@ -85,7 +85,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let sum_byte_offset = 512_u64;
   let temp_sum_bits = sum_bits;
   for (k in 0_u64..8_u64) {
-    let byte_val = cvt::<u64, u8>(iand(temp_sum_bits, 0xFF_u64));
+    let byte_val = cvt::<u64, u8>(iand(temp_sum_bits, 255_u64));
     set output_bytes[sum_byte_offset + k] = byte_val;
     set temp_sum_bits = ishr(temp_sum_bits, 8_u32);
   }
