@@ -164,7 +164,7 @@ fn write_bytes(output: &OutputStream, source: &[u8], factory: &HandleFactory) ->
   }
 }
 
-fn main(inputs: Inputs) -> exit_code: ExitStatus pure waits {
+fn main(inputs: std::process::Inputs) -> exit_code: std::process::ExitStatus pure waits {
   let Inputs(args: arg_list, drivers: num_drivers, cwd: working_dir, stdout: out_stream, stderr: err_stream, handles: handle_factory, stdin: in_stream, clock: sys_clock, wall_clock: wall_time, stops: stop_signals, memory_meter: mem_meter) = move inputs;
   let std::fs::Directory(read: directory_read, write: directory_write) = move working_dir;
   std::fs::close_directory_write(factory: &handle_factory, directory: move directory_write);

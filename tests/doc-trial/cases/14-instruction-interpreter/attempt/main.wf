@@ -1,89 +1,87 @@
-alias ExitStatus = std::process::ExitStatus;
-alias Inputs = std::process::Inputs;
-alias exit_status = std::process::exit_status;
+alias E = std::process::ExitStatus;
+alias I = std::process::Inputs;
+alias exit = std::process::exit_status;
 
-enum Op {
-  AddVal(v: u64);
-  Dec();
-  Jnz(t: u64);
-  Hlt();
-}
-
-fn exec(prog: &[Op], ctr: u64) -> acc: u64 pure {
-  let a = 0_u64;
-  let c = ctr;
-  let p = 0_u64;
-  loop {
-    if p >= prog^.len {
-      return 0_u64;
-    }
-    match prog^[p] {
-      AddVal(v: x) => {
-        set a = a +wrap x^;
-        set p = p + 1_u64;
-      }
-      Dec() => {
-        set c = c +wrap 18446744073709551615_u64;
-        set p = p + 1_u64;
-      }
-      Jnz(t: pos) => {
-        if c == 0_u64 {
-          set p = p + 1_u64;
-        } else {
-          set p = pos^;
+fn main(inputs: I) -> status: E waits {
+  let I(cwd: d, handles: f, stdout: o, ..) = move inputs;
+  let std::fs::Directory(read: r, write: w) = move d;
+  std::fs::close_directory_write(factory: &f, directory: move w);
+  std::fs::close_directory(factory: &f, directory: move r);
+  let prog = array_filled::<Instr, 4>(value: Instr::H());
+  set prog[0_u64] = Instr::A(v: 3_u64);
+  set prog[1_u64] = Instr::D();
+  set prog[2_u64] = Instr::J(t: 0_u64);
+  set prog[3_u64] = Instr::H();
+  let result = machine(prog: &prog[0_u64..4_u64], counter: 1000_u64);
+  let bytes = array_filled::<u8, 8>(value: 0_u8);
+  set bytes[0_u64] = cvt.wrap::<u64, u8>(result);
+  set bytes[1_u64] = cvt.wrap::<u64, u8>(ishr(result, 8_u32));
+  set bytes[2_u64] = cvt.wrap::<u64, u8>(ishr(result, 16_u32));
+  set bytes[3_u64] = cvt.wrap::<u64, u8>(ishr(result, 24_u32));
+  set bytes[4_u64] = cvt.wrap::<u64, u8>(ishr(result, 32_u32));
+  set bytes[5_u64] = cvt.wrap::<u64, u8>(ishr(result, 40_u32));
+  set bytes[6_u64] = cvt.wrap::<u64, u8>(ishr(result, 48_u32));
+  set bytes[7_u64] = cvt.wrap::<u64, u8>(ishr(result, 56_u32));
+  let sent = 0_u64;
+  loop @out {
+    if sent < 8_u64 {
+      let dl = None<std::time::Instant>();
+      let can = std::time::cancel_never();
+      let res = std::io::write_once(factory: &f, output: &o, source: &bytes[0_u64..8_u64], start: sent, end: 8_u64, deadline: dl, cancel: &can);
+      std::time::close_cancel_watch(watch: move can);
+      match res {
+        Ok(value: n) => {
+          set sent = n;
         }
-      }
-      Hlt() => {
-        return a;
-      }
-    }
-  }
-}
-
-fn main(inputs: Inputs) -> status: ExitStatus waits {
-  let Inputs(cwd: dir, handles: fac, stdout: out, ..) = move inputs;
-  let std::fs::Directory(read: dr, write: dw) = move dir;
-  std::fs::close_directory_write(factory: &fac, directory: move dw);
-  std::fs::close_directory(factory: &fac, directory: move dr);
-  let ops = array_filled::<Op, 4>(value: Op::Hlt());
-  set ops[0_u64] = Op::AddVal(v: 3_u64);
-  set ops[1_u64] = Op::Dec();
-  set ops[2_u64] = Op::Jnz(t: 0_u64);
-  set ops[3_u64] = Op::Hlt();
-  let v = &ops[0_u64..4_u64];
-  let r = exec(prog: v, ctr: 1000_u64);
-  let b = array_filled::<u8, 8>(value: 0_u8);
-  set b[0_u64] = cvt.wrap::<u64, u8>(r);
-  set b[1_u64] = cvt.wrap::<u64, u8>(ishr(r, 8_u32));
-  set b[2_u64] = cvt.wrap::<u64, u8>(ishr(r, 16_u32));
-  set b[3_u64] = cvt.wrap::<u64, u8>(ishr(r, 24_u32));
-  set b[4_u64] = cvt.wrap::<u64, u8>(ishr(r, 32_u32));
-  set b[5_u64] = cvt.wrap::<u64, u8>(ishr(r, 40_u32));
-  set b[6_u64] = cvt.wrap::<u64, u8>(ishr(r, 48_u32));
-  set b[7_u64] = cvt.wrap::<u64, u8>(ishr(r, 56_u32));
-  let s = 0_u64;
-  let ov = &b[0_u64..8_u64];
-  loop @w {
-    if s < 8_u64 {
-      let nd = None<std::time::Instant>();
-      let cn = std::time::cancel_never();
-      let wr = std::io::write_once(factory: &fac, output: &out, source: ov, start: s, end: 8_u64, deadline: nd, cancel: &cn);
-      std::time::close_cancel_watch(watch: move cn);
-      match wr {
-        Ok(value: nx) => {
-          set s = nx;
-        }
-        Err(error: e) => {
-          return exit_status(code: 2_u8);
+        Err(error: err) => {
+          return exit(code: 2_u8);
         }
       }
     } else {
-      break @w;
+      break @out;
     }
   }
-  if r == 3000_u64 {
-    return exit_status(code: 0_u8);
+  if result == 3000_u64 {
+    return exit(code: 0_u8);
   } else {
-    return exit_status(code: 1_u8);
+    return exit(code: 1_u8);
+  }
+}
+
+enum Instr {
+  A(v: u64);
+  D();
+  J(t: u64);
+  H();
+}
+
+fn machine(prog: &[Instr], counter: u64) -> result: u64 pure {
+  let acc = 0_u64;
+  let cnt = counter;
+  let pc = 0_u64;
+  loop {
+    if pc >= prog^.len {
+      return 0_u64;
+    }
+    match prog^[pc] {
+      A(v: x) => {
+        set acc = acc +wrap x^;
+        set pc = pc + 1_u64;
+      }
+      D() => {
+        set cnt = cnt +wrap 18446744073709551615_u64;
+        set pc = pc + 1_u64;
+      }
+      J(t: pos) => {
+        if cnt == 0_u64 {
+          set pc = pc + 1_u64;
+        } else {
+          set pc = pos^;
+        }
+      }
+      H() => {
+        return acc;
+      }
+    }
   }
 }

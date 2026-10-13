@@ -24,31 +24,6 @@ fn i64_to_u64(v: i64) -> res: u64 pure {
   return cvt.wrap::<i64, u64>(v);
 }
 
-fn write_output(fac: &std::io::HandleFactory, out: &std::io::OutputStream, src: &[u8]) -> result: Result<unit, std::io::IoError> reads(src), writes(fac), writes(out) waits {
-  let pos = 0_u64;
-  let len = src^.len;
-  loop @send {
-    if pos < len {
-      let no_dl = None<std::time::Instant>();
-      let cancel = std::time::cancel_never();
-      let outcome = std::io::write_once(factory: fac, output: out, source: src, start: pos, end: len, deadline: no_dl, cancel: &cancel);
-      std::time::close_cancel_watch(watch: move cancel);
-      match outcome {
-        Ok(value: nxt) => {
-          set pos = nxt;
-          continue @send;
-        }
-        Err(error: err) => {
-          return Err<unit, std::io::IoError>(error: err);
-        }
-      }
-    } else {
-      break @send;
-    }
-  }
-  return Ok<unit, std::io::IoError>(value: unit);
-}
-
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let Inputs(cwd: cwd_dir, handles: fac, stdout: out, ..) = move inputs;
   let std::fs::Directory(read: cwd_read, write: cwd_wrt) = move cwd_dir;
@@ -177,12 +152,25 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   set output[70_u64] = e9[6_u64];
   set output[71_u64] = e9[7_u64];
   let view = &output[0_u64..72_u64];
-  let write_res = write_output(fac: &fac, out: &out, src: view);
-  match write_res {
-    Ok(value: ok) => {
-    }
-    Err(error: err) => {
-      return exit_status(code: 250_u8);
+  let pos = 0_u64;
+  let len = view^.len;
+  loop @send {
+    if pos < len {
+      let no_dl = None<std::time::Instant>();
+      let cancel = std::time::cancel_never();
+      let outcome = std::io::write_once(factory: &fac, output: &out, source: view, start: pos, end: len, deadline: no_dl, cancel: &cancel);
+      std::time::close_cancel_watch(watch: move cancel);
+      match outcome {
+        Ok(value: nxt) => {
+          set pos = nxt;
+          continue @send;
+        }
+        Err(error: err) => {
+          return exit_status(code: 250_u8);
+        }
+      }
+    } else {
+      break @send;
     }
   }
   return exit_status(code: 0_u8);

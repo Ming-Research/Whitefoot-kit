@@ -10,33 +10,21 @@ fn mixer_round(state: u64) -> result: u64 pure {
   return result;
 }
 
+fn apply_rounds(state: u64, rounds: u64) -> result: u64 pure {
+  let current = state;
+  let count = 0_u64;
+  loop {
+    if count < rounds {
+    } else {
+      return current;
+    }
+    set current = mixer_round(state: current);
+    set count = count + 1_u64;
+  }
+}
+
 fn mix_seed(seed: u64) -> result: u64 pure {
-  let state = seed;
-  let state = mixer_round(state: state);
-  let state = mixer_round(state: state);
-  let state = mixer_round(state: state);
-  let state = mixer_round(state: state);
-  let state = mixer_round(state: state);
-  let state = mixer_round(state: state);
-  let state = mixer_round(state: state);
-  let state = mixer_round(state: state);
-  let state = mixer_round(state: state);
-  let state = mixer_round(state: state);
-  let state = mixer_round(state: state);
-  let state = mixer_round(state: state);
-  let state = mixer_round(state: state);
-  let state = mixer_round(state: state);
-  let state = mixer_round(state: state);
-  let state = mixer_round(state: state);
-  let state = mixer_round(state: state);
-  let state = mixer_round(state: state);
-  let state = mixer_round(state: state);
-  let state = mixer_round(state: state);
-  let state = mixer_round(state: state);
-  let state = mixer_round(state: state);
-  let state = mixer_round(state: state);
-  let state = mixer_round(state: state);
-  return state;
+  return apply_rounds(state: seed, rounds: 24_u64);
 }
 
 fn sum_range(lower: u64, upper: u64) -> result: u64 pure {
@@ -56,42 +44,17 @@ fn worker_task(lower: u64, upper: u64, accumulator: Shared<u64>) -> result: unit
   return unit;
 }
 
-fn write_u64_le(factory: &std::io::HandleFactory, output: &std::io::OutputStream, value: u64) -> result: Result<unit, std::io::IoError> reads(factory), writes(output) waits {
-  let bytes = slots_new::<u8, 8>();
-  let b0 = cvt::<u64, u8>(value);
-  place_back(window: &bytes, value: b0);
-  let s1 = ishr(value, 8_u32);
-  let b1 = cvt::<u64, u8>(s1);
-  place_back(window: &bytes, value: b1);
-  let s2 = ishr(value, 16_u32);
-  let b2 = cvt::<u64, u8>(s2);
-  place_back(window: &bytes, value: b2);
-  let s3 = ishr(value, 24_u32);
-  let b3 = cvt::<u64, u8>(s3);
-  place_back(window: &bytes, value: b3);
-  let s4 = ishr(value, 32_u32);
-  let b4 = cvt::<u64, u8>(s4);
-  place_back(window: &bytes, value: b4);
-  let s5 = ishr(value, 40_u32);
-  let b5 = cvt::<u64, u8>(s5);
-  place_back(window: &bytes, value: b5);
-  let s6 = ishr(value, 48_u32);
-  let b6 = cvt::<u64, u8>(s6);
-  place_back(window: &bytes, value: b6);
-  let s7 = ishr(value, 56_u32);
-  let b7 = cvt::<u64, u8>(s7);
-  place_back(window: &bytes, value: b7);
-  let window = &bytes[0_u64..8_u64];
+fn write_all(factory: &std::io::HandleFactory, output: &std::io::OutputStream, data: &[u8]) -> result: Result<unit, std::io::IoError> reads(factory), writes(output) waits {
   let sent = 0_u64;
+  let datalen = data^.len;
   loop @write_loop {
-    let pending = sent < 8_u64;
-    if pending {
+    if sent < datalen {
     } else {
       break @write_loop;
     }
     let no_deadline = None<std::time::Instant>();
     let cancel = std::time::cancel_never();
-    let outcome = std::io::write_once(factory: factory, output: output, source: window, start: sent, end: 8_u64, deadline: no_deadline, cancel: &cancel);
+    let outcome = std::io::write_once(factory: factory, output: output, source: data, start: sent, end: datalen, deadline: no_deadline, cancel: &cancel);
     std::time::close_cancel_watch(watch: move cancel);
     match outcome {
       Ok(value: next) => {
@@ -132,7 +95,34 @@ fn main(inputs: Inputs) -> result: ExitStatus pure waits {
     set total = sum^;
   }
 
-  let write_result = write_u64_le(factory: &factory, output: &output, value: total);
+  let b0 = cvt::<u64, u8>(total);
+  let s1 = ishr(total, 8_u32);
+  let b1 = cvt::<u64, u8>(s1);
+  let s2 = ishr(total, 16_u32);
+  let b2 = cvt::<u64, u8>(s2);
+  let s3 = ishr(total, 24_u32);
+  let b3 = cvt::<u64, u8>(s3);
+  let s4 = ishr(total, 32_u32);
+  let b4 = cvt::<u64, u8>(s4);
+  let s5 = ishr(total, 40_u32);
+  let b5 = cvt::<u64, u8>(s5);
+  let s6 = ishr(total, 48_u32);
+  let b6 = cvt::<u64, u8>(s6);
+  let s7 = ishr(total, 56_u32);
+  let b7 = cvt::<u64, u8>(s7);
+
+  let buffer = slots_new::<u8, 8>();
+  place_back(window: &buffer, value: b0);
+  place_back(window: &buffer, value: b1);
+  place_back(window: &buffer, value: b2);
+  place_back(window: &buffer, value: b3);
+  place_back(window: &buffer, value: b4);
+  place_back(window: &buffer, value: b5);
+  place_back(window: &buffer, value: b6);
+  place_back(window: &buffer, value: b7);
+
+  let buf_slice = &buffer[0_u64..8_u64];
+  let write_result = write_all(factory: &factory, output: &output, data: buf_slice);
   match write_result {
     Ok(value: unused_ok) => {
       return exit_status(code: 0_u8);

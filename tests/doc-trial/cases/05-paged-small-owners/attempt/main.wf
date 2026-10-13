@@ -1,18 +1,208 @@
 alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
+alias OutputStream = std::io::OutputStream;
+alias HandleFactory = std::io::HandleFactory;
+
+fn write_eight_bytes(factory: &HandleFactory, output: &OutputStream, value: u64) -> result: Result<unit, unit> writes(factory), writes(output) waits {
+  let b0 = cvt.wrap::<u64, u8>(value);
+  let b1 = cvt.wrap::<u64, u8>(ishr(value, 8_u32));
+  let b2 = cvt.wrap::<u64, u8>(ishr(value, 16_u32));
+  let b3 = cvt.wrap::<u64, u8>(ishr(value, 24_u32));
+  let b4 = cvt.wrap::<u64, u8>(ishr(value, 32_u32));
+  let b5 = cvt.wrap::<u64, u8>(ishr(value, 40_u32));
+  let b6 = cvt.wrap::<u64, u8>(ishr(value, 48_u32));
+  let b7 = cvt.wrap::<u64, u8>(ishr(value, 56_u32));
+  let bytes = array_filled::<u8, 8>(value: 0_u8);
+  set bytes[0_u64] = b0;
+  set bytes[1_u64] = b1;
+  set bytes[2_u64] = b2;
+  set bytes[3_u64] = b3;
+  set bytes[4_u64] = b4;
+  set bytes[5_u64] = b5;
+  set bytes[6_u64] = b6;
+  set bytes[7_u64] = b7;
+  let buf = &bytes[0_u64..8_u64];
+  let cancel = std::time::cancel_never();
+  let no_deadline = None<std::time::Instant>();
+  let result = std::io::write_once(factory: factory, output: output, source: buf, start: 0_u64, end: 8_u64, deadline: no_deadline, cancel: &cancel);
+  std::time::close_cancel_watch(watch: move cancel);
+  match result {
+    Ok(value: written) => {
+      if written == 8_u64 {
+        return Ok<unit, unit>(value: unit);
+      }
+      return Err<unit, unit>(error: unit);
+    }
+    Err(error: unused) => {
+      return Err<unit, unit>(error: unit);
+    }
+  }
+}
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let cwd_dir = inputs.cwd;
   let factory = inputs.handles;
+  let out_stream = inputs.stdout;
   let meter = inputs.memory_meter;
   let std::fs::Directory(read: rd, write: wr) = move cwd_dir;
   std::fs::close_directory_write(factory: &factory, directory: move wr);
   std::fs::close_directory(factory: &factory, directory: move rd);
   let baseline = std::process::heap_in_use(meter: &meter);
+  let pool0 = box_paged_new::<u64>(capacity: 0_u64);
+  let h0 = std::process::heap_in_use(meter: &meter);
+  let d0 = 0_u64;
+  grow_paged(cell: &pool0, capacity: 0_u64);
+  let h0b = std::process::heap_in_use(meter: &meter);
+  let d0b = 0_u64;
+  free_empty(window: move pool0);
+  let pool0c = box_paged_new::<u64>(capacity: 0_u64);
+  free_empty(window: move pool0c);
+  let h0c = std::process::heap_in_use(meter: &meter);
+  let d0c = 0_u64;
   let pool = box_paged_new::<u64>(capacity: 1_u64);
   place_back(window: &pool.inner, value: 73_u64);
-  let heap1 = std::process::heap_in_use(meter: &meter);
+  let h1 = std::process::heap_in_use(meter: &meter);
+  let d1 = h1 - baseline;
+  grow_paged(cell: &pool, capacity: 2_u64);
+  place_back(window: &pool.inner, value: 1_u64);
+  let h2 = std::process::heap_in_use(meter: &meter);
+  let d2 = h2 - baseline;
+  grow_paged(cell: &pool, capacity: 3_u64);
+  place_back(window: &pool.inner, value: 2_u64);
+  let h3 = std::process::heap_in_use(meter: &meter);
+  let d3 = h3 - baseline;
+  grow_paged(cell: &pool, capacity: 4_u64);
+  let h4 = std::process::heap_in_use(meter: &meter);
+  let d4 = h4 - baseline;
+  for (i in 3_u64..512_u64) {
+    place_back(window: &pool.inner, value: i);
+  }
+  grow_paged(cell: &pool, capacity: 512_u64);
+  let h512 = std::process::heap_in_use(meter: &meter);
+  let d512 = h512 - baseline;
+  grow_paged(cell: &pool, capacity: 513_u64);
+  place_back(window: &pool.inner, value: 512_u64);
+  let h513 = std::process::heap_in_use(meter: &meter);
+  let d513 = h513 - baseline;
+  let sum = 0_u64;
+  for (i in 0_u64..pool.inner.len) {
+    set sum = sum +wrap pool.inner[i];
+  }
   let first = pool.inner[0_u64];
   free_empty(window: move pool);
-  return std::process::exit_status(code: 0_u8);
+  let hafter = std::process::heap_in_use(meter: &meter);
+  let dafter = 0_u64;
+  let pool19 = box_paged_new::<u64>(capacity: 3_u64);
+  place_back(window: &pool19.inner, value: 19_u64);
+  let h19 = std::process::heap_in_use(meter: &meter);
+  let d19 = h19 - baseline;
+  free_empty(window: move pool19);
+  let hafter19 = std::process::heap_in_use(meter: &meter);
+  let dafter19 = 0_u64;
+  let elem_arr = array_filled::<u8, 0>(value: 0_u8);
+  let pool_empty = box_paged_new::<Array<u8, 0>>(capacity: 1_u64);
+  place_back(window: &pool_empty.inner, value: move elem_arr);
+  grow_paged(cell: &pool_empty, capacity: 3_u64);
+  let hempty = std::process::heap_in_use(meter: &meter);
+  let dempty = hempty - baseline;
+  free_empty(window: move pool_empty);
+  let hafterempty = std::process::heap_in_use(meter: &meter);
+  let dafterempty = 0_u64;
+  let logical = 3_u64;
+  let ok = True();
+  let w1 = write_eight_bytes(factory: &factory, output: &out_stream, value: d0);
+  match w1 {
+    Ok(value: unused) => { }
+    Err(error: unused) => { set ok = False(); }
+  }
+  let w2 = write_eight_bytes(factory: &factory, output: &out_stream, value: d0b);
+  match w2 {
+    Ok(value: unused) => { }
+    Err(error: unused) => { set ok = False(); }
+  }
+  let w3 = write_eight_bytes(factory: &factory, output: &out_stream, value: d0c);
+  match w3 {
+    Ok(value: unused) => { }
+    Err(error: unused) => { set ok = False(); }
+  }
+  let w4 = write_eight_bytes(factory: &factory, output: &out_stream, value: d1);
+  match w4 {
+    Ok(value: unused) => { }
+    Err(error: unused) => { set ok = False(); }
+  }
+  let w5 = write_eight_bytes(factory: &factory, output: &out_stream, value: d2);
+  match w5 {
+    Ok(value: unused) => { }
+    Err(error: unused) => { set ok = False(); }
+  }
+  let w6 = write_eight_bytes(factory: &factory, output: &out_stream, value: d3);
+  match w6 {
+    Ok(value: unused) => { }
+    Err(error: unused) => { set ok = False(); }
+  }
+  let w7 = write_eight_bytes(factory: &factory, output: &out_stream, value: d4);
+  match w7 {
+    Ok(value: unused) => { }
+    Err(error: unused) => { set ok = False(); }
+  }
+  let w8 = write_eight_bytes(factory: &factory, output: &out_stream, value: d512);
+  match w8 {
+    Ok(value: unused) => { }
+    Err(error: unused) => { set ok = False(); }
+  }
+  let w9 = write_eight_bytes(factory: &factory, output: &out_stream, value: d513);
+  match w9 {
+    Ok(value: unused) => { }
+    Err(error: unused) => { set ok = False(); }
+  }
+  let w10 = write_eight_bytes(factory: &factory, output: &out_stream, value: dafter);
+  match w10 {
+    Ok(value: unused) => { }
+    Err(error: unused) => { set ok = False(); }
+  }
+  let w11 = write_eight_bytes(factory: &factory, output: &out_stream, value: d19);
+  match w11 {
+    Ok(value: unused) => { }
+    Err(error: unused) => { set ok = False(); }
+  }
+  let w12 = write_eight_bytes(factory: &factory, output: &out_stream, value: dafter19);
+  match w12 {
+    Ok(value: unused) => { }
+    Err(error: unused) => { set ok = False(); }
+  }
+  let w13 = write_eight_bytes(factory: &factory, output: &out_stream, value: dempty);
+  match w13 {
+    Ok(value: unused) => { }
+    Err(error: unused) => { set ok = False(); }
+  }
+  let w14 = write_eight_bytes(factory: &factory, output: &out_stream, value: dafterempty);
+  match w14 {
+    Ok(value: unused) => { }
+    Err(error: unused) => { set ok = False(); }
+  }
+  let w15 = write_eight_bytes(factory: &factory, output: &out_stream, value: logical);
+  match w15 {
+    Ok(value: unused) => { }
+    Err(error: unused) => { set ok = False(); }
+  }
+  let w16 = write_eight_bytes(factory: &factory, output: &out_stream, value: sum);
+  match w16 {
+    Ok(value: unused) => { }
+    Err(error: unused) => { set ok = False(); }
+  }
+  let w17 = write_eight_bytes(factory: &factory, output: &out_stream, value: first);
+  match w17 {
+    Ok(value: unused) => { }
+    Err(error: unused) => { set ok = False(); }
+  }
+  let w18 = write_eight_bytes(factory: &factory, output: &out_stream, value: 19_u64);
+  match w18 {
+    Ok(value: unused) => { }
+    Err(error: unused) => { set ok = False(); }
+  }
+  if ok {
+    return std::process::exit_status(code: 0_u8);
+  } else {
+    return std::process::exit_status(code: 250_u8);
+  }
 }

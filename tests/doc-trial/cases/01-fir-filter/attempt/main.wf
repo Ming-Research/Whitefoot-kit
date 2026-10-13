@@ -1,138 +1,139 @@
 fn main(inputs: std::process::Inputs) -> status: std::process::ExitStatus pure waits {
-  let std::process::Inputs(args: arg, drivers: drv, cwd: dir, stdout: os, stderr: es, handles: fac, stdin: is, clock: cl, wall_clock: wc, stops: st, memory_meter: mm) = move inputs;
-  let std::fs::Directory(read: dr, write: dw) = move dir;
-  let res_w = std::fs::close_directory_write(factory: &fac, directory: move dw);
-  let res_r = std::fs::close_directory(factory: &fac, directory: move dr);
-  match res_w {
-    Ok(value: v_w) => {
+  let i = move inputs;
+  let std::process::Inputs(args: a0, drivers: d0, cwd: c0, stdout: o0, stderr: e0, handles: h0, stdin: s0, clock: cl0, wall_clock: wl0, stops: st0, memory_meter: m0) = move i;
+  let std::fs::Directory(read: r0, write: w0) = move c0;
+  let close_w = std::fs::close_directory_write(factory: &h0, directory: move w0);
+  let close_r = std::fs::close_directory(factory: &h0, directory: move r0);
+  match close_w {
+    Ok(value: v1) => {
     }
-    Err(error: e_w) => {
-    }
-  }
-  match res_r {
-    Ok(value: v_r) => {
-    }
-    Err(error: e_r) => {
+    Err(error: e1) => {
     }
   }
-  let buffer = array_filled::<u8, 520>(value: 0_u8);
-  let c_val = 0.125_f64;
-  let hist_a = 0.0_f64;
-  let hist_b = 0.0_f64;
-  let hist_c = 0.0_f64;
-  let hist_d = 0.0_f64;
-  let hist_e = 0.0_f64;
-  let hist_f = 0.0_f64;
-  let hist_g = 0.0_f64;
-  let hist_h = 0.0_f64;
-  let acc = 0.0_f64;
-  for (idx in 0_u64..64_u64) {
-    let cur_sample = if idx == 0_u64 {
+  match close_r {
+    Ok(value: v2) => {
+    }
+    Err(error: e2) => {
+    }
+  }
+  let output = array_filled::<u8, 520>(value: 0_u8);
+  let coeff_val = 0.125_f64;
+  let h1 = 0.0_f64;
+  let h2 = 0.0_f64;
+  let h3 = 0.0_f64;
+  let h4 = 0.0_f64;
+  let h5 = 0.0_f64;
+  let h6 = 0.0_f64;
+  let h7 = 0.0_f64;
+  let h8 = 0.0_f64;
+  let total = 0.0_f64;
+  for (i0 in 0_u64..64_u64) {
+    let sample = if i0 == 0_u64 {
       give 8.0_f64;
     } else {
       give 0.0_f64;
     };
-    let new_a = cur_sample;
-    let new_b = hist_a;
-    let new_c = hist_b;
-    let new_d = hist_c;
-    let new_e = hist_d;
-    let new_f = hist_e;
-    let new_g = hist_f;
-    let new_h = hist_g;
-    let res_a = fmul.strict(new_a, c_val);
-    let res_b = fmul.strict(new_b, c_val);
-    let res_c = fmul.strict(new_c, c_val);
-    let res_d = fmul.strict(new_d, c_val);
-    let res_e = fmul.strict(new_e, c_val);
-    let res_f = fmul.strict(new_f, c_val);
-    let res_g = fmul.strict(new_g, c_val);
-    let res_h = fmul.strict(new_h, c_val);
-    let sum_1 = fadd.strict(0.0_f64, res_a);
-    let sum_2 = fadd.strict(sum_1, res_b);
-    let sum_3 = fadd.strict(sum_2, res_c);
-    let sum_4 = fadd.strict(sum_3, res_d);
-    let sum_5 = fadd.strict(sum_4, res_e);
-    let sum_6 = fadd.strict(sum_5, res_f);
-    let sum_7 = fadd.strict(sum_6, res_g);
-    let sum_8 = fadd.strict(sum_7, res_h);
-    let byte_bits = reinterpret::<f64, u64>(sum_8);
-    let base_offset = idx * 8_u64;
-    let byte_0 = cvt::<u64, u8>(iand(byte_bits, 255_u64));
-    set buffer[base_offset + 0_u64] = byte_0;
-    let shift_1 = ishr(byte_bits, 8_u32);
-    let byte_1 = cvt::<u64, u8>(iand(shift_1, 255_u64));
-    set buffer[base_offset + 1_u64] = byte_1;
-    let shift_2 = ishr(shift_1, 8_u32);
-    let byte_2 = cvt::<u64, u8>(iand(shift_2, 255_u64));
-    set buffer[base_offset + 2_u64] = byte_2;
-    let shift_3 = ishr(shift_2, 8_u32);
-    let byte_3 = cvt::<u64, u8>(iand(shift_3, 255_u64));
-    set buffer[base_offset + 3_u64] = byte_3;
-    let shift_4 = ishr(shift_3, 8_u32);
-    let byte_4 = cvt::<u64, u8>(iand(shift_4, 255_u64));
-    set buffer[base_offset + 4_u64] = byte_4;
-    let shift_5 = ishr(shift_4, 8_u32);
-    let byte_5 = cvt::<u64, u8>(iand(shift_5, 255_u64));
-    set buffer[base_offset + 5_u64] = byte_5;
-    let shift_6 = ishr(shift_5, 8_u32);
-    let byte_6 = cvt::<u64, u8>(iand(shift_6, 255_u64));
-    set buffer[base_offset + 6_u64] = byte_6;
-    let shift_7 = ishr(shift_6, 8_u32);
-    let byte_7 = cvt::<u64, u8>(iand(shift_7, 255_u64));
-    set buffer[base_offset + 7_u64] = byte_7;
-    set acc = fadd.strict(acc, sum_8);
-    set hist_a = new_a;
-    set hist_b = new_b;
-    set hist_c = new_c;
-    set hist_d = new_d;
-    set hist_e = new_e;
-    set hist_f = new_f;
-    set hist_g = new_g;
-    set hist_h = new_h;
+    let nh1 = sample;
+    let nh2 = h1;
+    let nh3 = h2;
+    let nh4 = h3;
+    let nh5 = h4;
+    let nh6 = h5;
+    let nh7 = h6;
+    let nh8 = h7;
+    let p1 = fmul.strict(nh1, coeff_val);
+    let p2 = fmul.strict(nh2, coeff_val);
+    let p3 = fmul.strict(nh3, coeff_val);
+    let p4 = fmul.strict(nh4, coeff_val);
+    let p5 = fmul.strict(nh5, coeff_val);
+    let p6 = fmul.strict(nh6, coeff_val);
+    let p7 = fmul.strict(nh7, coeff_val);
+    let p8 = fmul.strict(nh8, coeff_val);
+    let s1 = fadd.strict(0.0_f64, p1);
+    let s2 = fadd.strict(s1, p2);
+    let s3 = fadd.strict(s2, p3);
+    let s4 = fadd.strict(s3, p4);
+    let s5 = fadd.strict(s4, p5);
+    let s6 = fadd.strict(s5, p6);
+    let s7 = fadd.strict(s6, p7);
+    let s8 = fadd.strict(s7, p8);
+    let bits = reinterpret::<f64, u64>(s8);
+    let offset = i0 * 8_u64;
+    let b0 = cvt::<u64, u8>(iand(bits, 255_u64));
+    set output[offset + 0_u64] = b0;
+    let bits1 = ishr(bits, 8_u32);
+    let b1 = cvt::<u64, u8>(iand(bits1, 255_u64));
+    set output[offset + 1_u64] = b1;
+    let bits2 = ishr(bits1, 8_u32);
+    let b2 = cvt::<u64, u8>(iand(bits2, 255_u64));
+    set output[offset + 2_u64] = b2;
+    let bits3 = ishr(bits2, 8_u32);
+    let b3 = cvt::<u64, u8>(iand(bits3, 255_u64));
+    set output[offset + 3_u64] = b3;
+    let bits4 = ishr(bits3, 8_u32);
+    let b4 = cvt::<u64, u8>(iand(bits4, 255_u64));
+    set output[offset + 4_u64] = b4;
+    let bits5 = ishr(bits4, 8_u32);
+    let b5 = cvt::<u64, u8>(iand(bits5, 255_u64));
+    set output[offset + 5_u64] = b5;
+    let bits6 = ishr(bits5, 8_u32);
+    let b6 = cvt::<u64, u8>(iand(bits6, 255_u64));
+    set output[offset + 6_u64] = b6;
+    let bits7 = ishr(bits6, 8_u32);
+    let b7 = cvt::<u64, u8>(iand(bits7, 255_u64));
+    set output[offset + 7_u64] = b7;
+    set total = fadd.strict(total, s8);
+    set h1 = nh1;
+    set h2 = nh2;
+    set h3 = nh3;
+    set h4 = nh4;
+    set h5 = nh5;
+    set h6 = nh6;
+    set h7 = nh7;
+    set h8 = nh8;
   }
-  if feq(acc, 8.0_f64) {
+  if feq(total, 8.0_f64) {
   } else {
     return std::process::exit_status(code: 1_u8);
   }
-  let sum_bits = reinterpret::<f64, u64>(acc);
-  let sum_offset = 512_u64;
-  let sum_byte_0 = cvt::<u64, u8>(iand(sum_bits, 255_u64));
-  set buffer[sum_offset + 0_u64] = sum_byte_0;
-  let sum_shift_1 = ishr(sum_bits, 8_u32);
-  let sum_byte_1 = cvt::<u64, u8>(iand(sum_shift_1, 255_u64));
-  set buffer[sum_offset + 1_u64] = sum_byte_1;
-  let sum_shift_2 = ishr(sum_shift_1, 8_u32);
-  let sum_byte_2 = cvt::<u64, u8>(iand(sum_shift_2, 255_u64));
-  set buffer[sum_offset + 2_u64] = sum_byte_2;
-  let sum_shift_3 = ishr(sum_shift_2, 8_u32);
-  let sum_byte_3 = cvt::<u64, u8>(iand(sum_shift_3, 255_u64));
-  set buffer[sum_offset + 3_u64] = sum_byte_3;
-  let sum_shift_4 = ishr(sum_shift_3, 8_u32);
-  let sum_byte_4 = cvt::<u64, u8>(iand(sum_shift_4, 255_u64));
-  set buffer[sum_offset + 4_u64] = sum_byte_4;
-  let sum_shift_5 = ishr(sum_shift_4, 8_u32);
-  let sum_byte_5 = cvt::<u64, u8>(iand(sum_shift_5, 255_u64));
-  set buffer[sum_offset + 5_u64] = sum_byte_5;
-  let sum_shift_6 = ishr(sum_shift_5, 8_u32);
-  let sum_byte_6 = cvt::<u64, u8>(iand(sum_shift_6, 255_u64));
-  set buffer[sum_offset + 6_u64] = sum_byte_6;
-  let sum_shift_7 = ishr(sum_shift_6, 8_u32);
-  let sum_byte_7 = cvt::<u64, u8>(iand(sum_shift_7, 255_u64));
-  set buffer[sum_offset + 7_u64] = sum_byte_7;
-  let no_deadline = None<std::time::Instant>();
-  let cancel_watch = std::time::cancel_never();
-  let write_response = std::io::write_once(factory: &fac, output: &os, source: &buffer[0_u64..520_u64], start: 0_u64, end: 520_u64, deadline: no_deadline, cancel: &cancel_watch);
-  std::time::close_cancel_watch(watch: move cancel_watch);
-  match write_response {
-    Ok(value: num_written) => {
-      if num_written == 520_u64 {
+  let sbits = reinterpret::<f64, u64>(total);
+  let soffset = 512_u64;
+  let sb0 = cvt::<u64, u8>(iand(sbits, 255_u64));
+  set output[soffset + 0_u64] = sb0;
+  let sbits1 = ishr(sbits, 8_u32);
+  let sb1 = cvt::<u64, u8>(iand(sbits1, 255_u64));
+  set output[soffset + 1_u64] = sb1;
+  let sbits2 = ishr(sbits1, 8_u32);
+  let sb2 = cvt::<u64, u8>(iand(sbits2, 255_u64));
+  set output[soffset + 2_u64] = sb2;
+  let sbits3 = ishr(sbits2, 8_u32);
+  let sb3 = cvt::<u64, u8>(iand(sbits3, 255_u64));
+  set output[soffset + 3_u64] = sb3;
+  let sbits4 = ishr(sbits3, 8_u32);
+  let sb4 = cvt::<u64, u8>(iand(sbits4, 255_u64));
+  set output[soffset + 4_u64] = sb4;
+  let sbits5 = ishr(sbits4, 8_u32);
+  let sb5 = cvt::<u64, u8>(iand(sbits5, 255_u64));
+  set output[soffset + 5_u64] = sb5;
+  let sbits6 = ishr(sbits5, 8_u32);
+  let sb6 = cvt::<u64, u8>(iand(sbits6, 255_u64));
+  set output[soffset + 6_u64] = sb6;
+  let sbits7 = ishr(sbits6, 8_u32);
+  let sb7 = cvt::<u64, u8>(iand(sbits7, 255_u64));
+  set output[soffset + 7_u64] = sb7;
+  let deadline = None<std::time::Instant>();
+  let cancel = std::time::cancel_never();
+  let written = std::io::write_once(factory: &h0, output: &o0, source: &output[0_u64..520_u64], start: 0_u64, end: 520_u64, deadline: deadline, cancel: &cancel);
+  std::time::close_cancel_watch(watch: move cancel);
+  match written {
+    Ok(value: count) => {
+      if count == 520_u64 {
         return std::process::exit_status(code: 0_u8);
       } else {
         return std::process::exit_status(code: 250_u8);
       }
     }
-    Err(error: write_error) => {
+    Err(error: err) => {
       return std::process::exit_status(code: 250_u8);
     }
   }

@@ -29,19 +29,20 @@ fn sum_list(head: &Option<Box<Link>>) -> result: u64 reads(head) {
 
 fn filter_odd(head: Option<Box<Link>>) -> result: Option<Box<Link>> pure {
   match move head {
-    Some(value: node) => {
-      let node_value = node^.inner.value;
-      let is_odd = node_value % 2_u64 != 0_u64;
-      let next_option = move node^.inner.next;
-      let rest = filter_odd(head: move next_option);
+    Some(value: curr) => {
+      let val = curr^.inner.value;
+      let rem = val % 2_u64;
+      let is_odd = rem != 0_u64;
+      let nx = move curr^.inner.next;
+      let filtered_rest = filter_odd(head: move nx);
 
       if is_odd {
-        let new_node = Link(value: node_value, next: move rest);
-        let boxed = box_new::<Link>(value: move new_node);
-        let result = Some<Box<Link>>(value: move boxed);
-        return move result;
+        let created = Link(value: val, next: move filtered_rest);
+        let bx = box_new::<Link>(value: move created);
+        let opt = Some<Box<Link>>(value: move bx);
+        return move opt;
       } else {
-        return move rest;
+        return move filtered_rest;
       }
     }
     None() => {

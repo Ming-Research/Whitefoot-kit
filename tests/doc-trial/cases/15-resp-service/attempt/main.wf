@@ -1,8 +1,6 @@
 alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
 alias exit_status = std::process::exit_status;
-alias HandleFactory = std::io::HandleFactory;
-alias TcpConnection = std::net::TcpConnection;
 alias HashMap = std::collections::hash_map::HashMap<Box<Array<u8>>, Box<Array<u8>>, 8192>;
 
 interface KeyOps {
@@ -23,7 +21,7 @@ binding KeyBinding : KeyOps {
   equal_key = equal_impl;
 }
 
-fn handle_client(factory: &HandleFactory, conn: TcpConnection, store: &Shared<HashMap>) -> result: unit reads(store), writes(factory) waits {
+fn handle_client(factory: &std::io::HandleFactory, conn: std::net::TcpConnection, store: &Shared<HashMap>) -> result: unit reads(store), writes(factory) waits {
   let receive = move conn.receive;
   let send = move conn.send;
   let recv_closed = std::net::close_receive(factory: factory, receive: move receive);

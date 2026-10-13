@@ -1,6 +1,4 @@
-fn encode_u64(value: u64, bytes: &[u8], offset: u64) -> result: unit writes(bytes) contract {
-  requires offset + 8_u64 <= bytes^.len;
-} {
+fn encode_u64(value: u64, bytes: &[u8], offset: u64) -> result: unit writes(bytes) {
   let b0 = cvt::<u64, u8>(value);
   let b1 = cvt::<u64, u8>(ishr(value, 8_u32));
   let b2 = cvt::<u64, u8>(ishr(value, 16_u32));

@@ -3,145 +3,123 @@ alias exit_status = std::process::exit_status;
 alias Inputs = std::process::Inputs;
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(
-    args: args_val,
-    drivers: unused_d,
-    cwd: cwd_val,
-    stdout: unused_s1,
-    stderr: unused_s2,
-    handles: hf,
-    stdin: unused_s3,
-    clock: unused_c,
-    wall_clock: unused_w,
-    stops: unused_st,
-    memory_meter: unused_m
-  ) = move inputs;
-  let std::fs::Directory(read: rd, write: wr) = move cwd_val;
-  std::fs::close_directory_write(factory: &hf, directory: move wr);
-  std::fs::close_directory(factory: &hf, directory: move rd);
-  let ac = std::text::args_count(args: &args_val);
-  if ac != 2_u64 {
+  let Inputs(args: a, drivers: d, cwd: w, stdout: o, stderr: e, handles: h, stdin: i, clock: k, wall_clock: wk, stops: st, memory_meter: m) = move inputs;
+  let std::fs::Directory(read: r, write: wr) = move w;
+  std::fs::close_directory_write(factory: &h, directory: move wr);
+  std::fs::close_directory(factory: &h, directory: move r);
+  let cnt = std::text::args_count(args: &a);
+  if cnt != 2_u64 {
     return exit_status(code: 1_u8);
   }
-  let ag = std::text::arg_get(args: &args_val, position: 1_u64);
-  let prt = 0_u16;
-  match ag {
+  let arg = std::text::arg_get(args: &a, position: 1_u64);
+  let port = 0_u16;
+  match arg {
     Ok(value: hs) => {
-      let ln = std::text::host_bytes_len(value: &hs);
-      if ln > 0_u64 {
-        if ln <= 5_u64 {
-          let bb = array_filled::<u8, 5>(value: 0_u8);
-          let cp = std::text::host_copy_bytes(
-            value: &hs,
-            destination: &bb,
-            start: 0_u64,
-            end: ln
-          );
-          match cp {
-            Ok(value: unused_cp) => {
-              let pp = parse_it(b: &bb, l: ln);
-              match pp {
+      let len = std::text::host_bytes_len(value: &hs);
+      if len > 0_u64 {
+        if len <= 5_u64 {
+          let b = array_filled::<u8, 5>(value: 0_u8);
+          let cr = std::text::host_copy_bytes(value: &hs, destination: &b, start: 0_u64, end: len);
+          match cr {
+            Ok(value: x) => {
+              let px = parse_port(bytes: &b, length: len);
+              match px {
                 Ok(value: pv) => {
-                  set prt = pv;
+                  set port = pv;
                 }
-                Err(error: unused_pp) => {
+                Err(error: pe) => {
                 }
               }
             }
-            Err(error: unused_cpe) => {
+            Err(error: ce) => {
             }
           }
         }
       }
     }
-    Err(error: unused_ag) => {
+    Err(error: ae) => {
     }
   }
-  if prt == 0_u16 {
+  if port == 0_u16 {
     return exit_status(code: 1_u8);
   }
-  let sa = std::net::socket_address_v4(a: 127_u8, b: 0_u8, c: 0_u8, d: 1_u8, port: prt);
-  let tl = std::net::tcp_listen(factory: &hf, address: &sa);
-  let ls = match tl {
+  let addr = std::net::socket_address_v4(a: 127_u8, b: 0_u8, c: 0_u8, d: 1_u8, port: port);
+  let lr = std::net::tcp_listen(factory: &h, address: &addr);
+  let listener = match lr {
     Ok(value: l) => {
       l
     }
-    Err(error: unused_tl) => {
+    Err(error: le) => {
       return exit_status(code: 1_u8);
     }
   };
-  let cs = slots_new::<std::net::TcpConnection, 12>();
-  let na = 0_u64;
-  loop @acc {
-    if na < 12_u64 {
+  let conns = slots_new::<std::net::TcpConnection, 12>();
+  let accepted = 0_u64;
+  loop @acceptloop {
+    if accepted < 12_u64 {
     } else {
-      break @acc;
+      break @acceptloop;
     }
-    let can = std::time::cancel_never();
+    let ca = std::time::cancel_never();
     let dl = None<std::time::Instant>();
-    let ac_res = std::net::tcp_accept(
-      factory: &hf,
-      listener: &ls,
-      deadline: dl,
-      cancel: &can
-    );
-    std::time::close_cancel_watch(watch: move can);
-    match ac_res {
-      Ok(value: acn) => {
-        place_back(window: &cs, value: acn.connection);
-        set na = na +wrap 1_u64;
+    let ar = std::net::tcp_accept(factory: &h, listener: &listener, deadline: dl, cancel: &ca);
+    std::time::close_cancel_watch(watch: move ca);
+    match ar {
+      Ok(value: ac) => {
+        place_back(window: &conns, value: ac.connection);
+        set accepted = accepted +wrap 1_u64;
       }
-      Err(error: unused_ac) => {
-        break @acc;
+      Err(error: acerr) => {
+        break @acceptloop;
       }
     }
   }
-  std::net::close_listener(factory: &hf, listener: move ls);
-  if cs.len != 12_u64 {
-    free_empty(window: move cs);
+  std::net::close_listener(factory: &h, listener: move listener);
+  if conns.len != 12_u64 {
+    free_empty(window: move conns);
     return exit_status(code: 1_u8);
   }
-  let px = 11_u64;
-  loop @proc {
-    if px < 12_u64 {
+  let pidx = 11_u64;
+  loop @procloop {
+    if pidx < 12_u64 {
     } else {
-      break @proc;
+      break @procloop;
     }
-    let cn = take_back(window: &cs);
-    echo_it(c: move cn, f: &hf);
-    if px == 0_u64 {
-      break @proc;
+    let conn = take_back(window: &conns);
+    do_echo(connection: move conn, factory: &h);
+    if pidx == 0_u64 {
+      break @procloop;
     }
-    set px = px - 1_u64;
+    set pidx = pidx - 1_u64;
   }
-  free_empty(window: move cs);
+  free_empty(window: move conns);
   return exit_status(code: 0_u8);
 }
 
-fn parse_it(b: &[u8], l: u64) -> result: Result<u16, unit> reads(b) {
-  let vl = 0_u64;
-  for (i in 0_u64..l) {
-    let by = b[i];
-    let cond1 = by >= 48_u8;
-    let cond2 = by <= 57_u8;
-    let ok = band(cond1, cond2);
-    if ok {
-      let dgt = by - 48_u8;
-      let dv = cvt::<u8, u64>(dgt);
-      let m = vl *checked 10_u64;
-      match m {
-        Ok(value: vm) => {
-          let s = vm +checked dv;
-          match s {
-            Ok(value: vs) => {
-              set vl = vs;
+fn parse_port(bytes: &[u8], length: u64) -> result: Result<u16, unit> reads(bytes) {
+  let num = 0_u64;
+  for (i in 0_u64..length) {
+    let byte = bytes[i];
+    let is_digit = byte >= 48_u8;
+    let le_nine = byte <= 57_u8;
+    let valid = band(is_digit, le_nine);
+    if valid {
+      let digit = byte - 48_u8;
+      let dv = cvt::<u8, u64>(digit);
+      let res1 = num *checked 10_u64;
+      match res1 {
+        Ok(value: mult) => {
+          let res2 = mult +checked dv;
+          match res2 {
+            Ok(value: sum) => {
+              set num = sum;
             }
-            Err(error: unused_s) => {
+            Err(error: e1) => {
               return Err<u16, unit>(error: unit);
             }
           }
         }
-        Err(error: unused_m) => {
+        Err(error: e2) => {
           return Err<u16, unit>(error: unit);
         }
       }
@@ -149,71 +127,57 @@ fn parse_it(b: &[u8], l: u64) -> result: Result<u16, unit> reads(b) {
       return Err<u16, unit>(error: unit);
     }
   }
-  if vl == 0_u64 {
+  if num == 0_u64 {
     return Err<u16, unit>(error: unit);
   }
-  if vl > 65535_u64 {
+  if num > 65535_u64 {
     return Err<u16, unit>(error: unit);
   }
-  let p = cvt::<u64, u16>(vl);
-  return Ok<u16, unit>(value: p);
+  let result = cvt::<u64, u16>(num);
+  return Ok<u16, unit>(value: result);
 }
 
-fn echo_it(c: std::net::TcpConnection, f: &std::io::HandleFactory) -> result: unit writes(f) waits {
-  let buf = array_filled::<u8, 512>(value: 0_u8);
-  loop @rd {
-    let can = std::time::cancel_never();
-    let dl = None<std::time::Instant>();
-    let res = std::net::receive_next(
-      receive: &c.receive,
-      destination: &buf,
-      start: 0_u64,
-      end: 512_u64,
-      deadline: dl,
-      cancel: &can
-    );
-    std::time::close_cancel_watch(watch: move can);
-    match res {
-      Ok(value: nr) => {
-        let pos = 0_u64;
-        loop @wr {
-          if pos < nr {
+fn do_echo(connection: std::net::TcpConnection, factory: &std::io::HandleFactory) -> result: unit writes(factory) waits {
+  let buffer = array_filled::<u8, 512>(value: 0_u8);
+  loop @readloop {
+    let cancel = std::time::cancel_never();
+    let deadline = None<std::time::Instant>();
+    let read_res = std::net::receive_next(receive: &connection.receive, destination: &buffer, start: 0_u64, end: 512_u64, deadline: deadline, cancel: &cancel);
+    std::time::close_cancel_watch(watch: move cancel);
+    match read_res {
+      Ok(value: bytes_read) => {
+        let sent = 0_u64;
+        loop @sendloop {
+          if sent < bytes_read {
           } else {
-            break @wr;
+            break @sendloop;
           }
-          let can2 = std::time::cancel_never();
-          let sres = std::net::send_once(
-            send: &c.send,
-            source: &buf,
-            start: pos,
-            end: nr,
-            deadline: dl,
-            cancel: &can2
-          );
-          std::time::close_cancel_watch(watch: move can2);
-          match sres {
-            Ok(value: ns) => {
-              set pos = ns;
+          let cancel2 = std::time::cancel_never();
+          let send_res = std::net::send_once(send: &connection.send, source: &buffer, start: sent, end: bytes_read, deadline: deadline, cancel: &cancel2);
+          std::time::close_cancel_watch(watch: move cancel2);
+          match send_res {
+            Ok(value: sent_count) => {
+              set sent = sent_count;
             }
-            Err(error: unused_sres) => {
-              break @rd;
+            Err(error: send_err) => {
+              break @readloop;
             }
           }
         }
       }
-      Err(error: st) => {
-        match st {
+      Err(error: read_err) => {
+        match read_err {
           std::io::ReadStop::ReadEnd() => {
-            break @rd;
+            break @readloop;
           }
-          std::io::ReadStop::ReadFailed(error: unused_rf) => {
-            break @rd;
+          std::io::ReadStop::ReadFailed(error: read_fail) => {
+            break @readloop;
           }
         }
       }
     }
   }
-  std::net::close_receive(factory: f, receive: move c.receive);
-  std::net::close_send(factory: f, send: move c.send);
+  std::net::close_receive(factory: factory, receive: move connection.receive);
+  std::net::close_send(factory: factory, send: move connection.send);
   return unit;
 }
