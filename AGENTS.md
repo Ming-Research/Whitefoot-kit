@@ -72,9 +72,12 @@ capabilities; 3. ownership; 4. references and cursors; 5. storage choice;
 atomic statements; 13. `--par`; 14. an interpreter; 15. a whole
 multithreaded program, dictated as requirements only.
 
-A segment passes when its program is accepted within three compilations, its
-observable behavior equals the original's, and the session read no file
-other than the guide, the interfaces and the task. Every segment's
+Each segment is dictated to three independent sessions. A session succeeds
+when its program is accepted within three compilations, its observable
+behavior equals the original's, and it read no file other than the guide,
+the interfaces and the task; the segment passes when at least two of its
+three sessions succeed, since one session's outcome varies too much between
+runs to judge the guide. Every segment's
 observable output carries its computed results, so a program that only
 returns success fails. A change that rewrites a section of the guide reruns
 the trial for the categories that section serves; the owner's acceptance
