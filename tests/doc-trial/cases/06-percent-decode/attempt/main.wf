@@ -129,15 +129,15 @@ fn write_u64_le(output: &OutputStream, value: u64, factory: &HandleFactory) -> r
   let written = std::io::write_once(factory: factory, output: output, source: buffer, start: 0_u64, end: 8_u64, deadline: no_deadline, cancel: &cancel);
   std::time::close_cancel_watch(watch: move cancel);
   match written {
-    Ok(value: next) => {
-      let complete = next == 8_u64;
+    Ok(value: next_byte) => {
+      let complete = next_byte == 8_u64;
       if complete {
         return Ok<unit, u8>(value: unit);
       } else {
         return Err<unit, u8>(error: 1_u8);
       }
     }
-    Err(error: problem) => {
+    Err(error: write_error) => {
       return Err<unit, u8>(error: 250_u8);
     }
   }
@@ -150,15 +150,15 @@ fn write_bytes(output: &OutputStream, source: &[u8], factory: &HandleFactory) ->
   let written = std::io::write_once(factory: factory, output: output, source: source, start: 0_u64, end: length, deadline: no_deadline, cancel: &cancel);
   std::time::close_cancel_watch(watch: move cancel);
   match written {
-    Ok(value: next) => {
-      let complete = next == length;
+    Ok(value: next_byte) => {
+      let complete = next_byte == length;
       if complete {
         return Ok<unit, u8>(value: unit);
       } else {
         return Err<unit, u8>(error: 1_u8);
       }
     }
-    Err(error: problem) => {
+    Err(error: write_error) => {
       return Err<unit, u8>(error: 250_u8);
     }
   }
@@ -218,29 +218,29 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
             let output_ref = &output_len[0_u64..7_u64];
             let write_result = write_bytes(output: output, source: output_ref, factory: &factory);
             match write_result {
-              Ok(value: unused_ok) => {
+              Ok(value: write_bytes_ok) => {
                 let len_write = write_u64_le(output: output, value: expected_len, factory: &factory);
                 match len_write {
-                  Ok(value: unused_ok_2) => {
+                  Ok(value: write_len_ok) => {
                     let sentinel = array_filled::<u8, 1>(value: 204_u8);
                     let sentinel_ref = &sentinel[0_u64..1_u64];
                     let sentinel_write = write_bytes(output: output, source: sentinel_ref, factory: &factory);
                     match sentinel_write {
-                      Ok(value: unused_ok_3) => {
+                      Ok(value: write_sentinel_ok) => {
                         return exit_status(code: 0_u8);
                       }
-                      Err(error: code) => {
-                        return exit_status(code: code);
+                      Err(error: sentinel_code) => {
+                        return exit_status(code: sentinel_code);
                       }
                     }
                   }
-                  Err(error: code) => {
-                    return exit_status(code: code);
+                  Err(error: len_code) => {
+                    return exit_status(code: len_code);
                   }
                 }
               }
-              Err(error: code) => {
-                return exit_status(code: code);
+              Err(error: bytes_code) => {
+                return exit_status(code: bytes_code);
               }
             }
           } else {

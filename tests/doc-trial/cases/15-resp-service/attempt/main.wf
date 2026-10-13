@@ -171,13 +171,6 @@ fn i64_to_resp(value: i64, buf: &[u8]) -> result: u64 writes(buf) {
   return if negative { give digits + 1_u64; } else { give digits; };
 }
 
-fn dummy_key(env: &unit, key: &Box<Array<u8>>) -> hash: u64 reads(key) {
-  return 0_u64;
-}
-
-fn dummy_equal(env: &unit, left: &Box<Array<u8>>, right: &Box<Array<u8>>) -> equal: Bool reads(left), reads(right) {
-  return True();
-}
 
 fn send_all(send: &TcpSend, factory: &HandleFactory, data: &[u8]) -> result: unit reads(data), writes(factory), writes(send) waits {
   let sent = 0_u64;
@@ -228,16 +221,16 @@ fn handle_client(factory: &HandleFactory, conn: TcpConnection, store: &Shared<Ha
       }
     }
   }
-  let close_recv = std::net::close_receive(factory: factory, receive: move receive);
-  let close_send = std::net::close_send(factory: factory, send: move send);
+  let recv_closed = std::net::close_receive(factory: factory, receive: move receive);
+  let send_closed = std::net::close_send(factory: factory, send: move send);
   return unit;
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let Inputs(args: argv, drivers: program_drivers, cwd: directory, stdout: program_stdout, stderr: program_stderr, handles: factory, stdin: program_stdin, clock: program_clock, wall_clock: program_wall_clock, stops: program_stops, memory_meter: program_meter) = move inputs;
   let std::fs::Directory(read: cwd_read, write: cwd_write) = move directory;
-  let close_write = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
-  let close_read = std::fs::close_directory(factory: &factory, directory: move cwd_read);
+  let write_closed = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
+  let read_closed = std::fs::close_directory(factory: &factory, directory: move cwd_read);
   let arg_count = std::text::args_count(args: &argv);
   if arg_count < 4_u64 {
     return exit_status(code: 1_u8);
@@ -311,6 +304,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
       }
     }
   }
-  let close_listen = std::net::close_listener(factory: &factory, listener: move listener);
+  let listener_closed = std::net::close_listener(factory: &factory, listener: move listener);
   return exit_status(code: 0_u8);
 }

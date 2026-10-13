@@ -93,7 +93,7 @@ fn write_u64_le(factory: &HandleFactory, output: &OutputStream, value: u64) -> r
   return Ok<unit, std::io::IoError>(value: unit);
 }
 
-fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+fn main(inputs: Inputs) -> result: ExitStatus pure waits {
   let Inputs(cwd: cwd_directory, handles: factory, stdout: output, ..) = move inputs;
   let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
   std::fs::close_directory_write(factory: &factory, directory: move cwd_write);

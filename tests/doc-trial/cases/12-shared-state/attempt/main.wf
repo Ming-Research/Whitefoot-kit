@@ -13,9 +13,9 @@ fn increment_counter(counter: Shared<u64>) -> result: unit pure waits {
   return unit;
 }
 
-fn producer(queue: Shared<Box<Ring<u32>>>, producer_id: u32) -> result: unit pure waits {
+fn producer(queue: Shared<Box<Ring<u32>>>) -> result: unit pure waits {
   for (i in 0_u32..5000_u32) {
-    loop @place {
+    loop {
       let placed = False();
       atomic q = &queue {
         if q^.inner.len < 8_u64 {
@@ -24,7 +24,7 @@ fn producer(queue: Shared<Box<Ring<u32>>>, producer_id: u32) -> result: unit pur
         }
       }
       if placed {
-        break @place;
+        break;
       }
     }
   }
@@ -33,7 +33,7 @@ fn producer(queue: Shared<Box<Ring<u32>>>, producer_id: u32) -> result: unit pur
 
 fn consumer(queue: Shared<Box<Ring<u32>>>, total: Shared<u64>) -> result: unit pure waits {
   for (i in 0_u64..5000_u64) {
-    loop @take {
+    loop {
       let item = None<u32>();
       atomic q = &queue {
         if q^.inner.len > 0_u64 {
@@ -47,7 +47,7 @@ fn consumer(queue: Shared<Box<Ring<u32>>>, total: Shared<u64>) -> result: unit p
           atomic sum = &total {
             set sum^ = sum^ +wrap as_u64;
           }
-          break @take;
+          break;
         }
         None() => {
         }
@@ -84,9 +84,9 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     let counter_handle = shared_share::<u64>(shared: &counter);
     spawn increment_counter(counter: move counter_handle);
   }
-  for (p in 0_u32..4_u32) {
+  for (p in 0_u64..4_u64) {
     let queue_handle = shared_share::<Box<Ring<u32>>>(shared: &queue);
-    spawn producer(queue: move queue_handle, producer_id: p);
+    spawn producer(queue: move queue_handle);
   }
   for (c in 0_u64..4_u64) {
     let queue_handle = shared_share::<Box<Ring<u32>>>(shared: &queue);
@@ -140,7 +140,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   set output_buffer[22_u64] = cvt::<u64, u8>(ishr(queue_length, 48_u32));
   set output_buffer[23_u64] = cvt::<u64, u8>(ishr(queue_length, 56_u32));
   let sent = 0_u64;
-  loop @write {
+  loop {
     if sent < 24_u64 {
       let remaining = 24_u64 - sent;
       let no_deadline = None<Instant>();
@@ -156,7 +156,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
         }
       }
     } else {
-      break @write;
+      break;
     }
   }
   return exit_status(code: 0_u8);

@@ -1,11 +1,6 @@
 alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
 alias exit_status = std::process::exit_status;
-alias HandleFactory = std::io::HandleFactory;
-alias OutputStream = std::io::OutputStream;
-alias write_once = std::io::write_once;
-alias cancel_never = std::time::cancel_never;
-alias close_cancel_watch = std::time::close_cancel_watch;
 
 fn write_u64_le(buffer: &[u8], offset: u64, value: u64) -> result: unit writes(buffer) {
   let byte0 = cvt.wrap::<u64, u8>(iand(value, 0xFF_u64));
@@ -39,10 +34,8 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   }
 
   let initial_count = pool.inner.len;
-
   let lease = take_back(window: &pool.inner);
   let during_count = pool.inner.len;
-
   place_back(window: &pool.inner, value: move lease);
   let final_count = pool.inner.len;
 
@@ -51,10 +44,10 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   write_u64_le(buffer: &output_buffer, offset: 8_u64, value: during_count);
   write_u64_le(buffer: &output_buffer, offset: 16_u64, value: final_count);
 
-  let cancel = cancel_never();
+  let cancel = std::time::cancel_never();
   let no_deadline = None<std::time::Instant>();
-  let write_result = write_once(factory: &factory, output: &output, source: &output_buffer[0_u64..24_u64], start: 0_u64, end: 24_u64, deadline: no_deadline, cancel: &cancel);
-  close_cancel_watch(watch: move cancel);
+  let write_result = std::io::write_once(factory: &factory, output: &output, source: &output_buffer[0_u64..24_u64], start: 0_u64, end: 24_u64, deadline: no_deadline, cancel: &cancel);
+  std::time::close_cancel_watch(watch: move cancel);
 
   let exit_code = if initial_count == 8_u64 {
     if during_count == 7_u64 {
@@ -67,7 +60,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
               250_u8
             }
           }
-          Err(error: err) => {
+          Err(error: io_error) => {
             250_u8
           }
         }

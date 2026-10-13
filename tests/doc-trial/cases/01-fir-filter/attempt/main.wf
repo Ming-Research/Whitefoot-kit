@@ -92,15 +92,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
 
   let no_deadline = None<std::time::Instant>();
   let cancel = std::time::cancel_never();
-  let write_result = std::io::write_once(
-    factory: &factory,
-    output: &output_stream,
-    source: &output_bytes[0_u64..520_u64],
-    start: 0_u64,
-    end: 520_u64,
-    deadline: no_deadline,
-    cancel: &cancel
-  );
+  let write_result = std::io::write_once(factory: &factory, output: &output_stream, source: &output_bytes[0_u64..520_u64], start: 0_u64, end: 520_u64, deadline: no_deadline, cancel: &cancel);
   std::time::close_cancel_watch(watch: move cancel);
 
   match write_result {

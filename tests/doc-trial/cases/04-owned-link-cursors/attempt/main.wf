@@ -31,12 +31,14 @@ fn filter_odd(head: Option<Box<Link>>) -> result: Option<Box<Link>> pure {
     Some(value: node) => {
       let node_value = node^.inner.value;
       let is_odd = node_value % 2_u64 != 0_u64;
-      let rest = filter_odd(head: move node^.inner.next);
+      let next_option = move node^.inner.next;
+      let rest = filter_odd(head: move next_option);
 
       if is_odd {
         let new_node = Link(value: node_value, next: move rest);
         let boxed = box_new::<Link>(value: move new_node);
-        return Some<Box<Link>>(value: move boxed);
+        let result = Some<Box<Link>>(value: move boxed);
+        return move result;
       } else {
         return move rest;
       }
