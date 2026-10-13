@@ -44,19 +44,26 @@ is its own. The decisions behind them are Whitefoot's
 
 ## Reading the language
 
-The pinned Whitefoot commit defines the language. A release carries only the
-compiler, so read the language in the Whitefoot repository at that commit:
-the specification `spec/kernel-spec.md`, which is normative, and the standard
-library's interfaces `lib/std/**/module.wfm`. The writing guide is this
-kit's [docs/writing.md](docs/writing.md). The commit is the `commit` field
-of `build/whitefoot/<release>/whitefoot-release.json`. For example:
+The pinned Whitefoot commit defines the language. After `make compiler`,
+`build/whitefoot/<release>/language/` contains the normative specification
+`spec/kernel-spec.md`, the standard library's interfaces
+`lib/std/<module>/module.wfm` and its module list `lib/std/modules.wfg`, all
+at the same commit as the compiler. Including `whitefoot.mk` exports
+`WHITEFOOT_LANGUAGE` pointing to this directory. The writing guide is this
+kit's [docs/writing.md](docs/writing.md).
+
+Releases older than `wf-5dd90db143b1` carry no language package. Read the
+language in the Whitefoot repository at the `commit` field of
+`build/whitefoot/<release>/whitefoot-release.json`. For example:
 
 ```sh
 gh api 'repos/Ming-Research/Whitefoot/contents/spec/kernel-spec.md?ref=<commit>' \
   -H 'Accept: application/vnd.github.raw'
 ```
 
-or `git show <commit>:<path>` in a local Whitefoot clone.
+Use the same command for `lib/std/modules.wfg` and each
+`lib/std/<module>/module.wfm`, or `git show <commit>:<path>` in a local
+Whitefoot clone.
 
 ## Main pins a main release
 
