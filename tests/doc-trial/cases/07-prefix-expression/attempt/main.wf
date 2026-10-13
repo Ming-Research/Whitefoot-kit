@@ -41,22 +41,25 @@ fn parse(bytes: &[u8], pos: u64) -> result: ParseResult reads(bytes) contract {
     let first_pos = pos + 1_u64;
     let first_result = parse(bytes: bytes, pos: first_pos);
     match first_result {
-      ParseResult::Success(expr: first_expr, next: after_first) => {
+      Success(expr: first_expr, next: after_first) => {
         let second_result = parse(bytes: bytes, pos: after_first);
         match second_result {
-          ParseResult::Success(expr: second_expr, next: after_second) => {
+          Success(expr: second_expr, next: after_second) => {
             let left_box = box_new::<Expression>(value: move first_expr);
             let right_box = box_new::<Expression>(value: move second_expr);
             let plus_expr = Expression::Plus(left: move left_box, right: move right_box);
-            return ParseResult::Success(expr: plus_expr, next: after_second);
+            let success_result = ParseResult::Success(expr: plus_expr, next: after_second);
+            return success_result;
           }
-          ParseResult::Error(error: err) => {
-            return ParseResult::Error(error: move err);
+          Error(error: err) => {
+            let error_result = ParseResult::Error(error: move err);
+            return error_result;
           }
         }
       }
-      ParseResult::Error(error: err) => {
-        return ParseResult::Error(error: move err);
+      Error(error: err) => {
+        let error_result = ParseResult::Error(error: move err);
+        return error_result;
       }
     }
   } else {
@@ -79,34 +82,39 @@ enum EvalResult {
 
 fn eval(expr: &Expression) -> result: EvalResult reads(expr) {
   match expr^ {
-    Expression::Digit(value: d) => {
+    Digit(value: d) => {
       let d_u64 = cvt::<u8, u64>(d);
-      return EvalResult::Ok(value: d_u64);
+      let ok_result = EvalResult::Ok(value: d_u64);
+      return ok_result;
     }
-    Expression::Plus(left: left_box, right: right_box) => {
+    Plus(left: left_box, right: right_box) => {
       let left_result = eval(expr: &left_box^.inner);
       match left_result {
-        EvalResult::Ok(value: left_val) => {
+        Ok(value: left_val) => {
           let right_result = eval(expr: &right_box^.inner);
           match right_result {
-            EvalResult::Ok(value: right_val) => {
+            Ok(value: right_val) => {
               let sum_result = left_val +checked right_val;
               match sum_result {
                 Ok(value: sum) => {
-                  return EvalResult::Ok(value: sum);
+                  let eval_ok = EvalResult::Ok(value: sum);
+                  return eval_ok;
                 }
                 Err(error: unused_overflow) => {
-                  return EvalResult::Overflow();
+                  let eval_overflow = EvalResult::Overflow();
+                  return eval_overflow;
                 }
               }
             }
-            EvalResult::Overflow() => {
-              return EvalResult::Overflow();
+            Overflow() => {
+              let eval_overflow = EvalResult::Overflow();
+              return eval_overflow;
             }
           }
         }
-        EvalResult::Overflow() => {
-          return EvalResult::Overflow();
+        Overflow() => {
+          let eval_overflow = EvalResult::Overflow();
+          return eval_overflow;
         }
       }
     }
@@ -130,11 +138,13 @@ fn write_bytes(factory: &HandleFactory, output: &OutputStream, source: &[u8], le
         set sent = next;
       }
       Err(error: problem) => {
-        return Err<unit, IoError>(error: problem);
+        let write_err = Err<unit, IoError>(error: problem);
+        return write_err;
       }
     }
   }
-  return Ok<unit, IoError>(value: unit);
+  let write_ok = Ok<unit, IoError>(value: unit);
+  return write_ok;
 }
 
 fn u64_to_le_bytes(value: u64, buffer: &[u8]) -> result: unit writes(buffer) {
@@ -184,15 +194,15 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let incomplete_result = parse(bytes: incomplete_slice, pos: 0_u64);
   let output_buffer = array_filled::<u8, 24>(value: 0_u8);
   let incomplete_is_truncated = match incomplete_result {
-    ParseResult::Success(expr: unused_expr, next: unused_next) => {
+    Success(expr: unused_expr, next: unused_next) => {
       give False();
     }
-    ParseResult::Error(error: incomplete_err) => {
+    Error(error: incomplete_err) => {
       let inner = match incomplete_err {
-        ParseError::Truncated() => {
+        Truncated() => {
           give True();
         }
-        ParseError::InvalidToken() => {
+        InvalidToken() => {
           give False();
         }
       };
@@ -201,10 +211,10 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   };
   if incomplete_is_truncated {
     match parse_result {
-      ParseResult::Success(expr: expr, next: parsed_next) => {
+      Success(expr: expr, next: parsed_next) => {
         let eval_result = eval(expr: &expr);
         match eval_result {
-          EvalResult::Ok(value: value_check) => {
+          Ok(value: value_check) => {
             let next_ok = parsed_next == 5_u64;
             let value_ok = value_check == 9_u64;
             let both_ok = band(next_ok, value_ok);
@@ -225,17 +235,17 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
               return exit_status(code: 1_u8);
             }
           }
-          EvalResult::Overflow() => {
+          Overflow() => {
             return exit_status(code: 1_u8);
           }
         }
       }
-      ParseResult::Error(error: parse_err) => {
+      Error(error: parse_err) => {
         match parse_err {
-          ParseError::Truncated() => {
+          Truncated() => {
             return exit_status(code: 1_u8);
           }
-          ParseError::InvalidToken() => {
+          InvalidToken() => {
             return exit_status(code: 1_u8);
           }
         }

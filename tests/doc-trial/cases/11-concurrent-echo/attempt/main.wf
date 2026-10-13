@@ -43,7 +43,7 @@ fn get_port_from_args(args: &std::text::Args) -> result: u16 reads(args) {
       let num_copied = match copy_result {
         Ok(value: n) => { give n; }
         Err(error: e) => { give 0_u64; }
-      };
+      }
       let slice = &buffer[0_u64..num_copied];
       let parsed_port = decimal_to_u16(bytes: slice);
       give parsed_port;
@@ -108,7 +108,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let listener = match listen_result {
     Ok(value: l) => { give l; }
     Err(error: e) => { return std::process::exit_status(code: 1_u8); }
-  };
+  }
 
   for (i in 0_u64..12_u64) {
     let accept_result = std::net::tcp_accept(factory: &factory, listener: &listener, deadline: no_deadline, cancel: &cancel);

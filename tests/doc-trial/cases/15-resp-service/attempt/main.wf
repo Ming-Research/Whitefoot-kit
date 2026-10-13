@@ -125,7 +125,10 @@ fn parse_bulk_string(buffer: &[u8], pos: u64) -> result: ParseResult reads(buffe
           let cr_check = buffer^[data_end];
           let lf_idx = data_end + 1_u64;
           let lf_check = buffer^[lf_idx];
-          if band(cr_check == 13_u8, lf_check == 10_u8) {
+          let cr_ok = cr_check == 13_u8;
+          let lf_ok = lf_check == 10_u8;
+          let both_ok = band(cr_ok, lf_ok);
+          if both_ok {
             return ParseResult(success: true_val, position: after_data, value_start: data_start, value_len: length);
           }
           return ParseResult(success: false_val, position: pos, value_start: 0_u64, value_len: 0_u64);

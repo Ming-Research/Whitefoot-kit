@@ -53,8 +53,8 @@ fn percent_decode(source: &[u8], destination: &[u8]) -> result: u64 reads(source
     let current = source^[src_pos];
     let percent = 37_u8;
     if current == percent {
-      let next_pos = src_pos + 1_u64;
-      let second_pos = next_pos + 1_u64;
+      let next_pos = src_pos +wrap 1_u64;
+      let second_pos = next_pos +wrap 1_u64;
       let can_read_two = second_pos < source_len;
       if can_read_two {
         let first_hex = source^[next_pos];
@@ -68,31 +68,31 @@ fn percent_decode(source: &[u8], destination: &[u8]) -> result: u64 reads(source
                 let high = first_val * 16_u8;
                 let decoded = high + second_val;
                 set destination^[dest_pos] = decoded;
-                set src_pos = second_pos + 1_u64;
-                set dest_pos = dest_pos + 1_u64;
+                set src_pos = second_pos +wrap 1_u64;
+                set dest_pos = dest_pos +wrap 1_u64;
               }
               None() => {
                 set destination^[dest_pos] = current;
-                set src_pos = src_pos + 1_u64;
-                set dest_pos = dest_pos + 1_u64;
+                set src_pos = src_pos +wrap 1_u64;
+                set dest_pos = dest_pos +wrap 1_u64;
               }
             }
           }
           None() => {
             set destination^[dest_pos] = current;
-            set src_pos = src_pos + 1_u64;
-            set dest_pos = dest_pos + 1_u64;
+            set src_pos = src_pos +wrap 1_u64;
+            set dest_pos = dest_pos +wrap 1_u64;
           }
         }
       } else {
         set destination^[dest_pos] = current;
-        set src_pos = src_pos + 1_u64;
-        set dest_pos = dest_pos + 1_u64;
+        set src_pos = src_pos +wrap 1_u64;
+        set dest_pos = dest_pos +wrap 1_u64;
       }
     } else {
       set destination^[dest_pos] = current;
-      set src_pos = src_pos + 1_u64;
-      set dest_pos = dest_pos + 1_u64;
+      set src_pos = src_pos +wrap 1_u64;
+      set dest_pos = dest_pos +wrap 1_u64;
     }
   }
 }

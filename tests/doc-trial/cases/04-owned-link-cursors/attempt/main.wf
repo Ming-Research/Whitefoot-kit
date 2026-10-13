@@ -110,7 +110,7 @@ fn write_u64_le(factory: &std::io::HandleFactory, output: &std::io::OutputStream
       }
     }
     Err(error: problem) => {
-      return Err<unit, std::io::IoError>(error: move problem);
+      return Err<unit, std::io::IoError>(error: problem);
     }
   }
 }

@@ -45,7 +45,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   set output_bytes[6_u64] = cvt.wrap::<u64, u8>(byte6_shifted);
   let byte7_shifted = ishr(total, 56_u32);
   set output_bytes[7_u64] = cvt.wrap::<u64, u8>(byte7_shifted);
-
   let buffer = &output_bytes[0_u64..8_u64];
   let sent = 0_u64;
   loop @send_all {

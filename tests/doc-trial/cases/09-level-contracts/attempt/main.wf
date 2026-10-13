@@ -59,7 +59,15 @@ fn write_u64_le(factory: &HandleFactory, output: &OutputStream, value: u64) -> r
   return write_all(factory: factory, output: output, source: window, length: 8_u64);
 }
 
-fn validate_and_process(parents: &[u32], depths: &[u32]) -> (is_valid: Bool, groups_buf: Box<Slots<u64>>, counts_buf: Box<Slots<u64>>, positions_buf: Box<Slots<u64>>, max_depth_val: u32) pure contract {
+struct ProcessResult {
+  is_valid: Bool;
+  groups_buf: Box<Slots<u64>>;
+  counts_buf: Box<Slots<u64>>;
+  positions_buf: Box<Slots<u64>>;
+  max_depth_val: u32;
+}
+
+fn validate_and_process(parents: &[u32], depths: &[u32]) -> result: ProcessResult pure contract {
   requires parents^.len == depths^.len;
 } {
   let len = parents^.len;
@@ -181,7 +189,7 @@ fn validate_and_process(parents: &[u32], depths: &[u32]) -> (is_valid: Bool, gro
     }
   }
 
-  return is_valid, move groups_buf, move counts_buf, move positions_buf, max_depth_val;
+  return ProcessResult(is_valid: is_valid, groups_buf: move groups_buf, counts_buf: move counts_buf, positions_buf: move positions_buf, max_depth_val: max_depth_val);
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
@@ -209,9 +217,9 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let p_slice = &parents[0_u64..6_u64];
   let d_slice = &depths[0_u64..6_u64];
 
-  let is_valid, groups_buf, counts_buf, positions_buf, max_depth_val = validate_and_process(parents: p_slice, depths: d_slice);
+  let proc_result = validate_and_process(parents: p_slice, depths: d_slice);
 
-  let acceptance = if is_valid {
+  let acceptance = if proc_result.is_valid {
     give 1_u64;
   } else {
     give 0_u64;
@@ -226,7 +234,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     }
   }
 
-  let num_groups = cvt.checked::<u32, u64>(max_depth_val);
+  let num_groups = cvt.checked::<u32, u64>(proc_result.max_depth_val);
   let num_groups_val = match num_groups {
     Ok(value: nd) => {
       give nd + 1_u64;
@@ -248,11 +256,11 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let group_idx = 0_u64;
   let node_offset = 0_u64;
   loop @write_groups {
-    if group_idx < counts_buf.inner.len {
+    if group_idx < proc_result.counts_buf.inner.len {
     } else {
       break @write_groups;
     }
-    let count = counts_buf.inner[group_idx];
+    let count = proc_result.counts_buf.inner[group_idx];
     let outcome = write_u64_le(factory: &factory, output: &output, value: count);
     match outcome {
       Ok(value: unit_val) => {
@@ -268,7 +276,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
         break @write_nodes_in_group;
       }
       let node_idx = node_offset + node_in_group;
-      let node = groups_buf.inner[node_idx];
+      let node = proc_result.groups_buf.inner[node_idx];
       let outcome = write_u64_le(factory: &factory, output: &output, value: node);
       match outcome {
         Ok(value: unit_val) => {
@@ -297,11 +305,11 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
 
   let pos_idx = 0_u64;
   loop @write_positions {
-    if pos_idx < positions_buf.inner.len {
+    if pos_idx < proc_result.positions_buf.inner.len {
     } else {
       break @write_positions;
     }
-    let pos = positions_buf.inner[pos_idx];
+    let pos = proc_result.positions_buf.inner[pos_idx];
     let outcome = write_u64_le(factory: &factory, output: &output, value: pos);
     match outcome {
       Ok(value: unit_val) => {

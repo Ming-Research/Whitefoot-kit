@@ -30,7 +30,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     let exit_code = run_echo(factory: &factory, input: &input, output: &output);
     return exit_status(code: exit_code);
   }
-
   return exit_status(code: code);
 }
 

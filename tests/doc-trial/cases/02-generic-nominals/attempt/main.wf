@@ -71,7 +71,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     return exit_status(code: 1_u8);
   }
   let packet = array_filled::<u8, 2>(value: 11_u8);
-  let cell = box_new::<Array<u8, 2>>(value: move packet);
+  let cell = box_new::<Array<u8, 2>>(value: packet);
   let packet_inner = cell.inner;
   let packet_byte = packet_inner[1_u64];
   if packet_byte != 11_u8 {
