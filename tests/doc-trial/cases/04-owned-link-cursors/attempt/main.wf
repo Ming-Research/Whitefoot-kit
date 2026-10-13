@@ -81,7 +81,7 @@ fn increment_all(list: &Option<Box<Node>>) -> result: unit writes(list) {
 
 fn write_u64_le(factory: &std::io::HandleFactory, output: &std::io::OutputStream, value: u64) -> result: Result<unit, std::io::IoError> writes(factory), writes(output) waits {
   let bytes = array_filled::<u8, 8>(value: 0_u8);
-  let mask = 0xFF_u64;
+  let mask = 255_u64;
   set bytes[0_u64] = cvt::<u64, u8>(iand(value, mask));
   let shift8 = ishr(value, 8_u32);
   set bytes[1_u64] = cvt::<u64, u8>(iand(shift8, mask));

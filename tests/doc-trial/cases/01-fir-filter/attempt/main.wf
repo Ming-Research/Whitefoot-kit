@@ -47,8 +47,9 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let history = slots_new::<f64, 8>();
   let outputs = slots_new::<f64, 64>();
   let sum = 0.0_f64;
-  for (sample_index in 0_u64..64_u64,
-       invariant outputs_position: outputs.len == sample_index
+  for (
+    sample_index in 0_u64..64_u64,
+    invariant outputs_position: outputs.len == sample_index
   ) {
     let current = if sample_index == 0_u64 {
       give 8.0_f64;

@@ -66,8 +66,8 @@ fn percent_decode(source: &[u8], destination: &[u8]) -> result: u64 reads(source
               let second_opt = hex_digit(byte: second_hex);
               match second_opt {
                 Some(value: second_val) => {
-                  let high = first_val * 16_u8;
-                  let decoded = high + second_val;
+                  let high = first_val *wrap 16_u8;
+                  let decoded = high +wrap second_val;
                   set destination^[dest_pos] = decoded;
                   set src_pos = second_pos +wrap 1_u64;
                   set dest_pos = dest_pos +wrap 1_u64;

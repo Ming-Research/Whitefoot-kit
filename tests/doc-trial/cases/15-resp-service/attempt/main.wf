@@ -250,7 +250,8 @@ fn i64_to_bytes(value: i64) -> result: Box<Slots<u8>> pure {
       let remainder_result = temp %checked 10_i64;
       match remainder_result {
         Ok(value: remainder) => {
-          let digit_byte = cvt::<i64, u8>(remainder) + 48_u8;
+          let remainder_u8 = cvt::<i64, u8>(remainder);
+          let digit_byte = remainder_u8 + 48_u8;
           place_back(window: &digits, value: digit_byte);
           let div_result = temp /checked 10_i64;
           match div_result {

@@ -76,7 +76,6 @@ fn validate_and_process(parents: &[u32], depths: &[u32]) -> result: ProcessResul
   let positions_buf = box_slots_new::<u64>(capacity: len);
   let is_valid = True();
   let max_depth_val = 0_u32;
-
   let i = 0_u64;
   loop @validate {
     if i < len {
@@ -131,11 +130,9 @@ fn validate_and_process(parents: &[u32], depths: &[u32]) -> result: ProcessResul
         }
       }
     }
-
     if depth > max_depth_val {
       set max_depth_val = depth;
     }
-
     let i_next = i + 1_u64;
     set i = i_next;
   }
@@ -159,7 +156,6 @@ fn validate_and_process(parents: &[u32], depths: &[u32]) -> result: ProcessResul
         set is_valid = False();
       }
     }
-
     let k = 0_u64;
     loop @process_nodes {
       if k < len {
@@ -197,7 +193,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let std::fs::Directory(read: cwd, write: cwd_write) = move cwd_directory;
   std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
   std::fs::close_directory(factory: &factory, directory: move cwd);
-
   let parents = array_filled::<u32, 6>(value: 0_u32);
   set parents[0_u64] = 6_u32;
   set parents[1_u64] = 0_u32;
@@ -205,7 +200,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   set parents[3_u64] = 1_u32;
   set parents[4_u64] = 1_u32;
   set parents[5_u64] = 2_u32;
-
   let depths = array_filled::<u32, 6>(value: 0_u32);
   set depths[0_u64] = 0_u32;
   set depths[1_u64] = 1_u32;
@@ -213,18 +207,14 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   set depths[3_u64] = 2_u32;
   set depths[4_u64] = 2_u32;
   set depths[5_u64] = 2_u32;
-
   let p_slice = &parents[0_u64..6_u64];
   let d_slice = &depths[0_u64..6_u64];
-
   let proc_result = validate_and_process(parents: p_slice, depths: d_slice);
-
   let acceptance = if proc_result.is_valid {
     give 1_u64;
   } else {
     give 0_u64;
   }
-
   let outcome1 = write_u64_le(factory: &factory, output: &output, value: acceptance);
   match outcome1 {
     Ok(value: unit_val) => {
@@ -233,7 +223,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
       return exit_status(code: 1_u8);
     }
   }
-
   let num_groups = cvt.checked::<u32, u64>(proc_result.max_depth_val);
   let num_groups_val = match num_groups {
     Ok(value: nd) => {
@@ -243,7 +232,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
       give 0_u64;
     }
   }
-
   let outcome2 = write_u64_le(factory: &factory, output: &output, value: num_groups_val);
   match outcome2 {
     Ok(value: unit_val) => {
@@ -252,7 +240,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
       return exit_status(code: 1_u8);
     }
   }
-
   let group_idx = 0_u64;
   let node_offset = 0_u64;
   loop @write_groups {
@@ -293,7 +280,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     let group_idx_next = group_idx + 1_u64;
     set group_idx = group_idx_next;
   }
-
   let outcome = write_u64_le(factory: &factory, output: &output, value: 6_u64);
   match outcome {
     Ok(value: unit_val) => {
@@ -302,7 +288,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
       return exit_status(code: 1_u8);
     }
   }
-
   let pos_idx = 0_u64;
   loop @write_positions {
     if pos_idx < proc_result.positions_buf.inner.len {
@@ -321,7 +306,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     let pos_idx_next = pos_idx + 1_u64;
     set pos_idx = pos_idx_next;
   }
-
   let outcome = write_u64_le(factory: &factory, output: &output, value: 0_u64);
   match outcome {
     Ok(value: unit_val) => {
@@ -330,7 +314,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
       return exit_status(code: 1_u8);
     }
   }
-
   let outcome = write_u64_le(factory: &factory, output: &output, value: 0_u64);
   match outcome {
     Ok(value: unit_val) => {
@@ -339,7 +322,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
       return exit_status(code: 1_u8);
     }
   }
-
   let outcome = write_u64_le(factory: &factory, output: &output, value: 0_u64);
   match outcome {
     Ok(value: unit_val) => {
@@ -348,6 +330,5 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
       return exit_status(code: 1_u8);
     }
   }
-
   return exit_status(code: 0_u8);
 }
