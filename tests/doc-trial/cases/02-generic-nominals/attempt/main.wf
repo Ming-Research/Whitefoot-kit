@@ -20,11 +20,11 @@ fn encode_le_u64(val: u64) -> res: Array<u8, 8> pure {
   return move arr;
 }
 
-fn i64_to_u64(v: i64) -> r: u64 pure {
+fn i64_to_u64(v: i64) -> res: u64 pure {
   return cvt.wrap::<i64, u64>(v);
 }
 
-fn write_all(fac: &std::io::HandleFactory, out: &std::io::OutputStream, src: &[u8]) -> wr: Result<unit, std::io::IoError> reads(src), writes(fac), writes(out) waits {
+fn write_output(fac: &std::io::HandleFactory, out: &std::io::OutputStream, src: &[u8]) -> result: Result<unit, std::io::IoError> reads(src), writes(fac), writes(out) waits {
   let pos = 0_u64;
   let len = src^.len;
   loop @send {
@@ -33,10 +33,10 @@ fn write_all(fac: &std::io::HandleFactory, out: &std::io::OutputStream, src: &[u
       break @send;
     }
     let no_dl = None<std::time::Instant>();
-    let can = std::time::cancel_never();
-    let res = std::io::write_once(factory: fac, output: out, source: src, start: pos, end: len, deadline: no_dl, cancel: &can);
-    std::time::close_cancel_watch(watch: move can);
-    match res {
+    let cancel = std::time::cancel_never();
+    let outcome = std::io::write_once(factory: fac, output: out, source: src, start: pos, end: len, deadline: no_dl, cancel: &cancel);
+    std::time::close_cancel_watch(watch: move cancel);
+    match outcome {
       Ok(value: nxt) => {
         set pos = nxt;
       }
@@ -48,16 +48,15 @@ fn write_all(fac: &std::io::HandleFactory, out: &std::io::OutputStream, src: &[u
   return Ok<unit, std::io::IoError>(value: unit);
 }
 
-fn main(inp: Inputs) -> st: ExitStatus pure waits {
-  let Inputs(cwd: cwd_dir, handles: fac, stdout: out, ..) = move inp;
+fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+  let Inputs(cwd: cwd_dir, handles: fac, stdout: out, ..) = move inputs;
   let std::fs::Directory(read: cwd_read, write: cwd_wrt) = move cwd_dir;
-  let cl1 = std::fs::close_directory_write(factory: &fac, directory: move cwd_wrt);
-  let cl2 = std::fs::close_directory(factory: &fac, directory: move cwd_read);
-  let code = 0_u8;
-  let p1 = Pair<u8>(left: 7_u8, right: 7_u8);
-  let p2 = Pair<i64>(left: -9_i64, right: -9_i64);
+  let dummy1 = std::fs::close_directory_write(factory: &fac, directory: move cwd_wrt);
+  let dummy2 = std::fs::close_directory(factory: &fac, directory: move cwd_read);
+  let p_u8 = Pair<u8>(left: 7_u8, right: 7_u8);
+  let p_i64 = Pair<i64>(left: -9_i64, right: -9_i64);
   let add1 = 1_u8 +checked 2_u8;
-  let s1 = match add1 {
+  let sum1 = match add1 {
     Ok(value: v) => {
       give v;
     }
@@ -66,7 +65,7 @@ fn main(inp: Inputs) -> st: ExitStatus pure waits {
     }
   };
   let add2 = 255_u8 +checked 1_u8;
-  let ovf = match add2 {
+  let overflow = match add2 {
     Ok(value: v) => {
       give 0_u8;
     }
@@ -75,7 +74,7 @@ fn main(inp: Inputs) -> st: ExitStatus pure waits {
     }
   };
   let add3 = -4_i64 +checked 9_i64;
-  let s2 = match add3 {
+  let sum2 = match add3 {
     Ok(value: v) => {
       give v;
     }
@@ -83,8 +82,8 @@ fn main(inp: Inputs) -> st: ExitStatus pure waits {
       give 0_i64;
     }
   };
-  let opt_val = Some<u8>(value: 19_u8);
-  let got_val = match opt_val {
+  let opt = Some<u8>(value: 19_u8);
+  let recovered = match opt {
     Some(value: v) => {
       give v;
     }
@@ -92,98 +91,98 @@ fn main(inp: Inputs) -> st: ExitStatus pure waits {
       give 0_u8;
     }
   };
-  let pkt = array_filled::<u8, 2>(value: 11_u8);
-  let pkt_byte = pkt[1_u64];
-  let out_arr = array_filled::<u8, 72>(value: 0_u8);
-  let enc1 = encode_le_u64(cvt::<u8, u64>(p1.left));
-  set out_arr[0_u64] = enc1[0_u64];
-  set out_arr[1_u64] = enc1[1_u64];
-  set out_arr[2_u64] = enc1[2_u64];
-  set out_arr[3_u64] = enc1[3_u64];
-  set out_arr[4_u64] = enc1[4_u64];
-  set out_arr[5_u64] = enc1[5_u64];
-  set out_arr[6_u64] = enc1[6_u64];
-  set out_arr[7_u64] = enc1[7_u64];
-  let enc2 = encode_le_u64(i64_to_u64(p2.right));
-  set out_arr[8_u64] = enc2[0_u64];
-  set out_arr[9_u64] = enc2[1_u64];
-  set out_arr[10_u64] = enc2[2_u64];
-  set out_arr[11_u64] = enc2[3_u64];
-  set out_arr[12_u64] = enc2[4_u64];
-  set out_arr[13_u64] = enc2[5_u64];
-  set out_arr[14_u64] = enc2[6_u64];
-  set out_arr[15_u64] = enc2[7_u64];
-  let enc3 = encode_le_u64(cvt::<u8, u64>(3_u8));
-  set out_arr[16_u64] = enc3[0_u64];
-  set out_arr[17_u64] = enc3[1_u64];
-  set out_arr[18_u64] = enc3[2_u64];
-  set out_arr[19_u64] = enc3[3_u64];
-  set out_arr[20_u64] = enc3[4_u64];
-  set out_arr[21_u64] = enc3[5_u64];
-  set out_arr[22_u64] = enc3[6_u64];
-  set out_arr[23_u64] = enc3[7_u64];
-  let enc4 = encode_le_u64(i64_to_u64(-5_i64));
-  set out_arr[24_u64] = enc4[0_u64];
-  set out_arr[25_u64] = enc4[1_u64];
-  set out_arr[26_u64] = enc4[2_u64];
-  set out_arr[27_u64] = enc4[3_u64];
-  set out_arr[28_u64] = enc4[4_u64];
-  set out_arr[29_u64] = enc4[5_u64];
-  set out_arr[30_u64] = enc4[6_u64];
-  set out_arr[31_u64] = enc4[7_u64];
-  let enc5 = encode_le_u64(cvt::<u8, u64>(s1));
-  set out_arr[32_u64] = enc5[0_u64];
-  set out_arr[33_u64] = enc5[1_u64];
-  set out_arr[34_u64] = enc5[2_u64];
-  set out_arr[35_u64] = enc5[3_u64];
-  set out_arr[36_u64] = enc5[4_u64];
-  set out_arr[37_u64] = enc5[5_u64];
-  set out_arr[38_u64] = enc5[6_u64];
-  set out_arr[39_u64] = enc5[7_u64];
-  let enc6 = encode_le_u64(cvt::<u8, u64>(ovf));
-  set out_arr[40_u64] = enc6[0_u64];
-  set out_arr[41_u64] = enc6[1_u64];
-  set out_arr[42_u64] = enc6[2_u64];
-  set out_arr[43_u64] = enc6[3_u64];
-  set out_arr[44_u64] = enc6[4_u64];
-  set out_arr[45_u64] = enc6[5_u64];
-  set out_arr[46_u64] = enc6[6_u64];
-  set out_arr[47_u64] = enc6[7_u64];
-  let enc7 = encode_le_u64(i64_to_u64(s2));
-  set out_arr[48_u64] = enc7[0_u64];
-  set out_arr[49_u64] = enc7[1_u64];
-  set out_arr[50_u64] = enc7[2_u64];
-  set out_arr[51_u64] = enc7[3_u64];
-  set out_arr[52_u64] = enc7[4_u64];
-  set out_arr[53_u64] = enc7[5_u64];
-  set out_arr[54_u64] = enc7[6_u64];
-  set out_arr[55_u64] = enc7[7_u64];
-  let enc8 = encode_le_u64(cvt::<u8, u64>(got_val));
-  set out_arr[56_u64] = enc8[0_u64];
-  set out_arr[57_u64] = enc8[1_u64];
-  set out_arr[58_u64] = enc8[2_u64];
-  set out_arr[59_u64] = enc8[3_u64];
-  set out_arr[60_u64] = enc8[4_u64];
-  set out_arr[61_u64] = enc8[5_u64];
-  set out_arr[62_u64] = enc8[6_u64];
-  set out_arr[63_u64] = enc8[7_u64];
-  let enc9 = encode_le_u64(cvt::<u8, u64>(pkt_byte));
-  set out_arr[64_u64] = enc9[0_u64];
-  set out_arr[65_u64] = enc9[1_u64];
-  set out_arr[66_u64] = enc9[2_u64];
-  set out_arr[67_u64] = enc9[3_u64];
-  set out_arr[68_u64] = enc9[4_u64];
-  set out_arr[69_u64] = enc9[5_u64];
-  set out_arr[70_u64] = enc9[6_u64];
-  set out_arr[71_u64] = enc9[7_u64];
-  let out_view = &out_arr[0_u64..72_u64];
-  let wr_res = write_all(fac: &fac, out: &out, src: out_view);
-  match wr_res {
+  let packet = array_filled::<u8, 2>(value: 11_u8);
+  let pkt_val = packet[1_u64];
+  let output = array_filled::<u8, 72>(value: 0_u8);
+  let e1 = encode_le_u64(cvt::<u8, u64>(p_u8.left));
+  set output[0_u64] = e1[0_u64];
+  set output[1_u64] = e1[1_u64];
+  set output[2_u64] = e1[2_u64];
+  set output[3_u64] = e1[3_u64];
+  set output[4_u64] = e1[4_u64];
+  set output[5_u64] = e1[5_u64];
+  set output[6_u64] = e1[6_u64];
+  set output[7_u64] = e1[7_u64];
+  let e2 = encode_le_u64(i64_to_u64(p_i64.right));
+  set output[8_u64] = e2[0_u64];
+  set output[9_u64] = e2[1_u64];
+  set output[10_u64] = e2[2_u64];
+  set output[11_u64] = e2[3_u64];
+  set output[12_u64] = e2[4_u64];
+  set output[13_u64] = e2[5_u64];
+  set output[14_u64] = e2[6_u64];
+  set output[15_u64] = e2[7_u64];
+  let e3 = encode_le_u64(cvt::<u8, u64>(3_u8));
+  set output[16_u64] = e3[0_u64];
+  set output[17_u64] = e3[1_u64];
+  set output[18_u64] = e3[2_u64];
+  set output[19_u64] = e3[3_u64];
+  set output[20_u64] = e3[4_u64];
+  set output[21_u64] = e3[5_u64];
+  set output[22_u64] = e3[6_u64];
+  set output[23_u64] = e3[7_u64];
+  let e4 = encode_le_u64(i64_to_u64(-5_i64));
+  set output[24_u64] = e4[0_u64];
+  set output[25_u64] = e4[1_u64];
+  set output[26_u64] = e4[2_u64];
+  set output[27_u64] = e4[3_u64];
+  set output[28_u64] = e4[4_u64];
+  set output[29_u64] = e4[5_u64];
+  set output[30_u64] = e4[6_u64];
+  set output[31_u64] = e4[7_u64];
+  let e5 = encode_le_u64(cvt::<u8, u64>(sum1));
+  set output[32_u64] = e5[0_u64];
+  set output[33_u64] = e5[1_u64];
+  set output[34_u64] = e5[2_u64];
+  set output[35_u64] = e5[3_u64];
+  set output[36_u64] = e5[4_u64];
+  set output[37_u64] = e5[5_u64];
+  set output[38_u64] = e5[6_u64];
+  set output[39_u64] = e5[7_u64];
+  let e6 = encode_le_u64(cvt::<u8, u64>(overflow));
+  set output[40_u64] = e6[0_u64];
+  set output[41_u64] = e6[1_u64];
+  set output[42_u64] = e6[2_u64];
+  set output[43_u64] = e6[3_u64];
+  set output[44_u64] = e6[4_u64];
+  set output[45_u64] = e6[5_u64];
+  set output[46_u64] = e6[6_u64];
+  set output[47_u64] = e6[7_u64];
+  let e7 = encode_le_u64(i64_to_u64(sum2));
+  set output[48_u64] = e7[0_u64];
+  set output[49_u64] = e7[1_u64];
+  set output[50_u64] = e7[2_u64];
+  set output[51_u64] = e7[3_u64];
+  set output[52_u64] = e7[4_u64];
+  set output[53_u64] = e7[5_u64];
+  set output[54_u64] = e7[6_u64];
+  set output[55_u64] = e7[7_u64];
+  let e8 = encode_le_u64(cvt::<u8, u64>(recovered));
+  set output[56_u64] = e8[0_u64];
+  set output[57_u64] = e8[1_u64];
+  set output[58_u64] = e8[2_u64];
+  set output[59_u64] = e8[3_u64];
+  set output[60_u64] = e8[4_u64];
+  set output[61_u64] = e8[5_u64];
+  set output[62_u64] = e8[6_u64];
+  set output[63_u64] = e8[7_u64];
+  let e9 = encode_le_u64(cvt::<u8, u64>(pkt_val));
+  set output[64_u64] = e9[0_u64];
+  set output[65_u64] = e9[1_u64];
+  set output[66_u64] = e9[2_u64];
+  set output[67_u64] = e9[3_u64];
+  set output[68_u64] = e9[4_u64];
+  set output[69_u64] = e9[5_u64];
+  set output[70_u64] = e9[6_u64];
+  set output[71_u64] = e9[7_u64];
+  let view = &output[0_u64..72_u64];
+  let write_res = write_output(fac: &fac, out: &out, src: view);
+  match write_res {
     Ok(value: ok) => {
     }
     Err(error: err) => {
       return exit_status(code: 250_u8);
     }
   }
-  return exit_status(code: code);
+  return exit_status(code: 0_u8);
 }

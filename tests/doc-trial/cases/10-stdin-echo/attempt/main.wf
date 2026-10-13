@@ -4,7 +4,6 @@ alias exit_status = std::process::exit_status;
 alias HandleFactory = std::io::HandleFactory;
 alias InputStream = std::io::InputStream;
 alias OutputStream = std::io::OutputStream;
-
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let Inputs(cwd: cwd_directory, stdout: stdout_stream, handles: factory, stdin: stdin_stream, ..) = move inputs;
   let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_directory;

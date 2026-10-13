@@ -12,31 +12,31 @@ fn mixer_round(state: u64) -> result: u64 pure {
 
 fn mix_seed(seed: u64) -> result: u64 pure {
   let state = seed;
-  let state_1 = mixer_round(state: state);
-  let state_2 = mixer_round(state: state_1);
-  let state_3 = mixer_round(state: state_2);
-  let state_4 = mixer_round(state: state_3);
-  let state_5 = mixer_round(state: state_4);
-  let state_6 = mixer_round(state: state_5);
-  let state_7 = mixer_round(state: state_6);
-  let state_8 = mixer_round(state: state_7);
-  let state_9 = mixer_round(state: state_8);
-  let state_10 = mixer_round(state: state_9);
-  let state_11 = mixer_round(state: state_10);
-  let state_12 = mixer_round(state: state_11);
-  let state_13 = mixer_round(state: state_12);
-  let state_14 = mixer_round(state: state_13);
-  let state_15 = mixer_round(state: state_14);
-  let state_16 = mixer_round(state: state_15);
-  let state_17 = mixer_round(state: state_16);
-  let state_18 = mixer_round(state: state_17);
-  let state_19 = mixer_round(state: state_18);
-  let state_20 = mixer_round(state: state_19);
-  let state_21 = mixer_round(state: state_20);
-  let state_22 = mixer_round(state: state_21);
-  let state_23 = mixer_round(state: state_22);
-  let state_24 = mixer_round(state: state_23);
-  return state_24;
+  let state = mixer_round(state: state);
+  let state = mixer_round(state: state);
+  let state = mixer_round(state: state);
+  let state = mixer_round(state: state);
+  let state = mixer_round(state: state);
+  let state = mixer_round(state: state);
+  let state = mixer_round(state: state);
+  let state = mixer_round(state: state);
+  let state = mixer_round(state: state);
+  let state = mixer_round(state: state);
+  let state = mixer_round(state: state);
+  let state = mixer_round(state: state);
+  let state = mixer_round(state: state);
+  let state = mixer_round(state: state);
+  let state = mixer_round(state: state);
+  let state = mixer_round(state: state);
+  let state = mixer_round(state: state);
+  let state = mixer_round(state: state);
+  let state = mixer_round(state: state);
+  let state = mixer_round(state: state);
+  let state = mixer_round(state: state);
+  let state = mixer_round(state: state);
+  let state = mixer_round(state: state);
+  let state = mixer_round(state: state);
+  return state;
 }
 
 fn sum_range(lower: u64, upper: u64) -> result: u64 pure {
@@ -57,22 +57,29 @@ fn worker_task(lower: u64, upper: u64, accumulator: Shared<u64>) -> result: unit
 }
 
 fn write_u64_le(factory: &std::io::HandleFactory, output: &std::io::OutputStream, value: u64) -> result: Result<unit, std::io::IoError> reads(factory), writes(output) waits {
-  let bytes = array_filled::<u8, 8>(value: 0_u8);
-  set bytes[0_u64] = cvt::<u64, u8>(value);
+  let byte0 = cvt::<u64, u8>(value);
   let s1 = ishr(value, 8_u32);
-  set bytes[1_u64] = cvt::<u64, u8>(s1);
+  let byte1 = cvt::<u64, u8>(s1);
   let s2 = ishr(value, 16_u32);
-  set bytes[2_u64] = cvt::<u64, u8>(s2);
+  let byte2 = cvt::<u64, u8>(s2);
   let s3 = ishr(value, 24_u32);
-  set bytes[3_u64] = cvt::<u64, u8>(s3);
+  let byte3 = cvt::<u64, u8>(s3);
   let s4 = ishr(value, 32_u32);
-  set bytes[4_u64] = cvt::<u64, u8>(s4);
+  let byte4 = cvt::<u64, u8>(s4);
   let s5 = ishr(value, 40_u32);
-  set bytes[5_u64] = cvt::<u64, u8>(s5);
+  let byte5 = cvt::<u64, u8>(s5);
   let s6 = ishr(value, 48_u32);
-  set bytes[6_u64] = cvt::<u64, u8>(s6);
+  let byte6 = cvt::<u64, u8>(s6);
   let s7 = ishr(value, 56_u32);
-  set bytes[7_u64] = cvt::<u64, u8>(s7);
+  let byte7 = cvt::<u64, u8>(s7);
+  let bytes = array_filled::<u8, 8>(value: byte0);
+  set bytes[1_u64] = byte1;
+  set bytes[2_u64] = byte2;
+  set bytes[3_u64] = byte3;
+  set bytes[4_u64] = byte4;
+  set bytes[5_u64] = byte5;
+  set bytes[6_u64] = byte6;
+  set bytes[7_u64] = byte7;
   let window = &bytes[0_u64..8_u64];
   let sent = 0_u64;
   loop @write_loop {

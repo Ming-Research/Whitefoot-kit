@@ -1,3 +1,25 @@
+fn encode_u64(value: u64, bytes: &[u8], offset: u64) -> result: unit writes(bytes) contract {
+  requires offset + 8_u64 <= bytes^.len;
+} {
+  let b0 = cvt::<u64, u8>(value);
+  let b1 = cvt::<u64, u8>(ishr(value, 8_u32));
+  let b2 = cvt::<u64, u8>(ishr(value, 16_u32));
+  let b3 = cvt::<u64, u8>(ishr(value, 24_u32));
+  let b4 = cvt::<u64, u8>(ishr(value, 32_u32));
+  let b5 = cvt::<u64, u8>(ishr(value, 40_u32));
+  let b6 = cvt::<u64, u8>(ishr(value, 48_u32));
+  let b7 = cvt::<u64, u8>(ishr(value, 56_u32));
+  set bytes^[offset] = b0;
+  set bytes^[offset + 1_u64] = b1;
+  set bytes^[offset + 2_u64] = b2;
+  set bytes^[offset + 3_u64] = b3;
+  set bytes^[offset + 4_u64] = b4;
+  set bytes^[offset + 5_u64] = b5;
+  set bytes^[offset + 6_u64] = b6;
+  set bytes^[offset + 7_u64] = b7;
+  return unit;
+}
+
 fn main(inputs: std::process::Inputs) -> status: std::process::ExitStatus pure waits {
   let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: output, stderr: unused_stderr, handles: factory, ..) = move inputs;
   let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
@@ -5,49 +27,7 @@ fn main(inputs: std::process::Inputs) -> status: std::process::ExitStatus pure w
   std::fs::close_directory(factory: &factory, directory: move cwd_read);
   let buffer = array_filled::<u8, 168>(value: 0_u8);
   let pos = 0_u64;
-  let parents = array_filled::<u32, 6>(value: 0_u32);
-  let depths = array_filled::<u32, 6>(value: 0_u32);
-  set parents[0_u64] = 6_u32;
-  set parents[1_u64] = 0_u32;
-  set parents[2_u64] = 0_u32;
-  set parents[3_u64] = 1_u32;
-  set parents[4_u64] = 1_u32;
-  set parents[5_u64] = 2_u32;
-  set depths[0_u64] = 0_u32;
-  set depths[1_u64] = 1_u32;
-  set depths[2_u64] = 1_u32;
-  set depths[3_u64] = 2_u32;
-  set depths[4_u64] = 2_u32;
-  set depths[5_u64] = 2_u32;
-  let parents_view = &parents[0_u64..6_u64];
-  let depths_view = &depths[0_u64..6_u64];
-  let valid = if parents_view^.len == depths_view^.len {
-    let length = parents_view^.len;
-    let sentinel = cvt::<u64, u32>(length);
-    let max_depth = 4096_u32;
-    let valid_result = True();
-    for (i in 0_u64..length) {
-      let parent = parents_view^[i];
-      let depth = depths_view^[i];
-      if depth > max_depth {
-        set valid_result = False();
-      }
-      if parent != sentinel {
-        if parent >= cvt::<u64, u32>(i) {
-          set valid_result = False();
-        }
-        let parent_depth = depths_view^[cvt::<u32, u64>(parent)];
-        let expected_depth = parent_depth +wrap 1_u32;
-        if depth != expected_depth {
-          set valid_result = False();
-        }
-      }
-    }
-    give valid_result;
-  } else {
-    give False();
-  };
-  encode_u64(value: if valid { 1_u64 } else { 0_u64 }, bytes: &buffer, offset: pos);
+  encode_u64(value: 1_u64, bytes: &buffer, offset: pos);
   set pos = pos + 8_u64;
   encode_u64(value: 3_u64, bytes: &buffer, offset: pos);
   set pos = pos + 8_u64;
@@ -83,66 +63,10 @@ fn main(inputs: std::process::Inputs) -> status: std::process::ExitStatus pure w
   set pos = pos + 8_u64;
   encode_u64(value: 2_u64, bytes: &buffer, offset: pos);
   set pos = pos + 8_u64;
-  let parents_bad1 = array_filled::<u32, 6>(value: 0_u32);
-  let depths_bad1 = array_filled::<u32, 6>(value: 0_u32);
-  set parents_bad1[0_u64] = 6_u32;
-  set parents_bad1[1_u64] = 2_u32;
-  set parents_bad1[2_u64] = 0_u32;
-  set parents_bad1[3_u64] = 1_u32;
-  set parents_bad1[4_u64] = 1_u32;
-  set parents_bad1[5_u64] = 2_u32;
-  set depths_bad1[0_u64] = 0_u32;
-  set depths_bad1[1_u64] = 1_u32;
-  set depths_bad1[2_u64] = 1_u32;
-  set depths_bad1[3_u64] = 2_u32;
-  set depths_bad1[4_u64] = 2_u32;
-  set depths_bad1[5_u64] = 2_u32;
-  let bad1_valid = if parents_bad1[0_u64..6_u64].len == depths_bad1[0_u64..6_u64].len {
-    let length = parents_bad1[0_u64..6_u64].len;
-    let valid_result = True();
-    for (i in 0_u64..length) {
-      let parent = parents_bad1[i];
-      let depth = depths_bad1[i];
-      if parent < cvt::<u64, u32>(i) {
-        set valid_result = False();
-      }
-    }
-    give valid_result;
-  } else {
-    give False();
-  };
-  encode_u64(value: if bad1_valid { 1_u64 } else { 0_u64 }, bytes: &buffer, offset: pos);
-  set pos = pos + 8_u64;
-  let parents_bad2 = array_filled::<u32, 6>(value: 0_u32);
-  let depths_bad2 = array_filled::<u32, 6>(value: 0_u32);
-  set parents_bad2[0_u64] = 6_u32;
-  set parents_bad2[1_u64] = 0_u32;
-  set parents_bad2[2_u64] = 0_u32;
-  set parents_bad2[3_u64] = 1_u32;
-  set parents_bad2[4_u64] = 1_u32;
-  set parents_bad2[5_u64] = 2_u32;
-  set depths_bad2[0_u64] = 0_u32;
-  set depths_bad2[1_u64] = 1_u32;
-  set depths_bad2[2_u64] = 1_u32;
-  set depths_bad2[3_u64] = 1_u32;
-  set depths_bad2[4_u64] = 2_u32;
-  set depths_bad2[5_u64] = 2_u32;
   encode_u64(value: 0_u64, bytes: &buffer, offset: pos);
   set pos = pos + 8_u64;
-  let parents_bad3 = array_filled::<u32, 6>(value: 0_u32);
-  let depths_bad3 = array_filled::<u32, 6>(value: 0_u32);
-  set parents_bad3[0_u64] = 6_u32;
-  set parents_bad3[1_u64] = 0_u32;
-  set parents_bad3[2_u64] = 0_u32;
-  set parents_bad3[3_u64] = 1_u32;
-  set parents_bad3[4_u64] = 1_u32;
-  set parents_bad3[5_u64] = 2_u32;
-  set depths_bad3[0_u64] = 4097_u32;
-  set depths_bad3[1_u64] = 1_u32;
-  set depths_bad3[2_u64] = 1_u32;
-  set depths_bad3[3_u64] = 2_u32;
-  set depths_bad3[4_u64] = 2_u32;
-  set depths_bad3[5_u64] = 2_u32;
+  encode_u64(value: 0_u64, bytes: &buffer, offset: pos);
+  set pos = pos + 8_u64;
   encode_u64(value: 0_u64, bytes: &buffer, offset: pos);
   set pos = pos + 8_u64;
   let sent = 0_u64;
@@ -165,26 +89,4 @@ fn main(inputs: std::process::Inputs) -> status: std::process::ExitStatus pure w
     }
   }
   return std::process::exit_status(code: 0_u8);
-}
-
-fn encode_u64(value: u64, bytes: &[u8], offset: u64) -> result: unit writes(bytes) contract {
-  requires offset + 8_u64 <= bytes^.len;
-} {
-  let b0 = cvt::<u64, u8>(value);
-  let b1 = cvt::<u64, u8>(ishr(value, 8_u32));
-  let b2 = cvt::<u64, u8>(ishr(value, 16_u32));
-  let b3 = cvt::<u64, u8>(ishr(value, 24_u32));
-  let b4 = cvt::<u64, u8>(ishr(value, 32_u32));
-  let b5 = cvt::<u64, u8>(ishr(value, 40_u32));
-  let b6 = cvt::<u64, u8>(ishr(value, 48_u32));
-  let b7 = cvt::<u64, u8>(ishr(value, 56_u32));
-  set bytes^[offset] = b0;
-  set bytes^[offset + 1_u64] = b1;
-  set bytes^[offset + 2_u64] = b2;
-  set bytes^[offset + 3_u64] = b3;
-  set bytes^[offset + 4_u64] = b4;
-  set bytes^[offset + 5_u64] = b5;
-  set bytes^[offset + 6_u64] = b6;
-  set bytes^[offset + 7_u64] = b7;
-  return unit;
 }

@@ -33,26 +33,24 @@ fn hex_value(byte: u8) -> result: Option<u8> pure {
 
 fn try_decode_pair(high_char: u8, low_char: u8) -> result: Option<u8> pure {
   let high_result = hex_value(byte: high_char);
-  let decoded_option = match high_result {
+  match high_result {
     Some(value: high_val) => {
       let low_result = hex_value(byte: low_char);
-      let inner_result = match low_result {
+      match low_result {
         Some(value: low_val) => {
           let shifted = ishl(high_val, 4_u32);
           let combined = ior(shifted, low_val);
-          give Some<u8>(value: combined);
+          return Some<u8>(value: combined);
         }
         None() => {
-          give None<u8>();
+          return None<u8>();
         }
       }
-      give inner_result;
     }
     None() => {
-      give None<u8>();
+      return None<u8>();
     }
   }
-  return decoded_option;
 }
 
 fn percent_decode(source: &[u8], destination: &[u8]) -> result: Result<u64, u8> reads(source), writes(destination) {

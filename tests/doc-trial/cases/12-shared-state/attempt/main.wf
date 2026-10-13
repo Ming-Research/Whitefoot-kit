@@ -4,7 +4,7 @@ alias Inputs = std::process::Inputs;
 alias CancelWatch = std::time::CancelWatch;
 alias Instant = std::time::Instant;
 
-fn increment_counter(counter: Shared<u64>) -> result: unit reads(counter), writes(counter) {
+fn increment_counter(counter: Shared<u64>) -> result: unit pure {
   for (i in 0_u64..20000_u64) {
     atomic count = &counter {
       set count^ = count^ +wrap 1_u64;
@@ -13,7 +13,7 @@ fn increment_counter(counter: Shared<u64>) -> result: unit reads(counter), write
   return unit;
 }
 
-fn producer(queue: Shared<Box<Ring<u32>>>) -> result: unit reads(queue), writes(queue) {
+fn producer(queue: Shared<Box<Ring<u32>>>) -> result: unit pure {
   for (i in 0_u64..5000_u64) {
     let i_u32 = cvt::<u64, u32>(i);
     loop {
@@ -32,7 +32,7 @@ fn producer(queue: Shared<Box<Ring<u32>>>) -> result: unit reads(queue), writes(
   return unit;
 }
 
-fn consumer(queue: Shared<Box<Ring<u32>>>, total: Shared<u64>) -> result: unit reads(queue), reads(total), writes(queue), writes(total) {
+fn consumer(queue: Shared<Box<Ring<u32>>>, total: Shared<u64>) -> result: unit pure {
   for (i in 0_u64..5000_u64) {
     loop {
       let item = None<u32>();

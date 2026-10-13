@@ -2,54 +2,7 @@ alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
 alias exit_status = std::process::exit_status;
 alias HandleFactory = std::io::HandleFactory;
-alias SocketAddress = std::net::SocketAddress;
-alias TcpListener = std::net::TcpListener;
-alias TcpConnection = std::net::TcpConnection;
-alias Instant = std::time::Instant;
-alias CancelWatch = std::time::CancelWatch;
 alias HashMap = std::collections::hash_map::HashMap<Box<Array<u8>>, Box<Array<u8>>, 8192>;
-
-fn parse_u64(bytes: &[u8]) -> result: Option<u64> reads(bytes) {
-  if bytes^.len == 0_u64 {
-    return None<u64>();
-  }
-  let result = 0_u64;
-  for (i in 0_u64..bytes^.len) {
-    let ch = bytes^[i];
-    let is_digit = if ch >= 48_u8 { if ch <= 57_u8 { give True(); } else { give False(); } } else { give False(); };
-    if is_digit {
-      let digit = ch - 48_u8;
-      let d = cvt::<u8, u64>(digit);
-      set result = result *wrap 10_u64;
-      set result = result +wrap d;
-    } else {
-      return None<u64>();
-    }
-  }
-  return Some<u64>(value: result);
-}
-
-fn hash_bytes(key: &[u8]) -> result: u64 reads(key) {
-  let result = 0_u64;
-  for (i in 0_u64..key^.len) {
-    let b = cvt::<u8, u64>(key^[i]);
-    set result = result *wrap 31_u64;
-    set result = result +wrap b;
-  }
-  return result;
-}
-
-fn bytes_equal(left: &[u8], right: &[u8]) -> result: Bool reads(left), reads(right) {
-  if left^.len != right^.len {
-    return False();
-  }
-  for (i in 0_u64..left^.len) {
-    if left^[i] != right^[i] {
-      return False();
-    }
-  }
-  return True();
-}
 
 interface KeyOps {
   fn hash_key(env: &unit, key: &Box<Array<u8>>) -> hash: u64 reads(key);
@@ -57,11 +10,11 @@ interface KeyOps {
 }
 
 fn hash_impl(env: &unit, key: &Box<Array<u8>>) -> hash: u64 reads(key) {
-  return hash_bytes(&key^[0_u64..key^.len]);
+  return 0_u64;
 }
 
 fn equal_impl(env: &unit, left: &Box<Array<u8>>, right: &Box<Array<u8>>) -> equal: Bool reads(left), reads(right) {
-  return bytes_equal(&left^[0_u64..left^.len], &right^[0_u64..right^.len]);
+  return True();
 }
 
 binding KeyBinding : KeyOps {
@@ -69,30 +22,9 @@ binding KeyBinding : KeyOps {
   equal_key = equal_impl;
 }
 
-fn handle_client(factory: &HandleFactory, conn: TcpConnection, store: &Shared<HashMap>) -> result: unit reads(store), writes(factory) waits {
+fn handle_client(factory: &HandleFactory, conn: std::net::TcpConnection, store: &Shared<HashMap>) -> result: unit reads(store), writes(factory) waits {
   let receive = move conn.receive;
   let send = move conn.send;
-  loop {
-    let no_deadline = None<Instant>();
-    let cancel = std::time::cancel_never();
-    let buf_tmp = array_filled::<u8, 4096>(value: 0_u8);
-    let outcome = std::net::receive_next(receive: &receive, destination: &buf_tmp[0_u64..4096_u64], start: 0_u64, end: 4096_u64, deadline: no_deadline, cancel: &cancel);
-    std::time::close_cancel_watch(watch: move cancel);
-    match move outcome {
-      Ok(value: next_bytes) => {
-      }
-      Err(error: stop) => {
-        match stop {
-          ReadEnd() => {
-            break;
-          }
-          ReadFailed(error: read_err) => {
-            break;
-          }
-        }
-      }
-    }
-  }
   let recv_closed = std::net::close_receive(factory: factory, receive: move receive);
   let send_closed = std::net::close_send(factory: factory, send: move send);
   return unit;
@@ -105,39 +37,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let read_res = std::fs::close_directory(factory: &factory, directory: move cwd_read);
   let arg_count = std::text::args_count(args: &argv);
   let port_num = 8080_u16;
-  if arg_count > 1_u64 {
-    let port_arg = std::text::arg_get(args: &argv, position: 1_u64);
-    match move port_arg {
-      Ok(value: port_str) => {
-        let port_buf = array_filled::<u8, 16>(value: 0_u8);
-        let port_len = std::text::host_bytes_len(value: &port_str);
-        if port_len > 0_u64 {
-          if port_len <= 5_u64 {
-            let copy_res = std::text::host_copy_bytes(value: &port_str, destination: &port_buf[0_u64..16_u64], start: 0_u64, end: 16_u64);
-            match move copy_res {
-              Ok(value: end_idx) => {
-                let port_view = &port_buf[0_u64..end_idx];
-                let port_opt = parse_u64(port_view);
-                match move port_opt {
-                  Some(value: p) => {
-                    if p <= 65535_u64 {
-                      set port_num = cvt::<u64, u16>(p);
-                    }
-                  }
-                  None() => {
-                  }
-                }
-              }
-              Err(error: copy_err) => {
-              }
-            }
-          }
-        }
-      }
-      Err(error: arg_err) => {
-      }
-    }
-  }
   let addr = std::net::socket_address_v4(a: 127_u8, b: 0_u8, c: 0_u8, d: 1_u8, port: port_num);
   let listen_res = std::net::tcp_listen(factory: &factory, address: &addr);
   let listener = match move listen_res {
@@ -152,7 +51,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let store = shared_new::<HashMap>(value: move map);
   let clients = 0_u64;
   loop {
-    let no_deadline = None<Instant>();
+    let no_deadline = None<std::time::Instant>();
     let cancel = std::time::cancel_never();
     let acc_res = std::net::tcp_accept(factory: &factory, listener: &listener, deadline: no_deadline, cancel: &cancel);
     std::time::close_cancel_watch(watch: move cancel);

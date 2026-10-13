@@ -10,6 +10,7 @@ struct Link {
   next: Option<Box<Link>>;
 }
 
+
 fn sum_list(head: &Option<Box<Link>>) -> result: u64 reads(head) {
   let cursor = head;
   let total = 0_u64;
