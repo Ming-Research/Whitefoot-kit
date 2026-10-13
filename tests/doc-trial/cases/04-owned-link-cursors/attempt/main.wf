@@ -13,13 +13,12 @@ struct Node {
 }
 
 fn build_list() -> result: Option<Box<Node>> pure {
-  let head = None<Box<Node>>();
-  let current = move head;
+  let current = None<Box<Node>>();
   let i = 63_u64;
   loop @build {
     let node = Node(value: i, next: move current);
     let cell = box_new::<Node>(value: move node);
-    let current = Some<Box<Node>>(value: move cell);
+    set current = Some<Box<Node>>(value: move cell);
     if i == 0_u64 {
       return move current;
     }

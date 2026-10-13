@@ -68,7 +68,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   set buffer[6_u64] = cvt.wrap::<u64, u8>(shift6);
   let shift7 = ishr(sum, 56_u32);
   set buffer[7_u64] = cvt.wrap::<u64, u8>(shift7);
-
   let window = &buffer[0_u64..8_u64];
   let no_deadline = None<std::time::Instant>();
   let cancel = std::time::cancel_never();

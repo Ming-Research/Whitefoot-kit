@@ -85,7 +85,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let packet = BytePacket(first: 11_u8, second: 11_u8);
   let boxed_packet = box_new::<BytePacket>(value: move packet);
   let buffer = array_filled::<u8, 72>(value: 0_u8);
-
   let word1 = cvt::<u8, u64>(byte_pair.left);
   write_u64_le(buffer: &buffer, offset: 0_u64, value: word1);
 

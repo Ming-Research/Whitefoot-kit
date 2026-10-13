@@ -24,7 +24,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
       return exit_status(code: 1_u8);
     }
   }
-
   match read_close {
     Ok(value: unused_read_ok) => {
     }

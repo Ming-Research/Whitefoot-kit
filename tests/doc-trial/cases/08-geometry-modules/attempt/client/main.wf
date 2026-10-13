@@ -168,8 +168,12 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let obs9_coord = coord_sub_sat(left: min_coord, right: one_pixel);
   let obs9 = cvt::<i32, i64>(obs9_coord.raw);
   write_i64_le(buffer: &buffer, offset: 64_u64, value: obs9);
-  let rect1 = Rect(x: Coord(raw: 640_i32), y: Coord(raw: 1280_i32), width: Coord(raw: 192_i32), height: Coord(raw: 256_i32));
-  let pt1 = Point(x: Coord(raw: 640_i32), y: Coord(raw: 1280_i32));
+  let c640 = Coord(raw: 640_i32);
+  let c1280 = Coord(raw: 1280_i32);
+  let c192 = Coord(raw: 192_i32);
+  let c256 = Coord(raw: 256_i32);
+  let rect1 = Rect(x: c640, y: c1280, width: c192, height: c256);
+  let pt1 = Point(x: c640, y: c1280);
   let obs10 = point_in_rect(point: pt1, rect: rect1);
   let obs10_val = if obs10 {
     give 1_u64;
@@ -177,7 +181,9 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     give 0_u64;
   }
   write_u64_le(buffer: &buffer, offset: 72_u64, value: obs10_val);
-  let pt2 = Point(x: Coord(raw: 768_i32), y: Coord(raw: 1472_i32));
+  let c768 = Coord(raw: 768_i32);
+  let c1472 = Coord(raw: 1472_i32);
+  let pt2 = Point(x: c768, y: c1472);
   let obs11 = point_in_rect(point: pt2, rect: rect1);
   let obs11_val = if obs11 {
     give 1_u64;
@@ -185,7 +191,8 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     give 0_u64;
   }
   write_u64_le(buffer: &buffer, offset: 80_u64, value: obs11_val);
-  let pt3 = Point(x: Coord(raw: 832_i32), y: Coord(raw: 1472_i32));
+  let c832 = Coord(raw: 832_i32);
+  let pt3 = Point(x: c832, y: c1472);
   let obs12 = point_in_rect(point: pt3, rect: rect1);
   let obs12_val = if obs12 {
     give 1_u64;
@@ -193,7 +200,8 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     give 0_u64;
   }
   write_u64_le(buffer: &buffer, offset: 88_u64, value: obs12_val);
-  let pt4 = Point(x: Coord(raw: 768_i32), y: Coord(raw: 1536_i32));
+  let c1536 = Coord(raw: 1536_i32);
+  let pt4 = Point(x: c768, y: c1536);
   let obs13 = point_in_rect(point: pt4, rect: rect1);
   let obs13_val = if obs13 {
     give 1_u64;
@@ -201,7 +209,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     give 0_u64;
   }
   write_u64_le(buffer: &buffer, offset: 96_u64, value: obs13_val);
-  let rect2 = Rect(x: Coord(raw: 832_i32), y: Coord(raw: 1280_i32), width: Coord(raw: 192_i32), height: Coord(raw: 256_i32));
+  let rect2 = Rect(x: c832, y: c1280, width: c192, height: c256);
   let obs14 = rects_intersect(a: rect1, b: rect2);
   let obs14_val = if obs14 {
     give 1_u64;

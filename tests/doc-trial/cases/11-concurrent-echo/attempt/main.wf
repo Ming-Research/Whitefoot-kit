@@ -82,6 +82,8 @@ fn echo_peer(factory: HandleFactory, receive: std::net::TcpReceive, send: std::n
               }
               Err(error: problem) => {
                 std::time::close_cancel_watch(watch: move cancel);
+                let close_recv = std::net::close_receive(factory: &factory, receive: move receive);
+                let close_send = std::net::close_send(factory: &factory, send: move send);
                 return unit;
               }
             }

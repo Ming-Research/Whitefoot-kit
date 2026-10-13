@@ -37,7 +37,9 @@ fn decode_percent(input: &[u8], output: &[u8]) -> result: u64 reads(input), writ
   let input_len = input^.len;
   let out_pos = 0_u64;
   let in_pos = 0_u64;
-  loop {
+  loop (
+    invariant progress: out_pos <= in_pos
+  ) {
     if in_pos >= input_len {
       break;
     }
