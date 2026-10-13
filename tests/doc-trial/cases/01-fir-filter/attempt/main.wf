@@ -131,18 +131,20 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     i in 0_u64..65_u64,
     invariant bytes_count: output_bytes.len == i * 8_u64
   ) {
-    let value = outputs[i];
-    let bytes = f64_to_bytes(value: value);
-    let j = 0_u64;
-    loop @copy_bytes {
-      if j < 8_u64 {
-      } else {
-        break @copy_bytes;
+    if i < outputs.len {
+      let value = outputs[i];
+      let bytes = f64_to_bytes(value: value);
+      let j = 0_u64;
+      loop @copy_bytes {
+        if j < 8_u64 {
+        } else {
+          break @copy_bytes;
+        }
+        let byte = bytes[j];
+        place_back(window: &output_bytes, value: byte);
+        set j = j + 1_u64;
+        continue;
       }
-      let byte = bytes[j];
-      place_back(window: &output_bytes, value: byte);
-      set j = j + 1_u64;
-      continue;
     }
   }
   let output_len = output_bytes.len;

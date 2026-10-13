@@ -14,7 +14,9 @@ enum Choice<T> {
   Absent();
 }
 
-fn u64_to_le(value: u64, buffer: &[u8], offset: u64) -> result: unit writes(buffer) {
+fn u64_to_le(value: u64, buffer: &[u8], offset: u64) -> result: unit writes(buffer) contract {
+  requires offset + 7_u64 < buffer^.len;
+} {
   let byte0 = iand(value, 255_u64);
   set buffer^[offset] = cvt::<u64, u8>(byte0);
   let offset1 = offset +wrap 1_u64;

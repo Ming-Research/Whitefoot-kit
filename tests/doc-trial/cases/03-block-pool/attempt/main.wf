@@ -96,7 +96,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let held_count = pool.free_count;
   match lease_opt {
     Some(value: lease) => {
-      let return_result = return_lease(pool: &pool, lease: move lease);
+      let return_result = return_lease(pool: &pool, lease: lease);
       let final_count = pool.free_count;
       match return_result {
         Ok(value: unused_return) => {

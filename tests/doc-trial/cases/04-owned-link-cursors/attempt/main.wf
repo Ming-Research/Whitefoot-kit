@@ -56,7 +56,7 @@ fn filter_list(node: &LinkNode) -> result: Option<Box<LinkNode>> reads(node) {
         let empty = None<Box<LinkNode>>();
         return empty;
       }
-    }
+    };
   } else {
     let next_list = match &node^.next {
       Some(value: next_box) => {

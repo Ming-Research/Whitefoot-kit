@@ -72,7 +72,7 @@ fn run_machine(instructions: &[Instruction], counter: u64) -> result: u64 reads(
   }
 }
 
-fn write_le_u64(factory: &HandleFactory, output: &OutputStream, value: u64) -> result: Result<unit, IoError> reads(factory), writes(factory), writes(output) waits {
+fn write_le_u64(factory: &HandleFactory, output: &OutputStream, value: u64) -> result: Result<unit, IoError> writes(factory), writes(output) waits {
   let bytes = array_filled::<u8, 8>(value: 0_u8);
   set bytes[0_u64] = cvt.wrap::<u64, u8>(value);
   let sh1 = ishr(value, 8_u32);

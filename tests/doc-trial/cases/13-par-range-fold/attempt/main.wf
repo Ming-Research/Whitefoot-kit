@@ -7,8 +7,11 @@ alias IoError = std::io::IoError;
 alias CancelWatch = std::time::CancelWatch;
 
 const constant_a: u64 = 6364136223846793005_u64;
+
 const constant_b: u64 = 1442695040888963407_u64;
+
 const rounds: u64 = 24_u64;
+
 const seed_count: u64 = 400000_u64;
 
 fn mixer(state: u64) -> result: u64 pure {

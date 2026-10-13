@@ -102,27 +102,37 @@ fn write_all(factory: &HandleFactory, output: &OutputStream, source: &[u8]) -> r
   return Ok<unit, std::io::IoError>(value: unit);
 }
 
-fn launch_incrementers(counter: &Shared<u64>) -> result: unit reads(counter) waits {
-  for (i in 0_u64..16_u64) {
+fn launch_activities(counter: &Shared<u64>, queue: &Shared<Ring<u64, 8>>, total: &Shared<u64>) -> result: unit reads(counter), reads(queue), reads(total) waits {
+  let i = 0_u64;
+  loop {
+    if i < 16_u64 {
+    } else {
+      break;
+    }
     let h = shared_share::<u64>(shared: counter);
     spawn increment_counter(counter: move h);
+    set i = i + 1_u64;
   }
-  return unit;
-}
-
-fn launch_producers(queue: &Shared<Ring<u64, 8>>) -> result: unit reads(queue) waits {
-  for (i in 0_u64..4_u64) {
-    let h = shared_share::<Ring<u64, 8>>(shared: queue);
-    spawn produce_values(queue: move h);
-  }
-  return unit;
-}
-
-fn launch_consumers(queue: &Shared<Ring<u64, 8>>, total: &Shared<u64>) -> result: unit reads(queue), reads(total) waits {
-  for (i in 0_u64..4_u64) {
+  let j = 0_u64;
+  loop {
+    if j < 4_u64 {
+    } else {
+      break;
+    }
     let q = shared_share::<Ring<u64, 8>>(shared: queue);
     let t = shared_share::<u64>(shared: total);
     spawn consume_values(queue: move q, total: move t);
+    set j = j + 1_u64;
+  }
+  let k = 0_u64;
+  loop {
+    if k < 4_u64 {
+    } else {
+      break;
+    }
+    let h = shared_share::<Ring<u64, 8>>(shared: queue);
+    spawn produce_values(queue: move h);
+    set k = k + 1_u64;
   }
   return unit;
 }
@@ -136,9 +146,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let initial_ring = ring_new::<u64, 8>();
   let queue = shared_new::<Ring<u64, 8>>(value: move initial_ring);
   let total = shared_new::<u64>(value: 0_u64);
-  launch_incrementers(counter: &counter);
-  launch_producers(queue: &queue);
-  launch_consumers(queue: &queue, total: &total);
+  launch_activities(counter: &counter, queue: &queue, total: &total);
   let final_counter = 0_u64;
   atomic count = &counter {
     set final_counter = count^;

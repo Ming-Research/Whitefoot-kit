@@ -58,7 +58,7 @@ fn sum_range(run: &Run<u64>) -> result: u64 reads(run) {
   return sum;
 }
 
-fn measure_after_release(pool: Box<Paged<u64>>, meter: &std::process::MemoryMeter) -> result: u64 pure {
+fn measure_after_release(pool: Box<Paged<u64>>, meter: &std::process::MemoryMeter) -> result: u64 writes(meter) {
   return std::process::heap_in_use(meter: meter);
 }
 

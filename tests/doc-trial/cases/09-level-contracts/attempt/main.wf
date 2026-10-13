@@ -6,7 +6,7 @@ alias OutputStream = std::io::OutputStream;
 alias IoError = std::io::IoError;
 alias Instant = std::time::Instant;
 
-fn validate(parents: &[u32], depths: &[u32]) -> result: Bool pure contract {
+fn validate(parents: &[u32], depths: &[u32]) -> result: Bool reads(parents), reads(depths) contract {
   requires parents^.len == depths^.len;
 } {
   let n = parents^.len;

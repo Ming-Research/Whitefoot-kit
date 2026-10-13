@@ -55,18 +55,21 @@ fn parse_bulk_string(buffer: &[u8], start: u64) -> result: Result<BulkStringPars
   }
   let data_start = len_end +wrap 2_u64;
   let data_end = data_start +wrap len_value;
-  if data_end +wrap 2_u64 > buffer_len {
+  let check_end = data_end +wrap 2_u64;
+  if check_end > buffer_len {
     return Err<BulkStringParsed, u64>(error: 0_u64);
   }
   if buffer^[data_end] != 13_u8 {
     return Err<BulkStringParsed, u64>(error: 1_u64);
   }
-  if buffer^[data_end +wrap 1_u64] != 10_u8 {
+  let cr_pos = data_end +wrap 1_u64;
+  if buffer^[cr_pos] != 10_u8 {
     return Err<BulkStringParsed, u64>(error: 1_u64);
   }
   let data = slots_new::<u8, 4096>();
   for (i in 0_u64..len_value) {
-    let byte = buffer^[data_start +wrap i];
+    let byte_pos = data_start +wrap i;
+    let byte = buffer^[byte_pos];
     place_back(window: &data, value: byte);
   }
   let next_pos = data_end +wrap 2_u64;
@@ -251,7 +254,8 @@ fn handle_connection(store: Shared<unit>, send: TcpSend, receive: TcpReceive, fa
                       place_back(window: &resp, value: 58_u8);
                       let dlen = digits.len;
                       for (i in 0_u64..dlen) {
-                        let idx = dlen - 1_u64 - i;
+                        let sub_1 = dlen - 1_u64;
+                        let idx = sub_1 - i;
                         let byte = digits[idx];
                         place_back(window: &resp, value: byte);
                       }
@@ -290,7 +294,8 @@ fn handle_connection(store: Shared<unit>, send: TcpSend, receive: TcpReceive, fa
         }
         set buffer_len = buffer_len - consumed;
         for (i in 0_u64..buffer_len) {
-          set buffer[i] = buffer[consumed +wrap i];
+          let src_pos = consumed +wrap i;
+          set buffer[i] = buffer[src_pos];
         }
         continue @request_loop;
       }

@@ -28,10 +28,10 @@ fn parse_port_bytes(bytes: &[u8]) -> result: Option<u16> reads(bytes) {
       let digit_u32 = cvt::<u8, u32>(digit);
       let temp = value *checked 10_u32;
       match temp {
-        Ok(value_times_10: v) => {
+        Ok(value: v) => {
           let temp2 = v +checked digit_u32;
           match temp2 {
-            Ok(result_value: v2) => {
+            Ok(value: v2) => {
               set value = v2;
             }
             Err(error: ov) => {
