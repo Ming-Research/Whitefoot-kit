@@ -1,0 +1,72 @@
+fn coord_from_whole(pixels: i32) -> result: Coord pure {
+  let clamped = if pixels > 33554431_i32 {
+    give 2147483647_i32;
+  } else if pixels < -33554432_i32 {
+    give -2147483648_i32;
+  } else {
+    give pixels;
+  }
+  let raw = clamped *sat 64_i32;
+  return Coord(raw: raw);
+}
+
+fn coord_from_f64(pixels: f64) -> result: Coord pure {
+  let scaled = fmul.strict(pixels, 64.0_f64);
+  let raw_candidate = cvt.nearest::<f64, i32>(scaled);
+  match raw_candidate {
+    Ok(value: r) => {
+      return Coord(raw: r);
+    }
+    Err(error: overflow_err) => {
+      if pixels >= 0.0_f64 {
+        return Coord(raw: 2147483647_i32);
+      } else {
+        return Coord(raw: -2147483648_i32);
+      }
+    }
+  }
+}
+
+fn coord_to_f64(coord: Coord) -> result: f64 pure {
+  let as_f64 = cvt::<i32, f64>(coord.raw);
+  let result = fdiv.strict(as_f64, 64.0_f64);
+  return result;
+}
+
+fn coord_add_sat(left: Coord, right: Coord) -> result: Coord pure {
+  let sum = left.raw +sat right.raw;
+  return Coord(raw: sum);
+}
+
+fn coord_sub_sat(left: Coord, right: Coord) -> result: Coord pure {
+  let diff = left.raw -sat right.raw;
+  return Coord(raw: diff);
+}
+
+fn coord_min(left: Coord, right: Coord) -> result: Coord pure {
+  let minimum = imin(left.raw, right.raw);
+  return Coord(raw: minimum);
+}
+
+fn coord_max(left: Coord, right: Coord) -> result: Coord pure {
+  let maximum = imax(left.raw, right.raw);
+  return Coord(raw: maximum);
+}
+
+fn point_in_rect(point: Point, rect: Rect) -> result: Bool pure {
+  let x_in = band(point.x.raw >= rect.x.raw, point.x.raw < rect.x.raw +sat rect.width.raw);
+  let y_in = band(point.y.raw >= rect.y.raw, point.y.raw < rect.y.raw +sat rect.height.raw);
+  let contained = band(x_in, y_in);
+  return contained;
+}
+
+fn rects_intersect(a: Rect, b: Rect) -> result: Bool pure {
+  let a_right = a.x.raw +sat a.width.raw;
+  let b_right = b.x.raw +sat b.width.raw;
+  let a_bottom = a.y.raw +sat a.height.raw;
+  let b_bottom = b.y.raw +sat b.height.raw;
+  let x_overlap = band(a.x.raw < b_right, b.x.raw < a_right);
+  let y_overlap = band(a.y.raw < b_bottom, b.y.raw < a_bottom);
+  let intersect = band(x_overlap, y_overlap);
+  return intersect;
+}

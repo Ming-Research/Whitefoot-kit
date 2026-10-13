@@ -1,57 +1,86 @@
 alias ExitStatus = std::process::ExitStatus;
-alias exit_status = std::process::exit_status;
 alias Inputs = std::process::Inputs;
+alias exit_status = std::process::exit_status;
+alias Directory = std::fs::Directory;
+alias close_directory = std::fs::close_directory;
+alias close_directory_write = std::fs::close_directory_write;
+alias Coord = pkg::geometry::Coord;
 alias Point = pkg::geometry::Point;
-alias Rectangle = pkg::geometry::Rectangle;
-alias from_whole_pixels = pkg::geometry::from_whole_pixels;
-alias from_binary64_pixels = pkg::geometry::from_binary64_pixels;
-alias to_binary64_pixels = pkg::geometry::to_binary64_pixels;
-alias saturating_add = pkg::geometry::saturating_add;
-alias saturating_sub = pkg::geometry::saturating_sub;
-alias point_in_rectangle = pkg::geometry::point_in_rectangle;
-alias rectangles_intersect = pkg::geometry::rectangles_intersect;
+alias Rect = pkg::geometry::Rect;
+alias coord_from_whole = pkg::geometry::coord_from_whole;
+alias coord_from_f64 = pkg::geometry::coord_from_f64;
+alias coord_to_f64 = pkg::geometry::coord_to_f64;
+alias coord_add_sat = pkg::geometry::coord_add_sat;
+alias coord_sub_sat = pkg::geometry::coord_sub_sat;
+alias point_in_rect = pkg::geometry::point_in_rect;
+alias rects_intersect = pkg::geometry::rects_intersect;
+alias HandleFactory = std::io::HandleFactory;
+alias OutputStream = std::io::OutputStream;
+alias Instant = std::time::Instant;
+alias CancelWatch = std::time::CancelWatch;
 alias write_once = std::io::write_once;
 alias cancel_never = std::time::cancel_never;
+alias close_cancel_watch = std::time::close_cancel_watch;
+alias IoError = std::io::IoError;
 
-fn store_i64_le(buffer: &Array<u8, 112>, offset: u64, value: i64) -> result: unit writes(buffer) {
-  let byte0 = cvt::<i64, u8>(value);
-  set buffer^[offset] = byte0;
-  let shift1 = ishr(value, 8_u32);
-  let byte1 = cvt::<i64, u8>(shift1);
-  set buffer^[offset + 1_u64] = byte1;
-  let shift2 = ishr(value, 16_u32);
-  let byte2 = cvt::<i64, u8>(shift2);
-  set buffer^[offset + 2_u64] = byte2;
-  let shift3 = ishr(value, 24_u32);
-  let byte3 = cvt::<i64, u8>(shift3);
-  set buffer^[offset + 3_u64] = byte3;
-  let shift4 = ishr(value, 32_u32);
-  let byte4 = cvt::<i64, u8>(shift4);
-  set buffer^[offset + 4_u64] = byte4;
-  let shift5 = ishr(value, 40_u32);
-  let byte5 = cvt::<i64, u8>(shift5);
-  set buffer^[offset + 5_u64] = byte5;
-  let shift6 = ishr(value, 48_u32);
-  let byte6 = cvt::<i64, u8>(shift6);
-  set buffer^[offset + 6_u64] = byte6;
-  let shift7 = ishr(value, 56_u32);
-  let byte7 = cvt::<i64, u8>(shift7);
-  set buffer^[offset + 7_u64] = byte7;
+fn write_i64_le(buffer: &[u8], offset: u64, value: i64) -> result: unit writes(buffer) {
+  let b0 = cvt.wrap::<i64, u8>(value);
+  let b1 = cvt.wrap::<i64, u8>(ishr(value, 8_u32));
+  let b2 = cvt.wrap::<i64, u8>(ishr(value, 16_u32));
+  let b3 = cvt.wrap::<i64, u8>(ishr(value, 24_u32));
+  let b4 = cvt.wrap::<i64, u8>(ishr(value, 32_u32));
+  let b5 = cvt.wrap::<i64, u8>(ishr(value, 40_u32));
+  let b6 = cvt.wrap::<i64, u8>(ishr(value, 48_u32));
+  let b7 = cvt.wrap::<i64, u8>(ishr(value, 56_u32));
+  set buffer^[offset] = b0;
+  set buffer^[offset + 1_u64] = b1;
+  set buffer^[offset + 2_u64] = b2;
+  set buffer^[offset + 3_u64] = b3;
+  set buffer^[offset + 4_u64] = b4;
+  set buffer^[offset + 5_u64] = b5;
+  set buffer^[offset + 6_u64] = b6;
+  set buffer^[offset + 7_u64] = b7;
   return unit;
 }
 
-fn write_all(output: &std::io::OutputStream, factory: &std::io::HandleFactory, buffer: &[u8], start: u64, end: u64) -> result: Result<unit, std::io::IoError> reads(buffer), writes(factory), writes(output) waits {
-  let sent = start;
-  loop @send {
-    let pending = sent < end;
+fn write_f64_le(buffer: &[u8], offset: u64, value: f64) -> result: unit writes(buffer) {
+  let bits = reinterpret::<f64, i64>(value);
+  return write_i64_le(buffer: buffer, offset: offset, value: bits);
+}
+
+fn write_u64_le(buffer: &[u8], offset: u64, value: u64) -> result: unit writes(buffer) {
+  let b0 = cvt.wrap::<u64, u8>(value);
+  let b1 = cvt.wrap::<u64, u8>(ishr(value, 8_u32));
+  let b2 = cvt.wrap::<u64, u8>(ishr(value, 16_u32));
+  let b3 = cvt.wrap::<u64, u8>(ishr(value, 24_u32));
+  let b4 = cvt.wrap::<u64, u8>(ishr(value, 32_u32));
+  let b5 = cvt.wrap::<u64, u8>(ishr(value, 40_u32));
+  let b6 = cvt.wrap::<u64, u8>(ishr(value, 48_u32));
+  let b7 = cvt.wrap::<u64, u8>(ishr(value, 56_u32));
+  set buffer^[offset] = b0;
+  set buffer^[offset + 1_u64] = b1;
+  set buffer^[offset + 2_u64] = b2;
+  set buffer^[offset + 3_u64] = b3;
+  set buffer^[offset + 4_u64] = b4;
+  set buffer^[offset + 5_u64] = b5;
+  set buffer^[offset + 6_u64] = b6;
+  set buffer^[offset + 7_u64] = b7;
+  return unit;
+}
+
+fn publish_all(factory: &HandleFactory, output: &OutputStream, buffer: &[u8]) -> result: Result<unit, std::io::IoError> reads(buffer), writes(factory), writes(output) waits {
+  let sent = 0_u64;
+  let length = 112_u64;
+  loop @publish {
+    let pending = sent < length;
     if pending {
     } else {
-      break @send;
+      break @publish;
     }
-    let no_deadline = None<std::time::Instant>();
+    let no_deadline = None<Instant>();
     let cancel = cancel_never();
-    let outcome = write_once(factory: factory, output: output, source: buffer, start: sent, end: end, deadline: no_deadline, cancel: &cancel);
-    std::time::close_cancel_watch(watch: move cancel);
+    let outcome = write_once(factory: factory, output: output, source: buffer, start: sent, end: length, deadline: no_deadline, cancel: &cancel);
+    close_cancel_watch(watch: move cancel);
     match outcome {
       Ok(value: next) => {
         set sent = next;
@@ -65,87 +94,93 @@ fn write_all(output: &std::io::OutputStream, factory: &std::io::HandleFactory, b
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(cwd: directory, handles: factory, stdout: output, ..) = move inputs;
-  let std::fs::Directory(read: cwd_read, write: cwd_write) = move directory;
-  std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
-  std::fs::close_directory(factory: &factory, directory: move cwd_read);
+  let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: output, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
+  let close_write_outcome = close_directory_write(factory: &factory, directory: move cwd_write);
+  let close_read_outcome = close_directory(factory: &factory, directory: move cwd_read);
+  match close_write_outcome {
+    Ok(value: unused_write_ok) => {
+    }
+    Err(error: unused_write_err) => {
+    }
+  }
+  match close_read_outcome {
+    Ok(value: unused_read_ok) => {
+    }
+    Err(error: unused_read_err) => {
+    }
+  }
   let buffer = array_filled::<u8, 112>(value: 0_u8);
-  let obs1 = from_whole_pixels(value: 2_i64);
-  let obs1_i64 = cvt::<i32, i64>(obs1);
-  store_i64_le(buffer: &buffer, offset: 0_u64, value: obs1_i64);
-  let obs2 = from_whole_pixels(value: 2147483647_i64);
-  let obs2_i64 = cvt::<i32, i64>(obs2);
-  store_i64_le(buffer: &buffer, offset: 8_u64, value: obs2_i64);
-  let obs3 = from_whole_pixels(value: -2147483648_i64);
-  let obs3_i64 = cvt::<i32, i64>(obs3);
-  store_i64_le(buffer: &buffer, offset: 16_u64, value: obs3_i64);
-  let obs4 = from_binary64_pixels(value: 1.5_f64);
-  let obs4_i64 = cvt::<i32, i64>(obs4);
-  store_i64_le(buffer: &buffer, offset: 24_u64, value: obs4_i64);
-  let obs5 = to_binary64_pixels(coord: 96_i32);
-  let obs5_i64 = reinterpret::<f64, i64>(obs5);
-  store_i64_le(buffer: &buffer, offset: 32_u64, value: obs5_i64);
-  let obs6 = from_binary64_pixels(value: 0.0078125_f64);
-  let obs6_i64 = cvt::<i32, i64>(obs6);
-  store_i64_le(buffer: &buffer, offset: 40_u64, value: obs6_i64);
-  let obs7 = from_binary64_pixels(value: 0.0234375_f64);
-  let obs7_i64 = cvt::<i32, i64>(obs7);
-  store_i64_le(buffer: &buffer, offset: 48_u64, value: obs7_i64);
-  let obs8 = saturating_add(left: 2147483647_i32, right: 64_i32);
-  let obs8_i64 = cvt::<i32, i64>(obs8);
-  store_i64_le(buffer: &buffer, offset: 56_u64, value: obs8_i64);
-  let obs9 = saturating_sub(left: -2147483648_i32, right: 64_i32);
-  let obs9_i64 = cvt::<i32, i64>(obs9);
-  store_i64_le(buffer: &buffer, offset: 64_u64, value: obs9_i64);
-  let rect1 = Rectangle(x: 640_i32, y: 1280_i32, width: 192_i32, height: 256_i32);
-  let point1 = Point(x: 640_i32, y: 1280_i32);
-  let obs10 = point_in_rectangle(point: point1, rect: rect1);
-  let obs10_u64 = if obs10 {
+  let obs1_coord = coord_from_whole(pixels: 2_i32);
+  let obs1 = cvt::<i32, i64>(obs1_coord.raw);
+  write_i64_le(buffer: &buffer, offset: 0_u64, value: obs1);
+  let obs2_coord = coord_from_whole(pixels: 2147483647_i32);
+  let obs2 = cvt::<i32, i64>(obs2_coord.raw);
+  write_i64_le(buffer: &buffer, offset: 8_u64, value: obs2);
+  let obs3_coord = coord_from_whole(pixels: -2147483648_i32);
+  let obs3 = cvt::<i32, i64>(obs3_coord.raw);
+  write_i64_le(buffer: &buffer, offset: 16_u64, value: obs3);
+  let obs4_coord = coord_from_f64(pixels: 1.5_f64);
+  let obs4 = cvt::<i32, i64>(obs4_coord.raw);
+  write_i64_le(buffer: &buffer, offset: 24_u64, value: obs4);
+  let obs5_f64 = coord_to_f64(coord: obs4_coord);
+  write_f64_le(buffer: &buffer, offset: 32_u64, value: obs5_f64);
+  let obs6_coord = coord_from_f64(pixels: 0.0078125_f64);
+  let obs6 = cvt::<i32, i64>(obs6_coord.raw);
+  write_i64_le(buffer: &buffer, offset: 40_u64, value: obs6);
+  let obs7_coord = coord_from_f64(pixels: 0.0234375_f64);
+  let obs7 = cvt::<i32, i64>(obs7_coord.raw);
+  write_i64_le(buffer: &buffer, offset: 48_u64, value: obs7);
+  let max_coord = Coord(raw: 2147483647_i32);
+  let one_pixel = coord_from_whole(pixels: 1_i32);
+  let obs8_coord = coord_add_sat(left: max_coord, right: one_pixel);
+  let obs8 = cvt::<i32, i64>(obs8_coord.raw);
+  write_i64_le(buffer: &buffer, offset: 56_u64, value: obs8);
+  let min_coord = Coord(raw: -2147483648_i32);
+  let obs9_coord = coord_sub_sat(left: min_coord, right: one_pixel);
+  let obs9 = cvt::<i32, i64>(obs9_coord.raw);
+  write_i64_le(buffer: &buffer, offset: 64_u64, value: obs9);
+  let rect1 = Rect(x: Coord(raw: 640_i32), y: Coord(raw: 1280_i32), width: Coord(raw: 192_i32), height: Coord(raw: 256_i32));
+  let pt1 = Point(x: Coord(raw: 640_i32), y: Coord(raw: 1280_i32));
+  let obs10 = point_in_rect(point: pt1, rect: rect1);
+  let obs10_val = if obs10 {
     give 1_u64;
   } else {
     give 0_u64;
   }
-  store_i64_le(buffer: &buffer, offset: 72_u64, value: cvt::<u64, i64>(obs10_u64));
-  let point2 = Point(x: 768_i32, y: 1472_i32);
-  let obs11 = point_in_rectangle(point: point2, rect: rect1);
-  let obs11_u64 = if obs11 {
+  write_u64_le(buffer: &buffer, offset: 72_u64, value: obs10_val);
+  let pt2 = Point(x: Coord(raw: 768_i32), y: Coord(raw: 1472_i32));
+  let obs11 = point_in_rect(point: pt2, rect: rect1);
+  let obs11_val = if obs11 {
     give 1_u64;
   } else {
     give 0_u64;
   }
-  store_i64_le(buffer: &buffer, offset: 80_u64, value: cvt::<u64, i64>(obs11_u64));
-  let point3 = Point(x: 832_i32, y: 1472_i32);
-  let obs12 = point_in_rectangle(point: point3, rect: rect1);
-  let obs12_u64 = if obs12 {
+  write_u64_le(buffer: &buffer, offset: 80_u64, value: obs11_val);
+  let pt3 = Point(x: Coord(raw: 832_i32), y: Coord(raw: 1472_i32));
+  let obs12 = point_in_rect(point: pt3, rect: rect1);
+  let obs12_val = if obs12 {
     give 1_u64;
   } else {
     give 0_u64;
   }
-  store_i64_le(buffer: &buffer, offset: 88_u64, value: cvt::<u64, i64>(obs12_u64));
-  let point4 = Point(x: 768_i32, y: 1536_i32);
-  let obs13 = point_in_rectangle(point: point4, rect: rect1);
-  let obs13_u64 = if obs13 {
+  write_u64_le(buffer: &buffer, offset: 88_u64, value: obs12_val);
+  let pt4 = Point(x: Coord(raw: 768_i32), y: Coord(raw: 1536_i32));
+  let obs13 = point_in_rect(point: pt4, rect: rect1);
+  let obs13_val = if obs13 {
     give 1_u64;
   } else {
     give 0_u64;
   }
-  store_i64_le(buffer: &buffer, offset: 96_u64, value: cvt::<u64, i64>(obs13_u64));
-  let rect2 = Rectangle(x: 832_i32, y: 1280_i32, width: 192_i32, height: 256_i32);
-  let obs14 = rectangles_intersect(rect1: rect1, rect2: rect2);
-  let obs14_u64 = if obs14 {
+  write_u64_le(buffer: &buffer, offset: 96_u64, value: obs13_val);
+  let rect2 = Rect(x: Coord(raw: 832_i32), y: Coord(raw: 1280_i32), width: Coord(raw: 192_i32), height: Coord(raw: 256_i32));
+  let obs14 = rects_intersect(a: rect1, b: rect2);
+  let obs14_val = if obs14 {
     give 1_u64;
   } else {
     give 0_u64;
   }
-  store_i64_le(buffer: &buffer, offset: 104_u64, value: cvt::<u64, i64>(obs14_u64));
-  let buffer_slice = &buffer[0_u64..112_u64];
-  let outcome = write_all(output: &output, factory: &factory, buffer: buffer_slice, start: 0_u64, end: 112_u64);
-  match outcome {
-    Ok(value: unused_ok) => {
-      return exit_status(code: 0_u8);
-    }
-    Err(error: problem) => {
-      return exit_status(code: 1_u8);
-    }
-  }
+  write_u64_le(buffer: &buffer, offset: 104_u64, value: obs14_val);
+  let published = propagate publish_all(factory: &factory, output: &output, buffer: &buffer);
+  return exit_status(code: 0_u8);
 }

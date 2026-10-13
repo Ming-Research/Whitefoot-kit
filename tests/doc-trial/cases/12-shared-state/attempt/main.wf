@@ -1,10 +1,9 @@
 alias ExitStatus = std::process::ExitStatus;
-alias exit_status = std::process::exit_status;
 alias Inputs = std::process::Inputs;
-alias CancelWatch = std::time::CancelWatch;
-alias Instant = std::time::Instant;
+alias HandleFactory = std::io::HandleFactory;
+alias OutputStream = std::io::OutputStream;
 
-fn increment_counter(counter: Shared<u64>) -> result: unit pure {
+fn add_to_counter(counter: Shared<u64>) -> result: unit pure waits {
   for (i in 0_u64..20000_u64) {
     atomic count = &counter {
       set count^ = count^ +wrap 1_u64;
@@ -13,197 +12,122 @@ fn increment_counter(counter: Shared<u64>) -> result: unit pure {
   return unit;
 }
 
-fn producer(queue: Shared<Box<Ring<u32>>>) -> result: unit pure {
+fn produce(queue: Shared<Ring<u64, 8>>) -> result: unit pure waits {
   for (i in 0_u64..5000_u64) {
-    let i_u32 = cvt::<u64, u32>(i);
-    loop {
-      let placed = False();
-      atomic q = &queue {
-        if q^.inner.len < 8_u64 {
-          deque_push_back(values: q, value: i_u32);
-          set placed = True();
-        }
-      }
-      if placed {
-        break;
-      }
+    atomic items = &queue when items^.len < items^.cap {
+      place_back(window: items, value: i);
     }
   }
   return unit;
 }
 
-fn consumer(queue: Shared<Box<Ring<u32>>>, total: Shared<u64>) -> result: unit pure {
+fn consume(queue: Shared<Ring<u64, 8>>, total: Shared<u64>) -> result: unit pure waits {
   for (i in 0_u64..5000_u64) {
-    loop {
-      let item = None<u32>();
-      atomic q = &queue {
-        if q^.inner.len > 0_u64 {
-          let value = deque_pop_front(values: q);
-          set item = Some<u32>(value: value);
-        }
-      }
-      match item {
-        Some(value: v) => {
-          let as_u64 = cvt::<u32, u64>(v);
-          atomic sum = &total {
-            set sum^ = sum^ +wrap as_u64;
-          }
-          break;
-        }
-        None() => {
-        }
-      }
+    atomic items = &queue, sum = &total when items^.len > 0_u64 {
+      let value = take_front(window: items);
+      set sum^ = sum^ +wrap value;
     }
   }
   return unit;
 }
 
-fn main(inputs: Inputs) -> status: ExitStatus pure {
-  let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: output, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
-  let std::fs::Directory(read: cwd, write: cwd_write) = move cwd_directory;
-  let write_closed = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
-  let read_closed = std::fs::close_directory(factory: &factory, directory: move cwd);
-  match write_closed {
-    Ok(value: unused_write_closed) => {
+fn write_u64(factory: &HandleFactory, output: &OutputStream, value: u64) -> result: Result<unit, std::io::IoError> reads(factory), writes(factory), writes(output) waits {
+  let bytes = array_filled::<u8, 8>(value: 0_u8);
+  set bytes[0_u64] = cvt.wrap::<u64, u8>(value);
+  set bytes[1_u64] = cvt.wrap::<u64, u8>(ishr(value, 8_u32));
+  set bytes[2_u64] = cvt.wrap::<u64, u8>(ishr(value, 16_u32));
+  set bytes[3_u64] = cvt.wrap::<u64, u8>(ishr(value, 24_u32));
+  set bytes[4_u64] = cvt.wrap::<u64, u8>(ishr(value, 32_u32));
+  set bytes[5_u64] = cvt.wrap::<u64, u8>(ishr(value, 40_u32));
+  set bytes[6_u64] = cvt.wrap::<u64, u8>(ishr(value, 48_u32));
+  set bytes[7_u64] = cvt.wrap::<u64, u8>(ishr(value, 56_u32));
+  let buffer = &bytes[0_u64..8_u64];
+  let sent = 0_u64;
+  loop @sending {
+    if sent < 8_u64 {
+    } else {
+      break @sending;
     }
-    Err(error: unused_write_error) => {
-      return exit_status(code: 4_u8);
+    let no_deadline = None<std::time::Instant>();
+    let cancel = std::time::cancel_never();
+    let outcome = std::io::write_once(factory: factory, output: output, source: buffer, start: sent, end: 8_u64, deadline: no_deadline, cancel: &cancel);
+    std::time::close_cancel_watch(watch: move cancel);
+    match outcome {
+      Ok(value: next) => {
+        set sent = next;
+      }
+      Err(error: problem) => {
+        return Err<unit, std::io::IoError>(error: problem);
+      }
     }
   }
-  match read_closed {
-    Ok(value: unused_read_closed) => {
-    }
-    Err(error: unused_read_error) => {
-      return exit_status(code: 4_u8);
-    }
-  }
+  return Ok<unit, std::io::IoError>(value: unit);
+}
+
+fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+  let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: stdout_stream, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let std::fs::Directory(read: directory_read, write: directory_write) = move cwd_directory;
+  std::fs::close_directory_write(factory: &factory, directory: move directory_write);
+  std::fs::close_directory(factory: &factory, directory: move directory_read);
   let counter = shared_new::<u64>(value: 0_u64);
-  let initial_queue = std::collections::deque::deque_new::<u32, 8_u64>(capacity: 8_u64);
-  let queue = shared_new::<Box<Ring<u32>>>(value: move initial_queue);
+  let initial_ring = ring_new::<u64, 8>();
+  let queue = shared_new::<Ring<u64, 8>>(value: move initial_ring);
   let total = shared_new::<u64>(value: 0_u64);
   for (i in 0_u64..16_u64) {
     let counter_handle = shared_share::<u64>(shared: &counter);
-    spawn increment_counter(counter: move counter_handle);
+    spawn add_to_counter(counter: move counter_handle);
   }
-  for (p in 0_u64..4_u64) {
-    let queue_handle = shared_share::<Box<Ring<u32>>>(shared: &queue);
-    spawn producer(queue: move queue_handle);
+  for (i in 0_u64..4_u64) {
+    let queue_handle = shared_share::<Ring<u64, 8>>(shared: &queue);
+    spawn produce(queue: move queue_handle);
   }
-  for (c in 0_u64..4_u64) {
-    let queue_handle = shared_share::<Box<Ring<u32>>>(shared: &queue);
+  for (i in 0_u64..4_u64) {
+    let queue_handle = shared_share::<Ring<u64, 8>>(shared: &queue);
     let total_handle = shared_share::<u64>(shared: &total);
-    spawn consumer(queue: move queue_handle, total: move total_handle);
+    spawn consume(queue: move queue_handle, total: move total_handle);
   }
-  let final_counter = 0_u64;
+  let observed_counter = 0_u64;
   atomic count = &counter {
-    set final_counter = count^;
+    set observed_counter = count^;
   }
-  let final_total = 0_u64;
-  atomic sum = &total {
-    set final_total = sum^;
+  if observed_counter != 320000_u64 {
+    return std::process::exit_status(code: 1_u8);
   }
-  let queue_length = 0_u64;
-  atomic q = &queue {
-    set queue_length = q^.inner.len;
+  let observed_total = 0_u64;
+  let observed_queue_len = 0_u64;
+  atomic items = &queue, sum = &total {
+    set observed_total = sum^;
+    set observed_queue_len = items^.len;
   }
-  if final_counter != 320000_u64 {
-    return exit_status(code: 1_u8);
+  if observed_total != 49990000_u64 {
+    return std::process::exit_status(code: 2_u8);
   }
-  if final_total != 49990000_u64 {
-    return exit_status(code: 2_u8);
+  if observed_queue_len != 0_u64 {
+    return std::process::exit_status(code: 3_u8);
   }
-  if queue_length != 0_u64 {
-    return exit_status(code: 3_u8);
-  }
-  let output_buffer = array_filled::<u8, 24>(value: 0_u8);
-  let c0 = cvt::<u64, u8>(final_counter);
-  set output_buffer[0_u64] = c0;
-  let c1 = ishr(final_counter, 8_u32);
-  let c1_byte = cvt::<u64, u8>(c1);
-  set output_buffer[1_u64] = c1_byte;
-  let c2 = ishr(final_counter, 16_u32);
-  let c2_byte = cvt::<u64, u8>(c2);
-  set output_buffer[2_u64] = c2_byte;
-  let c3 = ishr(final_counter, 24_u32);
-  let c3_byte = cvt::<u64, u8>(c3);
-  set output_buffer[3_u64] = c3_byte;
-  let c4 = ishr(final_counter, 32_u32);
-  let c4_byte = cvt::<u64, u8>(c4);
-  set output_buffer[4_u64] = c4_byte;
-  let c5 = ishr(final_counter, 40_u32);
-  let c5_byte = cvt::<u64, u8>(c5);
-  set output_buffer[5_u64] = c5_byte;
-  let c6 = ishr(final_counter, 48_u32);
-  let c6_byte = cvt::<u64, u8>(c6);
-  set output_buffer[6_u64] = c6_byte;
-  let c7 = ishr(final_counter, 56_u32);
-  let c7_byte = cvt::<u64, u8>(c7);
-  set output_buffer[7_u64] = c7_byte;
-  let t0 = cvt::<u64, u8>(final_total);
-  set output_buffer[8_u64] = t0;
-  let t1 = ishr(final_total, 8_u32);
-  let t1_byte = cvt::<u64, u8>(t1);
-  set output_buffer[9_u64] = t1_byte;
-  let t2 = ishr(final_total, 16_u32);
-  let t2_byte = cvt::<u64, u8>(t2);
-  set output_buffer[10_u64] = t2_byte;
-  let t3 = ishr(final_total, 24_u32);
-  let t3_byte = cvt::<u64, u8>(t3);
-  set output_buffer[11_u64] = t3_byte;
-  let t4 = ishr(final_total, 32_u32);
-  let t4_byte = cvt::<u64, u8>(t4);
-  set output_buffer[12_u64] = t4_byte;
-  let t5 = ishr(final_total, 40_u32);
-  let t5_byte = cvt::<u64, u8>(t5);
-  set output_buffer[13_u64] = t5_byte;
-  let t6 = ishr(final_total, 48_u32);
-  let t6_byte = cvt::<u64, u8>(t6);
-  set output_buffer[14_u64] = t6_byte;
-  let t7 = ishr(final_total, 56_u32);
-  let t7_byte = cvt::<u64, u8>(t7);
-  set output_buffer[15_u64] = t7_byte;
-  let q0 = cvt::<u64, u8>(queue_length);
-  set output_buffer[16_u64] = q0;
-  let q1 = ishr(queue_length, 8_u32);
-  let q1_byte = cvt::<u64, u8>(q1);
-  set output_buffer[17_u64] = q1_byte;
-  let q2 = ishr(queue_length, 16_u32);
-  let q2_byte = cvt::<u64, u8>(q2);
-  set output_buffer[18_u64] = q2_byte;
-  let q3 = ishr(queue_length, 24_u32);
-  let q3_byte = cvt::<u64, u8>(q3);
-  set output_buffer[19_u64] = q3_byte;
-  let q4 = ishr(queue_length, 32_u32);
-  let q4_byte = cvt::<u64, u8>(q4);
-  set output_buffer[20_u64] = q4_byte;
-  let q5 = ishr(queue_length, 40_u32);
-  let q5_byte = cvt::<u64, u8>(q5);
-  set output_buffer[21_u64] = q5_byte;
-  let q6 = ishr(queue_length, 48_u32);
-  let q6_byte = cvt::<u64, u8>(q6);
-  set output_buffer[22_u64] = q6_byte;
-  let q7 = ishr(queue_length, 56_u32);
-  let q7_byte = cvt::<u64, u8>(q7);
-  set output_buffer[23_u64] = q7_byte;
-  let sent = 0_u64;
-  loop {
-    if sent < 24_u64 {
-      let remaining = 24_u64 - sent;
-      let no_deadline = None<Instant>();
-      let cancel = std::time::cancel_never();
-      let outcome = std::io::write_once(factory: &factory, output: &output, source: &output_buffer[sent..24_u64], start: 0_u64, end: remaining, deadline: no_deadline, cancel: &cancel);
-      std::time::close_cancel_watch(watch: move cancel);
-      match outcome {
-        Ok(value: next) => {
-          set sent = sent + next;
-        }
-        Err(error: problem) => {
-          return exit_status(code: 4_u8);
-        }
-      }
-    } else {
-      break;
+  let write_result_counter = write_u64(factory: &factory, output: &stdout_stream, value: observed_counter);
+  match write_result_counter {
+    Ok(value: unused_ok) => {
+    }
+    Err(error: unused_error) => {
+      return std::process::exit_status(code: 4_u8);
     }
   }
-  return exit_status(code: 0_u8);
+  let write_result_total = write_u64(factory: &factory, output: &stdout_stream, value: observed_total);
+  match write_result_total {
+    Ok(value: unused_ok) => {
+    }
+    Err(error: unused_error) => {
+      return std::process::exit_status(code: 4_u8);
+    }
+  }
+  let write_result_queue = write_u64(factory: &factory, output: &stdout_stream, value: observed_queue_len);
+  match write_result_queue {
+    Ok(value: unused_ok) => {
+    }
+    Err(error: unused_error) => {
+      return std::process::exit_status(code: 4_u8);
+    }
+  }
+  return std::process::exit_status(code: 0_u8);
 }

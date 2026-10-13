@@ -1,153 +1,212 @@
 alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
+alias exit_status = std::process::exit_status;
+alias Instant = std::time::Instant;
+alias CancelWatch = std::time::CancelWatch;
 
 enum ParseResult {
-  Success(next_pos: u64, value: u64);
-  Error(code: u8);
+  Success(value: u64, next_pos: u64);
+  Truncated();
+  InvalidToken();
 }
 
-fn parse_expr(bytes: &[u8], pos: u64) -> result: ParseResult reads(bytes) {
-  if pos >= bytes^.len {
-    return ParseResult::Error(code: 1_u8);
+fn parse_expr(input: &[u8], pos: u64) -> result: ParseResult reads(input) contract {
+  requires pos <= input^.len;
+} {
+  if pos >= input^.len {
+    return ParseResult::Truncated();
   }
-  let byte = bytes^[pos];
-  if byte == 43_u8 {
-    let next = pos +wrap 1_u64;
-    let first = parse_expr(bytes: bytes, pos: next);
-    match first {
-      Success(next_pos: p1, value: v1) => {
-        let second = parse_expr(bytes: bytes, pos: p1);
-        match second {
-          Success(next_pos: p2, value: v2) => {
-            let result = v1 +checked v2;
-            match result {
-              Ok(value: sum) => {
-                return ParseResult::Success(next_pos: p2, value: sum);
+  let byte = input^[pos];
+  let is_digit_start = byte >= 48_u8;
+  let is_digit_end = byte <= 57_u8;
+  let is_digit = band(is_digit_start, is_digit_end);
+  if is_digit {
+    let digit = byte - 48_u8;
+    let digit64 = cvt::<u8, u64>(digit);
+    let next_position = pos + 1_u64;
+    return ParseResult::Success(value: digit64, next_pos: next_position);
+  }
+  let is_plus = byte == 43_u8;
+  if is_plus {
+    let pos1 = pos + 1_u64;
+    let first_res = parse_expr(input: input, pos: pos1);
+    match first_res {
+      Success(value: first_val, next_pos: pos2) => {
+        let second_res = parse_expr(input: input, pos: pos2);
+        match second_res {
+          Success(value: second_val, next_pos: pos3) => {
+            let sum_res = first_val +checked second_val;
+            match sum_res {
+              Ok(value: total) => {
+                return ParseResult::Success(value: total, next_pos: pos3);
               }
-              Err(error: e) => {
-                return ParseResult::Error(code: 3_u8);
+              Err(error: overflow) => {
+                return ParseResult::InvalidToken();
               }
             }
           }
-          Error(code: err) => {
-            return ParseResult::Error(code: err);
+          Truncated() => {
+            return ParseResult::Truncated();
+          }
+          InvalidToken() => {
+            return ParseResult::InvalidToken();
           }
         }
       }
-      Error(code: err) => {
-        return ParseResult::Error(code: err);
+      Truncated() => {
+        return ParseResult::Truncated();
+      }
+      InvalidToken() => {
+        return ParseResult::InvalidToken();
       }
     }
   }
-  if byte >= 48_u8 {
-    if byte <= 57_u8 {
-      let digit = byte - 48_u8;
-      let val = cvt::<u8, u64>(digit);
-      let next = pos +wrap 1_u64;
-      return ParseResult::Success(next_pos: next, value: val);
-    }
-  }
-  return ParseResult::Error(code: 2_u8);
+  return ParseResult::InvalidToken();
 }
 
-fn write_u64_le(factory: &std::io::HandleFactory, output: &std::io::OutputStream, v: u64) -> result: Result<unit, std::io::IoError> writes(factory), writes(output) waits {
-  let b = array_filled::<u8, 8>(value: 0_u8);
-  let m = 0xFF_u64;
-  set b[0_u64] = cvt::<u64, u8>(iand(v, m));
-  set b[1_u64] = cvt::<u64, u8>(iand(ishr(v, 8_u32), m));
-  set b[2_u64] = cvt::<u64, u8>(iand(ishr(v, 16_u32), m));
-  set b[3_u64] = cvt::<u64, u8>(iand(ishr(v, 24_u32), m));
-  set b[4_u64] = cvt::<u64, u8>(iand(ishr(v, 32_u32), m));
-  set b[5_u64] = cvt::<u64, u8>(iand(ishr(v, 40_u32), m));
-  set b[6_u64] = cvt::<u64, u8>(iand(ishr(v, 48_u32), m));
-  set b[7_u64] = cvt::<u64, u8>(iand(ishr(v, 56_u32), m));
-  let buf = &b[0_u64..8_u64];
-  let dl = None<std::time::Instant>();
-  let cw = std::time::cancel_never();
-  let res = std::io::write_once(factory: factory, output: output, source: buf, start: 0_u64, end: 8_u64, deadline: dl, cancel: &cw);
-  std::time::close_cancel_watch(watch: move cw);
-  match res {
-    Ok(value: n) => {
-      if n == 8_u64 {
+fn write_u64_le(factory: &std::io::HandleFactory, output: &std::io::OutputStream, value: u64) -> result: Result<unit, std::io::IoError> reads(factory), writes(factory), writes(output) waits {
+  let bytes = array_filled::<u8, 8>(value: 0_u8);
+  let b0 = cvt.wrap::<u64, u8>(value);
+  set bytes[0_u64] = b0;
+  let shift1 = ishr(value, 8_u32);
+  let b1 = cvt.wrap::<u64, u8>(shift1);
+  set bytes[1_u64] = b1;
+  let shift2 = ishr(value, 16_u32);
+  let b2 = cvt.wrap::<u64, u8>(shift2);
+  set bytes[2_u64] = b2;
+  let shift3 = ishr(value, 24_u32);
+  let b3 = cvt.wrap::<u64, u8>(shift3);
+  set bytes[3_u64] = b3;
+  let shift4 = ishr(value, 32_u32);
+  let b4 = cvt.wrap::<u64, u8>(shift4);
+  set bytes[4_u64] = b4;
+  let shift5 = ishr(value, 40_u32);
+  let b5 = cvt.wrap::<u64, u8>(shift5);
+  set bytes[5_u64] = b5;
+  let shift6 = ishr(value, 48_u32);
+  let b6 = cvt.wrap::<u64, u8>(shift6);
+  set bytes[6_u64] = b6;
+  let shift7 = ishr(value, 56_u32);
+  let b7 = cvt.wrap::<u64, u8>(shift7);
+  set bytes[7_u64] = b7;
+  let slice = &bytes[0_u64..8_u64];
+  let no_deadline = None<Instant>();
+  let cancel = std::time::cancel_never();
+  let outcome = std::io::write_once(factory: factory, output: output, source: slice, start: 0_u64, end: 8_u64, deadline: no_deadline, cancel: &cancel);
+  std::time::close_cancel_watch(watch: move cancel);
+  match outcome {
+    Ok(value: written) => {
+      if written == 8_u64 {
         return Ok<unit, std::io::IoError>(value: unit);
       }
-      return Err<unit, std::io::IoError>(error: std::io::IoError::WriteZero(code: 0_u32, origin: 0_u8));
+      let problem = std::io::IoError::WriteZero(code: 0_u32, origin: 0_u8);
+      return Err<unit, std::io::IoError>(error: problem);
     }
-    Err(error: e) => {
-      return Err<unit, std::io::IoError>(error: e);
+    Err(error: problem) => {
+      return Err<unit, std::io::IoError>(error: problem);
     }
   }
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(cwd: cd, handles: h, stdout: s, ..) = move inputs;
-  let std::fs::Directory(read: dr, write: dw) = move cd;
-  std::fs::close_directory_write(factory: &h, directory: move dw);
-  std::fs::close_directory(factory: &h, directory: move dr);
-  let test1 = array_filled::<u8, 5>(value: 0_u8);
-  set test1[0_u64] = 43_u8;
-  set test1[1_u64] = 50_u8;
-  set test1[2_u64] = 43_u8;
-  set test1[3_u64] = 51_u8;
-  set test1[4_u64] = 52_u8;
-  let res1 = parse_expr(bytes: &test1[0_u64..5_u64], pos: 0_u64);
-  let p1 = 0_u64;
-  let v1 = 0_u64;
-  let e1 = 0_u8;
-  match res1 {
-    Success(next_pos: np, value: vv) => {
-      set p1 = np;
-      set v1 = vv;
-    }
-    Error(code: c) => {
-      set e1 = c;
-    }
-  }
-  let test2 = array_filled::<u8, 2>(value: 0_u8);
-  set test2[0_u64] = 43_u8;
-  set test2[1_u64] = 50_u8;
-  let res2 = parse_expr(bytes: &test2[0_u64..2_u64], pos: 0_u64);
-  let e2 = 0_u8;
-  match res2 {
-    Success(next_pos: np2, value: vv2) => {
-    }
-    Error(code: c2) => {
-      set e2 = c2;
-    }
-  }
-  if p1 == 5_u64 {
-    if v1 == 9_u64 {
-      if e1 == 0_u8 {
-        if e2 == 1_u8 {
-          let w1 = write_u64_le(factory: &h, output: &s, v: p1);
-          match w1 {
-            Ok(value: u) => {
-              let w2 = write_u64_le(factory: &h, output: &s, v: v1);
-              match w2 {
-                Ok(value: u2) => {
-                  let e2v = cvt::<u8, u64>(e2);
-                  let w3 = write_u64_le(factory: &h, output: &s, v: e2v);
-                  match w3 {
-                    Ok(value: u3) => {
-                      return std::process::exit_status(code: 0_u8);
-                    }
-                    Err(error: io) => {
-                      return std::process::exit_status(code: 250_u8);
-                    }
-                  }
-                }
-                Err(error: io) => {
-                  return std::process::exit_status(code: 250_u8);
-                }
-              }
-            }
-            Err(error: io) => {
-              return std::process::exit_status(code: 250_u8);
-            }
-          }
-        }
+  let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: output, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
+  let close_write_res = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
+  let close_read_res = std::fs::close_directory(factory: &factory, directory: move cwd_read);
+  let input_bytes = array_filled::<u8, 5>(value: 0_u8);
+  set input_bytes[0_u64] = 43_u8;
+  set input_bytes[1_u64] = 50_u8;
+  set input_bytes[2_u64] = 43_u8;
+  set input_bytes[3_u64] = 51_u8;
+  set input_bytes[4_u64] = 52_u8;
+  let input_slice = &input_bytes[0_u64..5_u64];
+  let parse_result = parse_expr(input: input_slice, pos: 0_u64);
+  let next_pos = 0_u64;
+  let parsed_value = 0_u64;
+  let success_check = True();
+  match parse_result {
+    Success(value: val, next_pos: pos) => {
+      set next_pos = pos;
+      set parsed_value = val;
+      let pos_wrong = pos != 5_u64;
+      if pos_wrong {
+        set success_check = False();
+      }
+      let val_wrong = val != 9_u64;
+      if val_wrong {
+        set success_check = False();
       }
     }
+    Truncated() => {
+      set success_check = False();
+    }
+    InvalidToken() => {
+      set success_check = False();
+    }
   }
-  return std::process::exit_status(code: 1_u8);
+  let truncated_input = array_filled::<u8, 2>(value: 0_u8);
+  set truncated_input[0_u64] = 43_u8;
+  set truncated_input[1_u64] = 50_u8;
+  let truncated_slice = &truncated_input[0_u64..2_u64];
+  let truncated_result = parse_expr(input: truncated_slice, pos: 0_u64);
+  let truncated_error = 0_u64;
+  let truncated_check = True();
+  match truncated_result {
+    Success(value: val, next_pos: pos) => {
+      set truncated_check = False();
+    }
+    Truncated() => {
+      set truncated_error = 1_u64;
+    }
+    InvalidToken() => {
+      set truncated_error = 2_u64;
+      set truncated_check = False();
+    }
+  }
+  let write1_res = write_u64_le(factory: &factory, output: &output, value: next_pos);
+  let write2_res = write_u64_le(factory: &factory, output: &output, value: parsed_value);
+  let write3_res = write_u64_le(factory: &factory, output: &output, value: truncated_error);
+  let code = 0_u8;
+  match close_write_res {
+    Ok(value: unused) => {
+    }
+    Err(error: unused) => {
+    }
+  }
+  match close_read_res {
+    Ok(value: unused) => {
+    }
+    Err(error: unused) => {
+    }
+  }
+  match write1_res {
+    Ok(value: unused) => {
+    }
+    Err(error: problem) => {
+      set code = 250_u8;
+    }
+  }
+  match write2_res {
+    Ok(value: unused) => {
+    }
+    Err(error: problem) => {
+      set code = 250_u8;
+    }
+  }
+  match write3_res {
+    Ok(value: unused) => {
+    }
+    Err(error: problem) => {
+      set code = 250_u8;
+    }
+  }
+  let success_failed = bnot(success_check);
+  if success_failed {
+    set code = 1_u8;
+  }
+  let truncated_failed = bnot(truncated_check);
+  if truncated_failed {
+    set code = 1_u8;
+  }
+  return exit_status(code: code);
 }

@@ -1,75 +1,328 @@
 alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
 alias exit_status = std::process::exit_status;
-alias HashMap = std::collections::hash_map::HashMap<Box<Array<u8>>, Box<Array<u8>>, 8192>;
 
-interface KeyOps {
-  fn hash_key(env: &unit, key: &Box<Array<u8>>) -> hash: u64 reads(key);
-  fn equal_key(env: &unit, left: &Box<Array<u8>>, right: &Box<Array<u8>>) -> equal: Bool reads(left), reads(right);
+fn parse_int(data: &[u8]) -> result: Option<i64> reads(data) {
+  let len = data^.len;
+  if len == 0_u64 {
+    return None<i64>();
+  }
+  let neg = False();
+  let start_idx = 0_u64;
+  if data^[0_u64] == 45_u8 {
+    set neg = True();
+    set start_idx = 1_u64;
+  }
+  if start_idx == len {
+    return None<i64>();
+  }
+  let val = 0_i64;
+  let i = start_idx;
+  loop {
+    if i < len {
+      let b = data^[i];
+      let is_digit = b >= 48_u8;
+      if is_digit {
+        let valid = b <= 57_u8;
+        if valid {
+        } else {
+          return None<i64>();
+        }
+      } else {
+        return None<i64>();
+      }
+      let d = cvt::<u8, i64>(b - 48_u8);
+      set val = val *wrap 10_i64 +wrap d;
+      set i = i + 1_u64;
+    } else {
+      break;
+    }
+  }
+  if neg {
+    set val = 0_i64 -wrap val;
+  }
+  return Some<i64>(value: val);
 }
 
-fn hash_impl(env: &unit, key: &Box<Array<u8>>) -> hash: u64 reads(key) {
-  return 0_u64;
+fn crlf_pos(buf: &[u8], from: u64) -> result: Option<u64> reads(buf) {
+  let i = from;
+  let len = buf^.len;
+  loop {
+    if i + 1_u64 < len {
+      if buf^[i] == 13_u8 {
+        let next_is_lf = buf^[i + 1_u64] == 10_u8;
+        if next_is_lf {
+          return Some<u64>(value: i);
+        }
+      }
+      set i = i + 1_u64;
+    } else {
+      return None<u64>();
+    }
+  }
 }
 
-fn equal_impl(env: &unit, left: &Box<Array<u8>>, right: &Box<Array<u8>>) -> equal: Bool reads(left), reads(right) {
-  return True();
+fn send_response(factory: &std::io::HandleFactory, send: &std::net::TcpSend, data: &[u8]) -> result: Result<unit, std::io::IoError> reads(data), writes(factory), writes(send) waits {
+  let total = data^.len;
+  let sent = 0_u64;
+  loop {
+    if sent < total {
+      let no_deadline = None<std::time::Instant>();
+      let cancel = std::time::cancel_never();
+      let res = std::net::send_once(send: send, source: data, start: sent, end: total, deadline: no_deadline, cancel: &cancel);
+      std::time::close_cancel_watch(watch: move cancel);
+      match res {
+        Ok(value: next) => {
+          set sent = next;
+        }
+        Err(error: e) => {
+          return Err<unit, std::io::IoError>(error: e);
+        }
+      }
+    } else {
+      break;
+    }
+  }
+  return Ok<unit, std::io::IoError>(value: unit);
 }
 
-binding KeyBinding : KeyOps {
-  hash_key = hash_impl;
-  equal_key = equal_impl;
-}
-
-fn handle_client(factory: &std::io::HandleFactory, conn: std::net::TcpConnection, store: &Shared<HashMap>) -> result: unit reads(store), writes(factory) waits {
-  let receive = move conn.receive;
-  let send = move conn.send;
-  let recv_closed = std::net::close_receive(factory: factory, receive: move receive);
-  let send_closed = std::net::close_send(factory: factory, send: move send);
+fn handle_client(factory: &std::io::HandleFactory, conn: std::net::TcpConnection) -> result: unit pure waits {
+  let rbuf = array_filled::<u8, 16384>(value: 0_u8);
+  let rpos = 0_u64;
+  loop @client_loop {
+    if rpos >= 16384_u64 {
+      break @client_loop;
+    }
+    let remaining_cap = 16384_u64 - rpos;
+    let window = &rbuf[rpos..16384_u64];
+    let no_deadline = None<std::time::Instant>();
+    let cancel = std::time::cancel_never();
+    let read_res = std::net::receive_next(receive: &conn.receive, destination: window, start: 0_u64, end: remaining_cap, deadline: no_deadline, cancel: &cancel);
+    std::time::close_cancel_watch(watch: move cancel);
+    match read_res {
+      Ok(value: nread) => {
+        if nread == 0_u64 {
+          break @client_loop;
+        }
+        set rpos = rpos +wrap nread;
+      }
+      Err(error: unused) => {
+        break @client_loop;
+      }
+    }
+    let pos = 0_u64;
+    loop @process_requests {
+      if pos >= rpos {
+        break @process_requests;
+      }
+      if rbuf[pos] != 42_u8 {
+        break @process_requests;
+      }
+      let crlf_res = crlf_pos(buf: &rbuf, from: pos + 1_u64);
+      match crlf_res {
+        None() => {
+          break @process_requests;
+        }
+        Some(value: crlf) => {
+          let count_part = &rbuf[pos + 1_u64..crlf];
+          let count_res = parse_int(count_part);
+          match count_res {
+            None() => {
+              set pos = crlf + 2_u64;
+            }
+            Some(value: cnt) => {
+              if cnt < 1_i64 {
+                set pos = crlf + 2_u64;
+              } else {
+                let count = cvt::<i64, u64>(cnt);
+                let offset = crlf + 2_u64;
+                let arg_idx = 0_u64;
+                let first_arg_offset = 0_u64;
+                let req_valid = True();
+                loop @scan_args {
+                  if arg_idx < count {
+                    if offset >= rpos {
+                      set req_valid = False();
+                      break @scan_args;
+                    }
+                    if rbuf[offset] != 36_u8 {
+                      set req_valid = False();
+                      break @scan_args;
+                    }
+                    let arg_crlf_res = crlf_pos(buf: &rbuf, from: offset + 1_u64);
+                    match arg_crlf_res {
+                      None() => {
+                        set req_valid = False();
+                        break @scan_args;
+                      }
+                      Some(value: arg_crlf) => {
+                        let len_part = &rbuf[offset + 1_u64..arg_crlf];
+                        let len_res = parse_int(len_part);
+                        match len_res {
+                          None() => {
+                            set req_valid = False();
+                            break @scan_args;
+                          }
+                          Some(value: alen) => {
+                            if alen < 0_i64 {
+                              set offset = arg_crlf + 2_u64;
+                            } else {
+                              let alen_u64 = cvt::<i64, u64>(alen);
+                              let arg_data_start = arg_crlf + 2_u64;
+                              let arg_data_end = arg_data_start +wrap alen_u64;
+                              if arg_data_end + 2_u64 > rpos {
+                                set req_valid = False();
+                                break @scan_args;
+                              }
+                              if arg_idx == 0_u64 {
+                                set first_arg_offset = offset;
+                              }
+                              set offset = arg_data_end + 2_u64;
+                            }
+                            set arg_idx = arg_idx + 1_u64;
+                          }
+                        }
+                      }
+                    }
+                  } else {
+                    break @scan_args;
+                  }
+                }
+                if req_valid {
+                  let arg_crlf_2 = crlf_pos(buf: &rbuf, from: first_arg_offset + 1_u64);
+                  match arg_crlf_2 {
+                    None() => {
+                      set pos = offset;
+                    }
+                    Some(value: first_crlf) => {
+                      let cmd_data_start = first_crlf + 2_u64;
+                      let send_pong = array_filled::<u8, 7>(value: 0_u8);
+                      set send_pong[0_u64] = 43_u8;
+                      set send_pong[1_u64] = 80_u8;
+                      set send_pong[2_u64] = 79_u8;
+                      set send_pong[3_u64] = 78_u8;
+                      set send_pong[4_u64] = 71_u8;
+                      set send_pong[5_u64] = 13_u8;
+                      set send_pong[6_u64] = 10_u8;
+                      let pong_view = &send_pong[0_u64..7_u64];
+                      let send_ok = send_response(factory: factory, send: &conn.send, data: pong_view);
+                      match send_ok {
+                        Ok(value: unused) => {
+                        }
+                        Err(error: unused) => {
+                          break @client_loop;
+                        }
+                      }
+                      set pos = offset;
+                    }
+                  }
+                } else {
+                  set pos = offset;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    if pos > 0_u64 {
+      let remaining_data = rpos - pos;
+      if remaining_data > 0_u64 {
+        let i = 0_u64;
+        loop {
+          if i < remaining_data {
+            set rbuf[i] = rbuf[pos +wrap i];
+            set i = i + 1_u64;
+          } else {
+            break;
+          }
+        }
+        set rpos = remaining_data;
+      } else {
+        set rpos = 0_u64;
+      }
+    }
+  }
+  let unused1 = std::net::close_receive(factory: factory, receive: move conn.receive);
+  let unused2 = std::net::close_send(factory: factory, send: move conn.send);
   return unit;
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(args: argv, drivers: prog_drivers, cwd: directory, stdout: prog_stdout, stderr: prog_stderr, handles: factory, stdin: prog_stdin, clock: prog_clock, wall_clock: prog_wall_clock, stops: prog_stops, memory_meter: prog_meter) = move inputs;
-  let std::fs::Directory(read: cwd_read, write: cwd_write) = move directory;
-  let write_res = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
-  let read_res = std::fs::close_directory(factory: &factory, directory: move cwd_read);
-  let arg_count = std::text::args_count(args: &argv);
-  let port_num = 8080_u16;
-  let addr = std::net::socket_address_v4(a: 127_u8, b: 0_u8, c: 0_u8, d: 1_u8, port: port_num);
-  let listen_res = std::net::tcp_listen(factory: &factory, address: &addr);
-  let listener = match move listen_res {
-    Ok(value: l) => {
-      give l;
-    }
-    Err(error: listen_err) => {
-      return exit_status(code: 1_u8);
-    }
-  };
-  let map = std::collections::hash_map::hash_map_new::<Box<Array<u8>>, Box<Array<u8>>, 8192>(capacity: 16_u64);
-  let store = shared_new::<HashMap>(value: move map);
-  let clients = 0_u64;
-  loop {
-    let no_deadline = None<std::time::Instant>();
-    let cancel = std::time::cancel_never();
-    let acc_res = std::net::tcp_accept(factory: &factory, listener: &listener, deadline: no_deadline, cancel: &cancel);
-    std::time::close_cancel_watch(watch: move cancel);
-    match move acc_res {
-      Ok(value: accepted) => {
-        let conn = move accepted.connection;
-        let shared_factory = std::io::factory_share(factory: &factory);
-        let shared_store = shared_share::<HashMap>(shared: &store);
-        spawn handle_client(factory: move shared_factory, conn: move conn, store: move shared_store);
-        set clients = clients + 1_u64;
-        if clients >= 9_u64 {
-          break;
+  let Inputs(
+    args: args,
+    drivers: d,
+    cwd: cd,
+    stdout: out,
+    stderr: err,
+    handles: factory,
+    stdin: in_,
+    clock: clk,
+    wall_clock: wc,
+    stops: stops,
+    memory_meter: mm
+  ) = move inputs;
+  let std::fs::Directory(read: cwd_read, write: cwd_write) = move cd;
+  let close1 = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
+  let close2 = std::fs::close_directory(factory: &factory, directory: move cwd_read);
+  let port_arg = std::text::arg_get(args: &args, position: 1_u64);
+  let port = 0_u16;
+  match port_arg {
+    Ok(value: port_str) => {
+      let port_buf = array_filled::<u8, 32>(value: 0_u8);
+      let copy_res = std::text::host_copy_bytes(value: &port_str, destination: &port_buf, start: 0_u64, end: 32_u64);
+      match copy_res {
+        Ok(value: copy_len) => {
+          if copy_len > 0_u64 {
+            let port_data = &port_buf[0_u64..copy_len];
+            let port_res = parse_int(port_data);
+            match port_res {
+              None() => {
+              }
+              Some(value: p) => {
+                if p > 0_i64 {
+                  set port = cvt::<i64, u16>(p);
+                }
+              }
+            }
+          }
+        }
+        Err(error: unused) => {
         }
       }
-      Err(error: accept_err) => {
-        break;
-      }
+    }
+    Err(error: unused) => {
     }
   }
-  let close_res = std::net::close_listener(factory: &factory, listener: move listener);
-  return exit_status(code: 0_u8);
+  let addr = std::net::socket_address_v4(a: 127_u8, b: 0_u8, c: 0_u8, d: 1_u8, port: port);
+  let listen_res = std::net::tcp_listen(factory: &factory, address: &addr);
+  match listen_res {
+    Ok(value: listener) => {
+      let accepted = 0_u64;
+      loop @accept_loop {
+        if accepted < 9_u64 {
+          let no_deadline = None<std::time::Instant>();
+          let cancel = std::time::cancel_never();
+          let accept_res = std::net::tcp_accept(factory: &factory, listener: &listener, deadline: no_deadline, cancel: &cancel);
+          std::time::close_cancel_watch(watch: move cancel);
+          match accept_res {
+            Ok(value: conn_info) => {
+              spawn handle_client(factory: &factory, conn: move conn_info.connection);
+              set accepted = accepted + 1_u64;
+            }
+            Err(error: unused) => {
+              break @accept_loop;
+            }
+          }
+        } else {
+          break @accept_loop;
+        }
+      }
+      let close_listener = std::net::close_listener(factory: &factory, listener: move listener);
+      return exit_status(code: 0_u8);
+    }
+    Err(error: unused) => {
+      return exit_status(code: 1_u8);
+    }
+  }
 }
