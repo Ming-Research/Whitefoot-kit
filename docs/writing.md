@@ -446,6 +446,7 @@ Use the opening repair workflow; use §3 for atom positions and §12 for layout.
 | `MOD-5 QualifiedNameNotFound` | Use a listed public declaration from that module's interface; check its direct graph edge. [MOD-5, MOD-6] |
 | `FORM-5 UnclassifiedToken` on a quoted character such as unsuffixed `'+'`, or hex | Add `_u8`/`_u32` to the character; use decimal numeric literals. [FORM-5, FORM-7] |
 | `OP-2` on bare arithmetic or `OP-6` on `cvt` | Establish the operation's domain; preserve the intended numeric semantics. [OP-2, OP-6] |
+| `FN-8` at a call although the preceding call's `ensures` states exactly the missing fact | Check that callee's own proof first, such as a loop invariant it lacks: a function whose proof fails publishes none of its postconditions, and the first rejection may name only the caller. [FN-8, FN-9, INV-1] |
 
 ## Part 2. Designing a sequential program
 
