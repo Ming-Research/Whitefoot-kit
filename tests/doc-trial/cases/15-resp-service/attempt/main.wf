@@ -662,7 +662,7 @@ fn append_u64(vec: &GrowVector<u8, 65536>, value: u64) -> result: unit writes(ve
   ) {
     let digit = remaining / divisor;
     vector::grow_vector_append(values: vec, value: cvt::<u64, u8>(digit) + 48_u8);
-    set remaining = remaining %wrap divisor;
+    set remaining = remaining % divisor;
     if divisor == 1_u64 {
       break;
     }

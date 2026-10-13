@@ -22,7 +22,8 @@ fn parse_plus_args(bytes: &Array<u8, 5>, pos: u64) -> result: Result<ParseResult
 
 fn parse_digit_or_plus(bytes: &Array<u8, 5>, pos: u64) -> result: Result<ParseResult, ParseError> pure {
   if pos >= 5_u64 {
-    return Err<ParseResult, ParseError>(ParseError::Truncated());
+    let err = ParseError::Truncated();
+    return Err<ParseResult, ParseError>(move err);
   }
 
   let byte = bytes^[pos];
@@ -32,9 +33,11 @@ fn parse_digit_or_plus(bytes: &Array<u8, 5>, pos: u64) -> result: Result<ParseRe
   } else if byte >= '0'_u8 && byte <= '9'_u8 {
     let digit_val = byte - '0'_u8;
     let expr = Expression::Digit(value: digit_val);
-    return Ok<ParseResult, ParseError>(ParseResult(expr: move expr, next_pos: pos + 1_u64));
+    let result = ParseResult(expr: move expr, next_pos: pos + 1_u64);
+    return Ok<ParseResult, ParseError>(move result);
   } else {
-    return Err<ParseResult, ParseError>(ParseError::InvalidToken());
+    let err = ParseError::InvalidToken();
+    return Err<ParseResult, ParseError>(move err);
   }
 }
 
@@ -52,7 +55,8 @@ fn parse_plus_args(bytes: &Array<u8, 5>, pos: u64) -> result: Result<ParseResult
           let left_box = box_new::<Expression>(value: move left_expr);
           let right_box = box_new::<Expression>(value: move right_expr);
           let expr = Expression::Plus(left: move left_box, right: move right_box);
-          return Ok<ParseResult, ParseError>(ParseResult(expr: move expr, next_pos: final_pos));
+          let result = ParseResult(expr: move expr, next_pos: final_pos);
+          return Ok<ParseResult, ParseError>(move result);
         }
         Err(e) => {
           return Err<ParseResult, ParseError>(move e);
@@ -81,7 +85,8 @@ fn evaluate(expr: Expression) -> result: Result<u64, EvalError> pure {
             Ok(right_val) => {
               let max_left = 18446744073709551615_u64;
               if left_val > max_left - right_val {
-                return Err<u64, EvalError>(EvalError::Overflow());
+                let err = EvalError::Overflow();
+                return Err<u64, EvalError>(move err);
               }
               let sum = left_val + right_val;
               return Ok<u64, EvalError>(sum);
@@ -104,7 +109,8 @@ fn parse_plus_args_2(bytes: &Array<u8, 2>, pos: u64) -> result: Result<ParseResu
 
 fn parse_digit_or_plus_2(bytes: &Array<u8, 2>, pos: u64) -> result: Result<ParseResult, ParseError> pure {
   if pos >= 2_u64 {
-    return Err<ParseResult, ParseError>(ParseError::Truncated());
+    let err = ParseError::Truncated();
+    return Err<ParseResult, ParseError>(move err);
   }
 
   let byte = bytes^[pos];
@@ -114,9 +120,11 @@ fn parse_digit_or_plus_2(bytes: &Array<u8, 2>, pos: u64) -> result: Result<Parse
   } else if byte >= '0'_u8 && byte <= '9'_u8 {
     let digit_val = byte - '0'_u8;
     let expr = Expression::Digit(value: digit_val);
-    return Ok<ParseResult, ParseError>(ParseResult(expr: move expr, next_pos: pos + 1_u64));
+    let result = ParseResult(expr: move expr, next_pos: pos + 1_u64);
+    return Ok<ParseResult, ParseError>(move result);
   } else {
-    return Err<ParseResult, ParseError>(ParseError::InvalidToken());
+    let err = ParseError::InvalidToken();
+    return Err<ParseResult, ParseError>(move err);
   }
 }
 
@@ -134,7 +142,8 @@ fn parse_plus_args_2(bytes: &Array<u8, 2>, pos: u64) -> result: Result<ParseResu
           let left_box = box_new::<Expression>(value: move left_expr);
           let right_box = box_new::<Expression>(value: move right_expr);
           let expr = Expression::Plus(left: move left_box, right: move right_box);
-          return Ok<ParseResult, ParseError>(ParseResult(expr: move expr, next_pos: final_pos));
+          let result = ParseResult(expr: move expr, next_pos: final_pos);
+          return Ok<ParseResult, ParseError>(move result);
         }
         Err(e) => {
           return Err<ParseResult, ParseError>(move e);

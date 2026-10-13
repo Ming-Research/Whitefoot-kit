@@ -41,7 +41,7 @@ fn consume(queue: Shared<Queue>, total: Shared<u64>) -> result: unit pure {
   return unit;
 }
 
-fn main(inputs: pkg::process::Inputs) -> result: pkg::process::ExitStatus waits {
+fn main(inputs: pkg::process::Inputs) -> result: pkg::process::ExitStatus pure waits {
   let pkg::process::Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_dir, stdout: out, stderr: unused_err, handles: factory, stdin: unused_in, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_mem) = move inputs;
 
   pkg::fs::close_directory_write(factory: &factory, directory: move cwd_dir);

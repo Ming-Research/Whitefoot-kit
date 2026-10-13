@@ -61,7 +61,7 @@ fn percent_decode(input: &[u8], output: &Slots<u8, 11>) -> result: u64 pure {
           None() => {
             give False();
           }
-        };
+        }
         if both_valid {
           set i = next_next_i + 1_u64;
         } else {

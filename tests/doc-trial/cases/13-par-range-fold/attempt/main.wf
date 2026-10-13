@@ -43,7 +43,7 @@ fn main(inputs: std::process::Inputs) -> result: std::process::ExitStatus pure {
   let shifted7 = ishr(total_sum, 56_u32);
   let byte7 = cvt.wrap::<u64, u8>(shifted7);
 
-  let bytes = Array<u8, 8>[byte0, byte1, byte2, byte3, byte4, byte5, byte6, byte7];
+  let bytes = Array<u8, 8> = [byte0, byte1, byte2, byte3, byte4, byte5, byte6, byte7];
 
   let cancel = std::time::cancel_never();
 

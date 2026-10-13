@@ -101,7 +101,8 @@ fn main(inputs: std::process::Inputs) -> result: std::process::ExitStatus pure {
 
   let first_value = paged.inner[0_u64];
 
-  let sum = 73_u64 + 1_u64 + 2_u64;
+  let temp1 = 73_u64 + 1_u64;
+  let sum = temp1 + 2_u64;
   let total = sum;
   let i = 3_u64;
   loop (

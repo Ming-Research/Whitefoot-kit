@@ -3,13 +3,10 @@ fn main(inputs: std::process::Inputs) -> result: u8 pure {
   let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
   std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
   std::fs::close_directory(factory: &factory, directory: move cwd_read);
-
   let buffer = slots_new::<u8, 8192>();
   let code = echo_loop(input: move input, output: move out, buffer: &buffer);
-
   return code;
 }
-
 fn echo_loop(input: std::io::Input, output: std::io::Output, buffer: &Slots<u8, 8192>) -> result: u8 reads(buffer) {
   loop {
     let read_result = std::io::read_next(handle: &input, window: buffer);
@@ -30,7 +27,6 @@ fn echo_loop(input: std::io::Input, output: std::io::Output, buffer: &Slots<u8, 
     }
   }
 }
-
 fn write_all(data: &[u8], output: &std::io::Output) -> result: u8 reads(data) {
   let offset = 0_u64;
   loop (
