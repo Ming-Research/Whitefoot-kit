@@ -60,9 +60,9 @@ specification-update item has arrived.
 ## Coverage: the trial
 
 The guide is validated by dictation: code taken from existing repositories
-is turned into a task that says only what to write, and a fresh Haiku
-session that reads only the guide, the standard library's interfaces and the
-task writes it, revising from the compiler's rejections. The trial set covers
+is turned into a task that says only what to write, and fresh Haiku
+sessions that read only the guide, the standard library's interfaces and the
+task write it, revising from the compiler's rejections. The trial set covers
 fifteen categories, one segment each, chosen for coverage, not count:
 
 1. computation and control flow; 2. structs, enums, generics and
@@ -109,4 +109,5 @@ The completion review marks each item:
   as such.
 - K5. No citation of a file the reader does not have.
 - K6. A trial result cited in a pull request names the guide revision, the
-  compiler release and each segment's outcome.
+  compiler release, each segment's outcome and the result of each of its
+  three sessions.
