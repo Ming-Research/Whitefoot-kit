@@ -136,7 +136,9 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
       let value = outputs[i];
       let bytes = f64_to_bytes(value: value);
       let j = 0_u64;
-      loop @copy_bytes {
+      loop @copy_bytes (
+        invariant inner_bytes: output_bytes.len == i * 8_u64 + j
+      ) {
         if j < 8_u64 {
         } else {
           break @copy_bytes;

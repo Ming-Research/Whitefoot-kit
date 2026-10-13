@@ -19,12 +19,12 @@ struct CommandParsed {
   consumed: u64;
 }
 
-const PONG_RESP: Array<u8, 7> = [43_u8, 80_u8, 79_u8, 78_u8, 71_u8, 13_u8, 10_u8];
-const OK_RESP: Array<u8, 5> = [43_u8, 79_u8, 75_u8, 13_u8, 10_u8];
-const NIL_RESP: Array<u8, 5> = [36_u8, 45_u8, 49_u8, 13_u8, 10_u8];
-const ERR_RESP: Array<u8, 44> = [45_u8, 69_u8, 82_u8, 82_u8, 32_u8, 118_u8, 97_u8, 108_u8, 117_u8, 101_u8, 32_u8, 105_u8, 115_u8, 32_u8, 110_u8, 111_u8, 116_u8, 32_u8, 97_u8, 110_u8, 32_u8, 105_u8, 110_u8, 116_u8, 101_u8, 103_u8, 101_u8, 114_u8, 32_u8, 111_u8, 117_u8, 116_u8, 32_u8, 111_u8, 102_u8, 32_u8, 114_u8, 97_u8, 110_u8, 103_u8, 101_u8, 13_u8, 10_u8];
-const DEL_0_RESP: Array<u8, 4> = [58_u8, 48_u8, 13_u8, 10_u8];
-const DEL_1_RESP: Array<u8, 4> = [58_u8, 49_u8, 13_u8, 10_u8];
+const pong_resp: Array<u8, 7> = [43_u8, 80_u8, 79_u8, 78_u8, 71_u8, 13_u8, 10_u8];
+const ok_resp: Array<u8, 5> = [43_u8, 79_u8, 75_u8, 13_u8, 10_u8];
+const nil_resp: Array<u8, 5> = [36_u8, 45_u8, 49_u8, 13_u8, 10_u8];
+const err_resp: Array<u8, 44> = [45_u8, 69_u8, 82_u8, 82_u8, 32_u8, 118_u8, 97_u8, 108_u8, 117_u8, 101_u8, 32_u8, 105_u8, 115_u8, 32_u8, 110_u8, 111_u8, 116_u8, 32_u8, 97_u8, 110_u8, 32_u8, 105_u8, 110_u8, 116_u8, 101_u8, 103_u8, 101_u8, 114_u8, 32_u8, 111_u8, 117_u8, 116_u8, 32_u8, 111_u8, 102_u8, 32_u8, 114_u8, 97_u8, 110_u8, 103_u8, 101_u8, 13_u8, 10_u8];
+const del_0_resp: Array<u8, 4> = [58_u8, 48_u8, 13_u8, 10_u8];
+const del_1_resp: Array<u8, 4> = [58_u8, 49_u8, 13_u8, 10_u8];
 
 fn parse_bulk_string(buffer: &[u8], start: u64) -> result: Result<BulkStringParsed, u64> reads(buffer) {
   let buffer_len = buffer^.len;
@@ -226,7 +226,7 @@ fn handle_connection(store: Shared<unit>, send: TcpSend, receive: TcpReceive, fa
           let cmd = &cmd_args[0_u64];
           if cmd.len == 4_u64 {
             if band(band(cmd[0_u64] == 80_u8, cmd[1_u64] == 73_u8), band(cmd[2_u64] == 78_u8, cmd[3_u64] == 71_u8)) {
-              send_all(send: &send, factory: &factory, data: &PONG_RESP[0_u64..7_u64], deadline: deadline, cancel: &cancel);
+              send_all(send: &send, factory: &factory, data: &pong_resp[0_u64..7_u64], deadline: deadline, cancel: &cancel);
             }
             if band(band(cmd[0_u64] == 73_u8, cmd[1_u64] == 78_u8), band(cmd[2_u64] == 67_u8, cmd[3_u64] == 82_u8)) {
               if cmd_args.len >= 2_u64 {
@@ -267,7 +267,7 @@ fn handle_connection(store: Shared<unit>, send: TcpSend, receive: TcpReceive, fa
                     send_all(send: &send, factory: &factory, data: &resp[0_u64..resp.len], deadline: deadline, cancel: &cancel);
                   }
                   Err(error: err) => {
-                    send_all(send: &send, factory: &factory, data: &ERR_RESP[0_u64..44_u64], deadline: deadline, cancel: &cancel);
+                    send_all(send: &send, factory: &factory, data: &err_resp[0_u64..44_u64], deadline: deadline, cancel: &cancel);
                   }
                 }
               }
@@ -277,19 +277,19 @@ fn handle_connection(store: Shared<unit>, send: TcpSend, receive: TcpReceive, fa
             let is_set = band(band(cmd[0_u64] == 83_u8, cmd[1_u64] == 69_u8), cmd[2_u64] == 84_u8);
             if is_set {
               if cmd_args.len >= 3_u64 {
-                send_all(send: &send, factory: &factory, data: &OK_RESP[0_u64..5_u64], deadline: deadline, cancel: &cancel);
+                send_all(send: &send, factory: &factory, data: &ok_resp[0_u64..5_u64], deadline: deadline, cancel: &cancel);
               }
             }
             let is_get = band(band(cmd[0_u64] == 71_u8, cmd[1_u64] == 69_u8), cmd[2_u64] == 84_u8);
             if is_get {
               if cmd_args.len >= 2_u64 {
-                send_all(send: &send, factory: &factory, data: &NIL_RESP[0_u64..5_u64], deadline: deadline, cancel: &cancel);
+                send_all(send: &send, factory: &factory, data: &nil_resp[0_u64..5_u64], deadline: deadline, cancel: &cancel);
               }
             }
             let is_del = band(band(cmd[0_u64] == 68_u8, cmd[1_u64] == 69_u8), cmd[2_u64] == 76_u8);
             if is_del {
               if cmd_args.len >= 2_u64 {
-                send_all(send: &send, factory: &factory, data: &DEL_0_RESP[0_u64..4_u64], deadline: deadline, cancel: &cancel);
+                send_all(send: &send, factory: &factory, data: &del_0_resp[0_u64..4_u64], deadline: deadline, cancel: &cancel);
               }
             }
           }

@@ -4,7 +4,6 @@ alias Inputs = std::process::Inputs;
 alias HandleFactory = std::io::HandleFactory;
 alias OutputStream = std::io::OutputStream;
 alias IoError = std::io::IoError;
-
 alias Coord = pkg::geometry::Coord;
 alias Point = pkg::geometry::Point;
 alias Rect = pkg::geometry::Rect;

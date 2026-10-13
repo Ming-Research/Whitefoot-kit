@@ -87,8 +87,7 @@ fn parse_port(args: &Args) -> result: Option<u16> reads(args) {
 
 fn echo_peer(factory: HandleFactory, connection: TcpConnection) -> result: unit pure waits {
   let buffer = array_filled::<u8, 3>(value: 0_u8);
-  let receive = connection.receive;
-  let send = connection.send;
+  let TcpConnection(receive: receive, send: send) = move connection;
   loop @echo {
     let window = &buffer[0_u64..3_u64];
     let no_deadline = None<Instant>();
@@ -173,7 +172,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
             std::time::close_cancel_watch(watch: move cancel);
             match move accept_result {
               Ok(value: accepted) => {
-                let connection = accepted.connection;
+                let AcceptedConnection(connection: connection, ..) = move accepted;
                 let shared_factory = std::io::factory_share(factory: &factory);
                 spawn echo_peer(factory: move shared_factory, connection: move connection);
                 set peer_count = peer_count + 1_u64;

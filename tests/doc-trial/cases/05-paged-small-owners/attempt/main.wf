@@ -230,6 +230,10 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
       return exit_status(code: result_code);
     }
     grow_paged(cell: &pool_zero, capacity: 3_u64);
+    if pool_zero.inner.cap < 3_u64 {
+      set result_code = 6_u8;
+      return exit_status(code: result_code);
+    }
     set heap_at_zero_elem = heap_in_use(meter: &meter);
     if heap_at_zero_elem >= baseline {
       set diff_zero_elem = heap_at_zero_elem - baseline;
@@ -243,10 +247,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   }
   place_back(window: &results, value: diff_after_zero_release);
   let capacity_after_grow = 3_u64;
-  if pool_zero.inner.cap < 3_u64 {
-    set result_code = 6_u8;
-    return exit_status(code: result_code);
-  }
   place_back(window: &results, value: capacity_after_grow);
   place_back(window: &results, value: sum_before_release);
   place_back(window: &results, value: 73_u64);

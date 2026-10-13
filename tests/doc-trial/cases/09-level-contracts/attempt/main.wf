@@ -123,7 +123,7 @@ fn process_and_output(factory: &HandleFactory, output: &OutputStream, parents: &
         Ok(value: unit_val) => {
         }
         Err(error: e) => {
-          return Err<unit, IoError>(error: move e);
+          return Err<unit, IoError>(error: e);
         }
       }
       for (i in 0_u64..parents^.len) {
@@ -159,7 +159,7 @@ fn process_and_output(factory: &HandleFactory, output: &OutputStream, parents: &
         Ok(value: unit_val) => {
         }
         Err(error: e) => {
-          return Err<unit, IoError>(error: move e);
+          return Err<unit, IoError>(error: e);
         }
       }
     }
