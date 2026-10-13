@@ -12,7 +12,7 @@ struct Block {
 }
 
 struct BlockPool {
-  blocks: Array<Option<Block>, 8>;
+  blocks: Box<Slots<Option<Block>>>;
   free_count: u64;
 }
 
@@ -26,39 +26,39 @@ struct Lease {
 }
 
 fn block_pool_new() -> result: BlockPool pure {
-  let blocks = array_filled::<Option<Block>, 8>(value: None<Block>());
-  let idx0 = 0_u64;
+  let blocks = box_slots_new::<Option<Block>>(capacity: 8_u64);
   let block0_data = array_filled::<u8, 256>(value: 0_u8);
   let block0 = Block(data: move block0_data);
-  set blocks[idx0] = Some<Block>(value: move block0);
-  let idx1 = 1_u64;
+  let some0 = Some<Block>(value: move block0);
+  place_back(window: &blocks.inner, value: move some0);
   let block1_data = array_filled::<u8, 256>(value: 0_u8);
   let block1 = Block(data: move block1_data);
-  set blocks[idx1] = Some<Block>(value: move block1);
-  let idx2 = 2_u64;
+  let some1 = Some<Block>(value: move block1);
+  place_back(window: &blocks.inner, value: move some1);
   let block2_data = array_filled::<u8, 256>(value: 0_u8);
   let block2 = Block(data: move block2_data);
-  set blocks[idx2] = Some<Block>(value: move block2);
-  let idx3 = 3_u64;
+  let some2 = Some<Block>(value: move block2);
+  place_back(window: &blocks.inner, value: move some2);
   let block3_data = array_filled::<u8, 256>(value: 0_u8);
   let block3 = Block(data: move block3_data);
-  set blocks[idx3] = Some<Block>(value: move block3);
-  let idx4 = 4_u64;
+  let some3 = Some<Block>(value: move block3);
+  place_back(window: &blocks.inner, value: move some3);
   let block4_data = array_filled::<u8, 256>(value: 0_u8);
   let block4 = Block(data: move block4_data);
-  set blocks[idx4] = Some<Block>(value: move block4);
-  let idx5 = 5_u64;
+  let some4 = Some<Block>(value: move block4);
+  place_back(window: &blocks.inner, value: move some4);
   let block5_data = array_filled::<u8, 256>(value: 0_u8);
   let block5 = Block(data: move block5_data);
-  set blocks[idx5] = Some<Block>(value: move block5);
-  let idx6 = 6_u64;
+  let some5 = Some<Block>(value: move block5);
+  place_back(window: &blocks.inner, value: move some5);
   let block6_data = array_filled::<u8, 256>(value: 0_u8);
   let block6 = Block(data: move block6_data);
-  set blocks[idx6] = Some<Block>(value: move block6);
-  let idx7 = 7_u64;
+  let some6 = Some<Block>(value: move block6);
+  place_back(window: &blocks.inner, value: move some6);
   let block7_data = array_filled::<u8, 256>(value: 0_u8);
   let block7 = Block(data: move block7_data);
-  set blocks[idx7] = Some<Block>(value: move block7);
+  let some7 = Some<Block>(value: move block7);
+  place_back(window: &blocks.inner, value: move some7);
   return BlockPool(blocks: move blocks, free_count: 8_u64);
 }
 
@@ -66,11 +66,12 @@ fn pool_take(pool: BlockPool) -> result: Result<Lease, TakeError> pure {
   let found = False();
   let taken_index = 0_u64;
   let idx = 0_u64;
+  let limit = pool.blocks.inner.len;
   loop {
-    if idx == 8_u64 {
+    if idx == limit {
       break;
     }
-    match &pool.blocks[idx] {
+    match &pool.blocks.inner[idx] {
       Some(value: unused_block) => {
         if bnot(found) {
           set found = True();
@@ -84,7 +85,7 @@ fn pool_take(pool: BlockPool) -> result: Result<Lease, TakeError> pure {
   }
   if found {
     let none_option = None<Block>();
-    swap(first: &pool.blocks[taken_index], second: &none_option);
+    swap(first: &pool.blocks.inner[taken_index], second: &none_option);
     match move none_option {
       Some(value: block) => {
         let next_free = pool.free_count - 1_u64;
@@ -111,11 +112,12 @@ fn lease_return(lease: Lease) -> result: Result<BlockPool, ReturnError> pure {
   let found = False();
   let return_index = 0_u64;
   let idx = 0_u64;
+  let limit = pool.blocks.inner.len;
   loop {
-    if idx == 8_u64 {
+    if idx == limit {
       break;
     }
-    match &pool.blocks[idx] {
+    match &pool.blocks.inner[idx] {
       Some(value: unused_block) => {
       }
       None() => {
@@ -129,7 +131,7 @@ fn lease_return(lease: Lease) -> result: Result<BlockPool, ReturnError> pure {
   }
   if found {
     let some_block = Some<Block>(value: move block);
-    swap(first: &pool.blocks[return_index], second: &some_block);
+    swap(first: &pool.blocks.inner[return_index], second: &some_block);
     let next_free = pool.free_count + 1_u64;
     set pool.free_count = next_free;
     return Ok<BlockPool, ReturnError>(value: move pool);

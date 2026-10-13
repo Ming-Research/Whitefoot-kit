@@ -24,7 +24,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let std::fs::Directory(read: directory_read, write: directory_write) = move directory;
   std::fs::close_directory_write(factory: &factory, directory: move directory_write);
   std::fs::close_directory(factory: &factory, directory: move directory_read);
-
   let total = 0_u64;
   for (seed in 0_u64..400000_u64) {
     let final_state = mixer(state: seed);

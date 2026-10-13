@@ -4,7 +4,7 @@ alias CancelWatch = std::time::CancelWatch;
 alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
 
-fn decimal_to_u16(bytes: &[u8]) -> result: u16 pure {
+fn decimal_to_u16(bytes: &[u8]) -> result: u16 reads(bytes) {
   let port = 0_u64;
   let i = 0_u64;
   let len = bytes^.len;
@@ -29,7 +29,7 @@ fn decimal_to_u16(bytes: &[u8]) -> result: u16 pure {
   return result;
 }
 
-fn get_port_from_args(args: &std::text::Args) -> result: u16 pure reads(args) {
+fn get_port_from_args(args: &std::text::Args) -> result: u16 reads(args) {
   let count = std::text::args_count(args: args);
   if count < 2_u64 {
     return 8080_u16;
@@ -55,7 +55,7 @@ fn get_port_from_args(args: &std::text::Args) -> result: u16 pure reads(args) {
   return port;
 }
 
-fn handle_connection(factory: &HandleFactory, recv: std::net::TcpReceive, send: std::net::TcpSend) -> result: unit pure waits writes(factory) {
+fn handle_connection(factory: &HandleFactory, recv: std::net::TcpReceive, send: std::net::TcpSend) -> result: unit writes(factory) waits {
   let buffer = array_filled::<u8, 512>(value: 0_u8);
   let no_deadline = None<Instant>();
   let cancel = std::time::cancel_never();

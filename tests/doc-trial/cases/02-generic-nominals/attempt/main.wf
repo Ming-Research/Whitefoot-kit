@@ -32,7 +32,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     Err(error: unused) => {
       give 0_u8;
     }
-  };
+  }
   if byte_sum != 3_u8 {
     return exit_status(code: 1_u8);
   }
@@ -45,7 +45,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     Err(error: unused) => {
       give 1_u64;
     }
-  };
+  }
   if overflow_marker != 1_u64 {
     return exit_status(code: 1_u8);
   }
@@ -58,7 +58,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     Err(error: unused) => {
       give 0_i64;
     }
-  };
+  }
   if signed_sum != 5_i64 {
     return exit_status(code: 1_u8);
   }
@@ -71,7 +71,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     None() => {
       give 0_u8;
     }
-  };
+  }
   if recovered_byte != 19_u8 {
     return exit_status(code: 1_u8);
   }
@@ -120,7 +120,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     Present(value: v) => {
       give v;
     }
-  };
+  }
   set buffer[16_u64] = choice3_val;
 
   let choice4_val = match signed_choice {
@@ -130,7 +130,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     Present(value: v) => {
       give v;
     }
-  };
+  }
   let c4_shift8 = ishr(choice4_val, 8_u32);
   let c4_shift16 = ishr(choice4_val, 16_u32);
   let c4_shift24 = ishr(choice4_val, 24_u32);

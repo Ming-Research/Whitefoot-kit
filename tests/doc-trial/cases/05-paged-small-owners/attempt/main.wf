@@ -46,7 +46,7 @@ fn encode_u64(value: u64) -> result: Array<u8, 8> pure {
   set result[5_u64] = byte5_u8;
   set result[6_u64] = byte6_u8;
   set result[7_u64] = byte7_u8;
-  return move result;
+  return result;
 }
 
 fn write_all(factory: &HandleFactory, output: &OutputStream, source: &[u8]) -> result: Result<unit, std::io::IoError> reads(source), writes(factory), writes(output) waits {

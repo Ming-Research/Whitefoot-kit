@@ -26,14 +26,16 @@ fn hex_digit(byte: u8) -> result: Option<u8> pure {
   let is_upper_high = byte <= upper_f;
   let is_upper = band(is_upper_low, is_upper_high);
   if is_upper {
-    let digit = byte - upper_a + 10_u8;
+    let upper_offset = byte - upper_a;
+    let digit = upper_offset + 10_u8;
     return Some<u8>(value: digit);
   }
   let is_lower_low = byte >= lower_a;
   let is_lower_high = byte <= lower_f;
   let is_lower = band(is_lower_low, is_lower_high);
   if is_lower {
-    let digit = byte - lower_a + 10_u8;
+    let lower_offset = byte - lower_a;
+    let digit = lower_offset + 10_u8;
     return Some<u8>(value: digit);
   }
   return None<u8>();

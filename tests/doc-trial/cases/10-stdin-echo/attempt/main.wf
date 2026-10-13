@@ -58,10 +58,10 @@ fn run_echo(factory: &HandleFactory, input: &InputStream, output: &OutputStream)
       }
       Err(error: stop) => {
         match stop {
-          ReadStop::ReadEnd() => {
+          ReadEnd() => {
             return 0_u8;
           }
-          ReadStop::ReadFailed(error: unused_io_error) => {
+          ReadFailed(error: unused_io_error) => {
             return 3_u8;
           }
         }

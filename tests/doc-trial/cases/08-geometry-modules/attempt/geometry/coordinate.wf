@@ -19,8 +19,8 @@ fn from_binary64(pixels: f64) -> raw: i32 pure {
   if at_or_below_min {
     return -2147483648_i32;
   }
-  let checked = cvt.checked::<f64, i32>(rounded);
-  match checked {
+  let conversion = cvt.checked::<f64, i32>(rounded);
+  match conversion {
     Ok(value: result) => {
       return result;
     }

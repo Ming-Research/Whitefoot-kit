@@ -42,14 +42,14 @@ fn sum_list(list: &Option<Box<Node>>) -> total: u64 reads(list) {
 fn remove_evens_rec(list: Option<Box<Node>>) -> result: Option<Box<Node>> pure {
   match move list {
     Some(value: node) => {
-      let low_bit = iand(node^.inner.value, 1_u8);
+      let low_bit = iand(node.inner.value, 1_u8);
       let is_even = low_bit == 0_u8;
       if is_even {
-        let next = move node^.inner.next;
+        let next = move node.inner.next;
         return remove_evens_rec(list: move next);
       } else {
-        let new_next = remove_evens_rec(list: move node^.inner.next);
-        set node^.inner.next = move new_next;
+        let new_next = remove_evens_rec(list: move node.inner.next);
+        set node.inner.next = move new_next;
         return Some<Box<Node>>(value: move node);
       }
     }

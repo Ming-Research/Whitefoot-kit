@@ -59,7 +59,7 @@ fn write_u64_le(factory: &HandleFactory, output: &OutputStream, value: u64) -> r
   return write_all(factory: factory, output: output, source: window, length: 8_u64);
 }
 
-fn validate_and_process(parents: &[u32], depths: &[u32]) -> is_valid: Bool, groups_buf: Box<Slots<u64>>, counts_buf: Box<Slots<u64>>, positions_buf: Box<Slots<u64>>, max_depth_val: u32 pure contract {
+fn validate_and_process(parents: &[u32], depths: &[u32]) -> (is_valid: Bool, groups_buf: Box<Slots<u64>>, counts_buf: Box<Slots<u64>>, positions_buf: Box<Slots<u64>>, max_depth_val: u32) pure contract {
   requires parents^.len == depths^.len;
 } {
   let len = parents^.len;

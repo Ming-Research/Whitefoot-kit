@@ -48,12 +48,13 @@ fn send_all(send: &TcpSend, source: &[u8], length: u64, deadline: Option<Instant
 fn find_crlf(buffer: &[u8], start: u64) -> result: Result<u64, u64> reads(buffer) {
   let pos = start;
   loop @search {
-    if pos + 1_u64 >= buffer^.len {
+    let next_check = pos + 1_u64;
+    if next_check >= buffer^.len {
       return Err<u64, u64>(error: 0_u64);
     }
     let byte = buffer^[pos];
     if byte == 13_u8 {
-      let next_byte = buffer^[pos + 1_u64];
+      let next_byte = buffer^[next_check];
       if next_byte == 10_u8 {
         return Ok<u64, u64>(value: pos);
       }
@@ -99,7 +100,8 @@ fn parse_bulk_string(buffer: &[u8], pos: u64) -> result: ParseResult reads(buffe
   if first != 36_u8 {
     return ParseResult(success: False(), position: pos, value_start: 0_u64, value_len: 0_u64);
   }
-  let crlf_result = find_crlf(buffer: buffer, start: pos + 1_u64);
+  let crlf_start = pos + 1_u64;
+  let crlf_result = find_crlf(buffer: buffer, start: crlf_start);
   match crlf_result {
     Ok(value: crlf_pos) => {
       let len_start = pos + 1_u64;
@@ -109,15 +111,18 @@ fn parse_bulk_string(buffer: &[u8], pos: u64) -> result: ParseResult reads(buffe
         Ok(value: length) => {
           let data_start = crlf_pos + 2_u64;
           let data_end = data_start + length;
-          if data_end > buffer^.len {
+          let check1 = data_end > buffer^.len;
+          if check1 {
             return ParseResult(success: False(), position: pos, value_start: 0_u64, value_len: 0_u64);
           }
           let after_data = data_end + 2_u64;
-          if after_data > buffer^.len {
+          let check2 = after_data > buffer^.len;
+          if check2 {
             return ParseResult(success: False(), position: pos, value_start: 0_u64, value_len: 0_u64);
           }
           let cr_check = buffer^[data_end];
-          let lf_check = buffer^[data_end + 1_u64];
+          let lf_idx = data_end + 1_u64;
+          let lf_check = buffer^[lf_idx];
           if band(cr_check == 13_u8, lf_check == 10_u8) {
             return ParseResult(success: True(), position: after_data, value_start: data_start, value_len: length);
           }
@@ -142,7 +147,8 @@ fn parse_array_count(buffer: &[u8], pos: u64) -> result: Result<(u64, u64), u64>
   if first != 42_u8 {
     return Err<(u64, u64), u64>(error: 0_u64);
   }
-  let crlf_result = find_crlf(buffer: buffer, start: pos + 1_u64);
+  let start_pos = pos + 1_u64;
+  let crlf_result = find_crlf(buffer: buffer, start: start_pos);
   match crlf_result {
     Ok(value: crlf_pos) => {
       let count_start = pos + 1_u64;
@@ -330,7 +336,8 @@ fn handle_client(factory: &HandleFactory, receive: TcpReceive, send: TcpSend, st
               if key_parse.success {
                 let key_start = key_parse.value_start;
                 let key_len = key_parse.value_len;
-                let key_slice = &buffer[key_start..key_start + key_len];
+                let key_end = key_start + key_len;
+                let key_slice = &buffer[key_start..key_end];
                 let found_val = False();
                 let val_len = 0_u64;
                 atomic slot = &store[key_slice] {
@@ -349,20 +356,24 @@ fn handle_client(factory: &HandleFactory, receive: TcpReceive, send: TcpSend, st
                   let len_str = i64_to_bytes(value: cvt::<u64, i64>(val_len));
                   let len_bytes = &len_str.inner[0_u64..len_str.inner.len];
                   let resp_pos2 = resp_pos + 1_u64;
+                  let len_bytes_len = len_bytes^.len;
+                  let resp_pos2_end = resp_pos2 + len_bytes_len;
                   let ci = 0_u64;
-                  for (i in resp_pos2..resp_pos2 + len_bytes^.len) {
+                  for (i in resp_pos2..resp_pos2_end) {
                     set response_buffer[i] = len_bytes^[ci];
                     set ci = ci + 1_u64;
                   }
-                  let resp_pos3 = resp_pos2 + len_bytes^.len;
+                  let resp_pos3 = resp_pos2 + len_bytes_len;
                   set response_buffer[resp_pos3] = 13_u8;
-                  set response_buffer[resp_pos3 + 1_u64] = 10_u8;
+                  let resp_pos3_1 = resp_pos3 + 1_u64;
+                  set response_buffer[resp_pos3_1] = 10_u8;
                   let resp_pos4 = resp_pos3 + 2_u64;
                   atomic slot = &store[key_slice] {
                     match slot^ {
                       Some(value: v) => {
                         let vi = 0_u64;
-                        for (i in resp_pos4..resp_pos4 + val_len) {
+                        let resp_pos4_end = resp_pos4 + val_len;
+                        for (i in resp_pos4..resp_pos4_end) {
                           set response_buffer[i] = v^.bytes.inner[vi];
                           set vi = vi + 1_u64;
                         }
@@ -373,7 +384,8 @@ fn handle_client(factory: &HandleFactory, receive: TcpReceive, send: TcpSend, st
                   }
                   let resp_pos5 = resp_pos4 + val_len;
                   set response_buffer[resp_pos5] = 13_u8;
-                  set response_buffer[resp_pos5 + 1_u64] = 10_u8;
+                  let resp_pos5_1 = resp_pos5 + 1_u64;
+                  set response_buffer[resp_pos5_1] = 10_u8;
                   let final_pos = resp_pos5 + 2_u64;
                   let send_outcome = send_all(send: &send, source: &response_buffer[0_u64..4096_u64], length: final_pos, deadline: deadline, cancel: cancel);
                   match send_outcome {
@@ -409,12 +421,14 @@ fn handle_client(factory: &HandleFactory, receive: TcpReceive, send: TcpSend, st
               if key_parse.success {
                 let key_start = key_parse.value_start;
                 let key_len = key_parse.value_len;
-                let key_slice = &buffer[key_start..key_start + key_len];
+                let key_end = key_start + key_len;
+                let key_slice = &buffer[key_start..key_end];
                 let val_parse = parse_bulk_string(buffer: &buffer[0_u64..4096_u64], pos: key_parse.position);
                 if val_parse.success {
                   let val_start = val_parse.value_start;
                   let val_len = val_parse.value_len;
-                  let val_slice = &buffer[val_start..val_start + val_len];
+                  let val_end = val_start + val_len;
+                  let val_slice = &buffer[val_start..val_end];
                   let new_value = box_slots_new::<u8>(capacity: val_len);
                   let vi = 0_u64;
                   for (i in 0_u64..val_len) {
@@ -449,7 +463,8 @@ fn handle_client(factory: &HandleFactory, receive: TcpReceive, send: TcpSend, st
               if key_parse.success {
                 let key_start = key_parse.value_start;
                 let key_len = key_parse.value_len;
-                let key_slice = &buffer[key_start..key_start + key_len];
+                let key_end = key_start + key_len;
+                let key_slice = &buffer[key_start..key_end];
                 let existed = False();
                 atomic slot = &store[key_slice] {
                   match slot^ {
@@ -487,13 +502,16 @@ fn handle_client(factory: &HandleFactory, receive: TcpReceive, send: TcpSend, st
               if key_parse.success {
                 let key_start = key_parse.value_start;
                 let key_len = key_parse.value_len;
-                let key_slice = &buffer[key_start..key_start + key_len];
+                let key_end = key_start + key_len;
+                let key_slice = &buffer[key_start..key_end];
                 let new_value = 0_i64;
                 let error_occurred = False();
                 atomic slot = &store[key_slice] {
                   match slot^ {
                     Some(value: v) => {
-                      let parse_result = bytes_to_i64(data: &v^.bytes.inner[0_u64..v^.bytes.inner.len]);
+                      let v_bytes_len = v^.bytes.inner.len;
+                      let v_bytes_slice = &v^.bytes.inner[0_u64..v_bytes_len];
+                      let parse_result = bytes_to_i64(data: v_bytes_slice);
                       match parse_result {
                         Ok(value: int_val) => {
                           let next = int_val +wrap 1_i64;
@@ -529,18 +547,22 @@ fn handle_client(factory: &HandleFactory, receive: TcpReceive, send: TcpSend, st
                   }
                 } else {
                   let int_str = i64_to_bytes(value: new_value);
-                  let int_bytes = &int_str.inner[0_u64..int_str.inner.len];
+                  let int_str_len = int_str.inner.len;
+                  let int_bytes = &int_str.inner[0_u64..int_str_len];
                   let resp_pos = 0_u64;
                   set response_buffer[resp_pos] = 58_u8;
                   let resp_pos2 = resp_pos + 1_u64;
+                  let int_bytes_len = int_bytes^.len;
+                  let resp_pos2_end = resp_pos2 + int_bytes_len;
                   let ci = 0_u64;
-                  for (i in resp_pos2..resp_pos2 + int_bytes^.len) {
+                  for (i in resp_pos2..resp_pos2_end) {
                     set response_buffer[i] = int_bytes^[ci];
                     set ci = ci + 1_u64;
                   }
-                  let resp_pos3 = resp_pos2 + int_bytes^.len;
+                  let resp_pos3 = resp_pos2 + int_bytes_len;
                   set response_buffer[resp_pos3] = 13_u8;
-                  set response_buffer[resp_pos3 + 1_u64] = 10_u8;
+                  let resp_pos3_1 = resp_pos3 + 1_u64;
+                  set response_buffer[resp_pos3_1] = 10_u8;
                   let final_pos = resp_pos3 + 2_u64;
                   let send_outcome = send_all(send: &send, source: &response_buffer[0_u64..4096_u64], length: final_pos, deadline: deadline, cancel: cancel);
                   match send_outcome {
