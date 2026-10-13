@@ -46,9 +46,9 @@ is its own. The decisions behind them are Whitefoot's
 
 The pinned Whitefoot commit defines the language. A release carries only the
 compiler, so read the language in the Whitefoot repository at that commit:
-the specification `spec/kernel-spec.md`, which is normative, the maintained
-programs under `tests/programs/`, `docs/patterns.md` and the standard
-library's interfaces `lib/std/**/module.wfm`. The commit is the `commit` field
+the specification `spec/kernel-spec.md`, which is normative, and the standard
+library's interfaces `lib/std/**/module.wfm`. The writing guide is this
+kit's [docs/writing.md](docs/writing.md). The commit is the `commit` field
 of `build/whitefoot/<release>/whitefoot-release.json`. For example:
 
 ```sh

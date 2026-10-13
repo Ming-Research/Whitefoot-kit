@@ -37,3 +37,10 @@ jobs:
 
       - name: Check
         run: make check
+
+      - name: Check the writing guide and its checks
+        if: runner.os == 'Linux'
+        run: |
+          printf 'release = %s\n' "$KIT_DOWNLOAD_RELEASE" > docs/whitefoot.pin
+          make doc-check
+          make doc-check-fixtures
