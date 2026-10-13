@@ -1,87 +1,102 @@
 alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
 alias exit_status = std::process::exit_status;
+alias HandleFactory = std::io::HandleFactory;
+alias OutputStream = std::io::OutputStream;
+alias IoError = std::io::IoError;
+alias CancelWatch = std::time::CancelWatch;
 
-const mix_multiplier: u64 = 6364136223846793005_u64;
+const CONSTANT_A: u64 = 6364136223846793005_u64;
+const CONSTANT_B: u64 = 1442695040888963407_u64;
+const ROUNDS: u64 = 24_u64;
+const SEED_COUNT: u64 = 400000_u64;
 
-const mix_addend: u64 = 1442695040888963407_u64;
-
-const mix_rounds: u64 = 24_u64;
-
-fn mix_one(state: u64) -> result: u64 pure {
+fn mixer(state: u64) -> result: u64 pure {
   let rotated = irotl(state, 27_u32);
-  let multiplied = state *wrap mix_multiplier;
-  let xored = ixor(rotated, multiplied);
-  let result = xored +wrap mix_addend;
+  let multiplied = state *wrap CONSTANT_A;
+  let xored = rotated ixor multiplied;
+  let result = xored +wrap CONSTANT_B;
   return result;
 }
 
-fn fold_range(lo: u64, hi: u64) -> result: u64 pure {
-  let total = 0_u64;
-  for (seed in lo..hi) {
-    let state = seed;
-    for (round in 0_u64..mix_rounds) {
-      set state = mix_one(state: state);
+fn process_seed(seed: u64) -> result: u64 pure {
+  let state = seed;
+  let round = 0_u64;
+  loop @rounds {
+    if round < ROUNDS {
+      set state = mixer(state: state);
+      set round = round +wrap 1_u64;
+      continue;
     }
-    set total = total +wrap state;
+    break @rounds;
+  }
+  return state;
+}
+
+fn sum_range(lo: u64, hi: u64) -> result: u64 pure {
+  let total = 0_u64;
+  for (i in lo..hi) {
+    let final_state = process_seed(seed: i);
+    set total = total +wrap final_state;
   }
   return total;
 }
 
-fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(args: unused_args, drivers: unused_drivers, cwd: directory, stdout: output, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
-  let std::fs::Directory(read: directory_read, write: directory_write) = move directory;
-  let close_write = std::fs::close_directory_write(factory: &factory, directory: move directory_write);
-  let close_read = std::fs::close_directory(factory: &factory, directory: move directory_read);
-  match close_write {
-    Ok(value: unused_ok) => {
-    }
-    Err(error: unused_err) => {
-    }
-  }
-  match close_read {
-    Ok(value: unused_ok2) => {
-    }
-    Err(error: unused_err2) => {
-    }
-  }
-  let a = fold_range(lo: 0_u64, hi: 100000_u64);
-  let b = fold_range(lo: 100000_u64, hi: 200000_u64);
-  let c = fold_range(lo: 200000_u64, hi: 300000_u64);
-  let d = fold_range(lo: 300000_u64, hi: 400000_u64);
-  let sum = a +wrap b;
-  let sum = sum +wrap c;
-  let sum = sum +wrap d;
-  let buffer = array_filled::<u8, 8>(value: 0_u8);
-  set buffer[0_u64] = cvt.wrap::<u64, u8>(sum);
-  let shift1 = ishr(sum, 8_u32);
-  set buffer[1_u64] = cvt.wrap::<u64, u8>(shift1);
-  let shift2 = ishr(sum, 16_u32);
-  set buffer[2_u64] = cvt.wrap::<u64, u8>(shift2);
-  let shift3 = ishr(sum, 24_u32);
-  set buffer[3_u64] = cvt.wrap::<u64, u8>(shift3);
-  let shift4 = ishr(sum, 32_u32);
-  set buffer[4_u64] = cvt.wrap::<u64, u8>(shift4);
-  let shift5 = ishr(sum, 40_u32);
-  set buffer[5_u64] = cvt.wrap::<u64, u8>(shift5);
-  let shift6 = ishr(sum, 48_u32);
-  set buffer[6_u64] = cvt.wrap::<u64, u8>(shift6);
-  let shift7 = ishr(sum, 56_u32);
-  set buffer[7_u64] = cvt.wrap::<u64, u8>(shift7);
-  let window = &buffer[0_u64..8_u64];
-  let no_deadline = None<std::time::Instant>();
+fn write_u64_le(factory: &HandleFactory, output: &OutputStream, value: u64) -> result: Result<unit, IoError> writes(factory), writes(output) waits {
+  let byte0 = cvt.wrap::<u64, u8>(value);
+  let shift1 = ishr(value, 8_u32);
+  let byte1 = cvt.wrap::<u64, u8>(shift1);
+  let shift2 = ishr(value, 16_u32);
+  let byte2 = cvt.wrap::<u64, u8>(shift2);
+  let shift3 = ishr(value, 24_u32);
+  let byte3 = cvt.wrap::<u64, u8>(shift3);
+  let shift4 = ishr(value, 32_u32);
+  let byte4 = cvt.wrap::<u64, u8>(shift4);
+  let shift5 = ishr(value, 40_u32);
+  let byte5 = cvt.wrap::<u64, u8>(shift5);
+  let shift6 = ishr(value, 48_u32);
+  let byte6 = cvt.wrap::<u64, u8>(shift6);
+  let shift7 = ishr(value, 56_u32);
+  let byte7 = cvt.wrap::<u64, u8>(shift7);
+  let bytes = array_filled::<u8, 8>(value: 0_u8);
+  set bytes[0_u64] = byte0;
+  set bytes[1_u64] = byte1;
+  set bytes[2_u64] = byte2;
+  set bytes[3_u64] = byte3;
+  set bytes[4_u64] = byte4;
+  set bytes[5_u64] = byte5;
+  set bytes[6_u64] = byte6;
+  set bytes[7_u64] = byte7;
+  let buffer = &bytes[0_u64..8_u64];
   let cancel = std::time::cancel_never();
-  let outcome = std::io::write_once(factory: &factory, output: &output, source: window, start: 0_u64, end: 8_u64, deadline: no_deadline, cancel: &cancel);
+  let outcome = std::io::write_once(factory: factory, output: output, source: buffer, start: 0_u64, end: 8_u64, deadline: None<std::time::Instant>(), cancel: &cancel);
   std::time::close_cancel_watch(watch: move cancel);
   match outcome {
-    Ok(value: written) => {
-      if written == 8_u64 {
-        return exit_status(code: 0_u8);
-      } else {
-        return exit_status(code: 1_u8);
+    Ok(value: next) => {
+      if next == 8_u64 {
+        return Ok<unit, IoError>(value: unit);
       }
+      let error = IoError::WriteZero(code: 0_u32, origin: 0_u8);
+      return Err<unit, IoError>(error: error);
     }
     Err(error: problem) => {
+      return Err<unit, IoError>(error: problem);
+    }
+  }
+}
+
+fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+  let Inputs(cwd: cwd_dir, stdout: stdout_stream, handles: factory, ..) = move inputs;
+  let std::fs::Directory(read: dir_read, write: dir_write) = move cwd_dir;
+  std::fs::close_directory_write(factory: &factory, directory: move dir_write);
+  std::fs::close_directory(factory: &factory, directory: move dir_read);
+  let sum = sum_range(lo: 0_u64, hi: SEED_COUNT);
+  let outcome = write_u64_le(factory: &factory, output: &stdout_stream, value: sum);
+  match outcome {
+    Ok(value: unused) => {
+      return exit_status(code: 0_u8);
+    }
+    Err(error: unused) => {
       return exit_status(code: 1_u8);
     }
   }

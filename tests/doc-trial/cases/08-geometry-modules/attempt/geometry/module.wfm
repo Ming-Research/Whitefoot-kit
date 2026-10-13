@@ -14,20 +14,20 @@ public struct Rect {
   public height: Coord;
 }
 
-public fn coord_from_whole(pixels: i32) -> result: Coord pure doc "Converts whole pixels to coordinates.";
+public fn coord_from_pixels(pixels: i32) -> result: Coord pure doc "Creates a coordinate from whole pixels.";
 
-public fn coord_from_f64(pixels: f64) -> result: Coord pure doc "Converts binary64 pixels to coordinates with rounding.";
+public fn coord_from_f64(value: f64) -> result: Coord pure doc "Creates a coordinate from a binary64 pixel value using rounding.";
 
-public fn coord_to_f64(coord: Coord) -> result: f64 pure doc "Converts coordinates back to binary64 pixels.";
+public fn coord_to_f64(coord: Coord) -> result: f64 pure doc "Converts a coordinate back to binary64 pixels.";
 
-public fn coord_add_sat(left: Coord, right: Coord) -> result: Coord pure doc "Saturating addition of coordinates.";
+public fn coord_add_saturate(a: Coord, b: Coord) -> result: Coord pure doc "Saturating addition of two coordinates.";
 
-public fn coord_sub_sat(left: Coord, right: Coord) -> result: Coord pure doc "Saturating subtraction of coordinates.";
+public fn coord_sub_saturate(a: Coord, b: Coord) -> result: Coord pure doc "Saturating subtraction of two coordinates.";
 
-public fn coord_min(left: Coord, right: Coord) -> result: Coord pure doc "Minimum of two coordinates.";
+public fn coord_min(a: Coord, b: Coord) -> result: Coord pure doc "Returns the minimum of two coordinates.";
 
-public fn coord_max(left: Coord, right: Coord) -> result: Coord pure doc "Maximum of two coordinates.";
+public fn coord_max(a: Coord, b: Coord) -> result: Coord pure doc "Returns the maximum of two coordinates.";
 
-public fn point_in_rect(point: Point, rect: Rect) -> result: Bool pure doc "Check if point is contained in rectangle.";
+public fn rect_contains(rect: Rect, point: Point) -> result: Bool pure doc "Checks if a rectangle contains a point.";
 
-public fn rects_intersect(a: Rect, b: Rect) -> result: Bool pure doc "Check if two rectangles intersect.";
+public fn rect_intersects(a: Rect, b: Rect) -> result: Bool pure doc "Checks if two rectangles intersect.";

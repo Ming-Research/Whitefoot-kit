@@ -1,107 +1,145 @@
 alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
-alias Directory = std::fs::Directory;
 alias exit_status = std::process::exit_status;
+alias HandleFactory = std::io::HandleFactory;
+alias OutputStream = std::io::OutputStream;
+alias IoError = std::io::IoError;
 
-fn extract_byte(value: u64, byte_index: u64) -> result: u8 pure contract {
-  requires byte_index < 8_u64;
-} {
-  let shift = byte_index *wrap 8_u32;
-  let shifted = ishr(value, shift);
-  let masked = iand(shifted, 255_u64);
-  return cvt::<u64, u8>(masked);
+fn write_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], length: u64) -> result: Result<unit, IoError> reads(source), writes(factory), writes(output) waits {
+  let sent = 0_u64;
+  loop @publish {
+    if sent < length {
+    } else {
+      break @publish;
+    }
+    let no_deadline = None<std::time::Instant>();
+    let cancel = std::time::cancel_never();
+    let outcome = std::io::write_once(factory: factory, output: output, source: source, start: sent, end: length, deadline: no_deadline, cancel: &cancel);
+    std::time::close_cancel_watch(watch: move cancel);
+    match outcome {
+      Ok(value: next) => {
+        set sent = next;
+      }
+      Err(error: problem) => {
+        return Err<unit, IoError>(error: problem);
+      }
+    }
+  }
+  return Ok<unit, IoError>(value: unit);
+}
+
+fn f64_to_bytes(value: f64) -> result: Array<u8, 8> pure {
+  let bits = reinterpret::<f64, u64>(value);
+  let b0 = cvt.wrap::<u64, u8>(bits);
+  let shifted1 = ishr(bits, 8_u32);
+  let b1 = cvt.wrap::<u64, u8>(shifted1);
+  let shifted2 = ishr(bits, 16_u32);
+  let b2 = cvt.wrap::<u64, u8>(shifted2);
+  let shifted3 = ishr(bits, 24_u32);
+  let b3 = cvt.wrap::<u64, u8>(shifted3);
+  let shifted4 = ishr(bits, 32_u32);
+  let b4 = cvt.wrap::<u64, u8>(shifted4);
+  let shifted5 = ishr(bits, 40_u32);
+  let b5 = cvt.wrap::<u64, u8>(shifted5);
+  let shifted6 = ishr(bits, 48_u32);
+  let b6 = cvt.wrap::<u64, u8>(shifted6);
+  let shifted7 = ishr(bits, 56_u32);
+  let b7 = cvt.wrap::<u64, u8>(shifted7);
+  let result = array_filled::<u8, 8>(value: 0_u8);
+  set result[0_u64] = b0;
+  set result[1_u64] = b1;
+  set result[2_u64] = b2;
+  set result[3_u64] = b3;
+  set result[4_u64] = b4;
+  set result[5_u64] = b5;
+  set result[6_u64] = b6;
+  set result[7_u64] = b7;
+  return result;
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: output, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
-  let Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
-  let write_close = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
-  let read_close = std::fs::close_directory(factory: &factory, directory: move cwd_read);
-  match write_close {
-    Ok(value: unused_write_ok) => {
+  let std::fs::Directory(read: directory_read, write: directory_write) = move cwd_directory;
+  let write_closed = std::fs::close_directory_write(factory: &factory, directory: move directory_write);
+  let read_closed = std::fs::close_directory(factory: &factory, directory: move directory_read);
+  match write_closed {
+    Ok(value: unused_write_closed) => {
     }
     Err(error: unused_write_error) => {
-      return exit_status(code: 1_u8);
     }
   }
-  match read_close {
-    Ok(value: unused_read_ok) => {
+  match read_closed {
+    Ok(value: unused_read_closed) => {
     }
     Err(error: unused_read_error) => {
-      return exit_status(code: 1_u8);
     }
   }
-  let outputs = array_filled::<f64, 64>(value: 0.0_f64);
-  let sum_var = 0.0_f64;
-
+  let history = array_filled::<f64, 8>(value: 0.0_f64);
+  let outputs = slots_new::<f64, 65>();
+  let coefficient = 0.125_f64;
+  let total_sum = 0.0_f64;
   for (i in 0_u64..64_u64) {
-    let history_start = if i < 7_u64 {
-      give 0_u64;
+    let current = if i == 0_u64 {
+      give 8.0_f64;
     } else {
-      give i - 7_u64;
+      give 0.0_f64;
     }
-
-    let fir_sum = 0.0_f64;
-    let history_end = i + 1_u64;
-    for (j in history_start..history_end) {
-      let sample_value = if j == 0_u64 {
-        give 8.0_f64;
+    let sum = fmul.strict(current, coefficient);
+    let h_idx = 0_u64;
+    loop @tap {
+      if h_idx < 8_u64 {
       } else {
-        give 0.0_f64;
+        break @tap;
       }
-      set fir_sum = fadd.strict(fir_sum, sample_value);
+      let h_val = history[h_idx];
+      let weighted_h = fmul.strict(h_val, coefficient);
+      set sum = fadd.strict(sum, weighted_h);
+      set h_idx = h_idx + 1_u64;
+      continue;
     }
-
-    let output = fdiv.strict(fir_sum, 8.0_f64);
-    set outputs[i] = output;
-    set sum_var = fadd.strict(sum_var, output);
-  }
-
-  let buffer = slots_new::<u8, 520>();
-
-  for (i in 0_u64..64_u64) {
-    let value = outputs[i];
-    let bits = reinterpret::<f64, u64>(value);
-    for (byte_idx in 0_u64..8_u64) {
-      let byte = extract_byte(value: bits, byte_index: byte_idx);
-      place_back(window: &buffer, value: byte);
+    place_back(window: &outputs, value: sum);
+    set total_sum = fadd.strict(total_sum, sum);
+    let rotate_idx = 7_u64;
+    loop @rotate {
+      if rotate_idx > 0_u64 {
+      } else {
+        break @rotate;
+      }
+      let prev_idx = rotate_idx - 1_u64;
+      set history[rotate_idx] = history[prev_idx];
+      set rotate_idx = rotate_idx - 1_u64;
+      continue;
     }
+    set history[0_u64] = current;
   }
-
-  let sum_is_eight = feq(sum_var, 8.0_f64);
-  if bnot(sum_is_eight) {
+  let expected_sum = 8.0_f64;
+  if fne(total_sum, expected_sum) {
     return exit_status(code: 1_u8);
   }
-
-  let sum_bits = reinterpret::<f64, u64>(sum_var);
-  for (byte_idx in 0_u64..8_u64) {
-    let byte = extract_byte(value: sum_bits, byte_index: byte_idx);
-    place_back(window: &buffer, value: byte);
-  }
-
-  let buffer_slice = &buffer[0_u64..520_u64];
-  let no_deadline = None<std::time::Instant>();
-  let cancel = std::time::cancel_never();
-  let outcome = std::io::write_once(
-    factory: &factory,
-    output: &output,
-    source: buffer_slice,
-    start: 0_u64,
-    end: 520_u64,
-    deadline: no_deadline,
-    cancel: &cancel
-  );
-  std::time::close_cancel_watch(watch: move cancel);
-
-  match outcome {
-    Ok(value: written) => {
-      if written == 520_u64 {
-        return exit_status(code: 0_u8);
+  place_back(window: &outputs, value: total_sum);
+  let output_bytes = slots_new::<u8, 520>();
+  for (i in 0_u64..65_u64) {
+    let value = outputs[i];
+    let bytes = f64_to_bytes(value: value);
+    let j = 0_u64;
+    loop @copy_bytes {
+      if j < 8_u64 {
       } else {
-        return exit_status(code: 250_u8);
+        break @copy_bytes;
       }
+      let byte = bytes[j];
+      place_back(window: &output_bytes, value: byte);
+      set j = j + 1_u64;
+      continue;
     }
-    Err(error: unused_write_error) => {
+  }
+  let publish_bytes = &output_bytes[0_u64..output_bytes.len];
+  let outcome = write_all(factory: &factory, output: &output, source: publish_bytes, length: output_bytes.len);
+  match outcome {
+    Ok(value: unused) => {
+      return exit_status(code: 0_u8);
+    }
+    Err(error: unused) => {
       return exit_status(code: 250_u8);
     }
   }

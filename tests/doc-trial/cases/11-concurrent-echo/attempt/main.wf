@@ -1,164 +1,200 @@
 alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
-alias Args = std::text::Args;
+alias exit_status = std::process::exit_status;
+alias SocketAddress = std::net::SocketAddress;
+alias TcpConnection = std::net::TcpConnection;
+alias IoError = std::io::IoError;
+alias ReadStop = std::io::ReadStop;
 alias HandleFactory = std::io::HandleFactory;
+alias Args = std::text::Args;
 alias Instant = std::time::Instant;
-alias CancelWatch = std::time::CancelWatch;
 
-fn parse_port(args: &Args) -> result: Result<u16, unit> reads(args) {
+fn parse_port_bytes(bytes: &[u8]) -> result: Option<u16> reads(bytes) pure {
+  let len = bytes^.len;
+  if len == 0_u64 {
+    return None<u16>();
+  }
+  if len > 5_u64 {
+    return None<u16>();
+  }
+  let value = 0_u32;
+  for (i in 0_u64..len) {
+    let byte = bytes^[i];
+    let is_digit = band(byte >= 48_u8, byte <= 57_u8);
+    if is_digit {
+      let digit = byte - 48_u8;
+      let digit_u32 = cvt::<u8, u32>(digit);
+      let temp = value *checked 10_u32;
+      match temp {
+        Ok(value_times_10: v) => {
+          let temp2 = v +checked digit_u32;
+          match temp2 {
+            Ok(result_value: v2) => {
+              set value = v2;
+            }
+            Err(error: ov) => {
+              return None<u16>();
+            }
+          }
+        }
+        Err(error: ov) => {
+          return None<u16>();
+        }
+      }
+    } else {
+      return None<u16>();
+    }
+  }
+  if value == 0_u32 {
+    return None<u16>();
+  }
+  if value > 65535_u32 {
+    return None<u16>();
+  }
+  return Some<u16>(value: cvt::<u32, u16>(value));
+}
+
+fn parse_port(args: &Args) -> result: Option<u16> reads(args) {
   let count = std::text::args_count(args: args);
   if count != 2_u64 {
-    return Err<u16, unit>(error: unit);
+    return None<u16>();
   }
   let arg_result = std::text::arg_get(args: args, position: 1_u64);
-  match move arg_result {
+  match arg_result {
     Ok(value: arg_string) => {
       let len = std::text::host_bytes_len(value: &arg_string);
-      if len > 5_u64 {
-        return Err<u16, unit>(error: unit);
-      }
-      let buf = array_filled::<u8, 5>(value: 0_u8);
-      let copy_result = std::text::host_copy_bytes(value: &arg_string, destination: &buf[0_u64..5_u64], start: 0_u64, end: len);
+      let buffer = array_filled::<u8, 6>(value: 0_u8);
+      let copy_result = std::text::host_copy_bytes(value: &arg_string, destination: &buffer, start: 0_u64, end: 6_u64);
       match copy_result {
-        Ok(value: copied_len) => {
-          let port = 0_u16;
-          let i = 0_u64;
-          loop {
-            if i < len {
-            } else {
-              break;
-            }
-            let digit_char = buf[i];
-            if digit_char >= 48_u8 {
-              if digit_char <= 57_u8 {
-                let digit = digit_char - 48_u8;
-                let digit_u16 = cvt::<u8, u16>(digit);
-                let multiplied = port *wrap 10_u16;
-                let new_port = multiplied +wrap digit_u16;
-                set port = new_port;
-                set i = i + 1_u64;
-              } else {
-                return Err<u16, unit>(error: unit);
-              }
-            } else {
-              return Err<u16, unit>(error: unit);
-            }
-          }
-          if port == 0_u16 {
-            return Err<u16, unit>(error: unit);
-          }
-          return Ok<u16, unit>(value: port);
+        Ok(value: bytes_copied) => {
+          let port_bytes = &buffer[0_u64..bytes_copied];
+          return parse_port_bytes(bytes: port_bytes);
         }
-        Err(error: problem) => {
-          return Err<u16, unit>(error: unit);
+        Err(error: err) => {
+          return None<u16>();
         }
       }
     }
     Err(error: problem) => {
-      return Err<u16, unit>(error: unit);
+      return None<u16>();
     }
   }
 }
 
-fn echo_peer(factory: HandleFactory, receive: std::net::TcpReceive, send: std::net::TcpSend) -> result: unit pure waits {
-  let buf = array_filled::<u8, 256>(value: 0_u8);
-  let no_deadline = None<Instant>();
-  let cancel = std::time::cancel_never();
-  loop @read_loop {
-    let outcome = std::net::receive_next(receive: &receive, destination: &buf[0_u64..256_u64], start: 0_u64, end: 256_u64, deadline: no_deadline, cancel: &cancel);
-    match outcome {
-      Ok(value: next) => {
-        if next > 0_u64 {
-          let sent = 0_u64;
-          loop @send_loop {
-            if sent < next {
-            } else {
-              break @send_loop;
+fn echo_peer(factory: HandleFactory, connection: TcpConnection) -> result: unit pure waits {
+  let buffer = array_filled::<u8, 3>(value: 0_u8);
+  let receive = connection.receive;
+  let send = connection.send;
+  loop @echo {
+    let window = &buffer[0_u64..3_u64];
+    let no_deadline = None<Instant>();
+    let cancel = std::time::cancel_never();
+    let read_result = std::net::receive_next(receive: &receive, destination: window, start: 0_u64, end: 3_u64, deadline: no_deadline, cancel: &cancel);
+    std::time::close_cancel_watch(watch: move cancel);
+    match read_result {
+      Ok(value: bytes_read) => {
+        let sent = 0_u64;
+        loop @send {
+          if sent >= bytes_read {
+            break @send;
+          }
+          let cancel2 = std::time::cancel_never();
+          let send_result = std::net::send_once(send: &send, source: &buffer, start: sent, end: bytes_read, deadline: no_deadline, cancel: &cancel2);
+          std::time::close_cancel_watch(watch: move cancel2);
+          match send_result {
+            Ok(value: bytes_sent) => {
+              set sent = bytes_sent;
             }
-            let send_outcome = std::net::send_once(send: &send, source: &buf[0_u64..256_u64], start: sent, end: next, deadline: no_deadline, cancel: &cancel);
-            match send_outcome {
-              Ok(value: sent_len) => {
-                set sent = sent_len;
-              }
-              Err(error: problem) => {
-                std::time::close_cancel_watch(watch: move cancel);
-                let close_recv = std::net::close_receive(factory: &factory, receive: move receive);
-                let close_send = std::net::close_send(factory: &factory, send: move send);
-                return unit;
-              }
+            Err(error: problem) => {
+              break @echo;
             }
           }
         }
       }
       Err(error: stop) => {
-        match stop {
-          ReadEnd() => {
-            break @read_loop;
-          }
-          ReadFailed(error: problem) => {
-            break @read_loop;
-          }
-        }
+        break @echo;
       }
     }
   }
-  std::time::close_cancel_watch(watch: move cancel);
-  let close_recv = std::net::close_receive(factory: &factory, receive: move receive);
-  let close_send = std::net::close_send(factory: &factory, send: move send);
+  let receive_close = std::net::close_receive(factory: &factory, receive: move receive);
+  match receive_close {
+    Ok(value: unused_ok) => {
+    }
+    Err(error: unused_err) => {
+    }
+  }
+  let send_close = std::net::close_send(factory: &factory, send: move send);
+  match send_close {
+    Ok(value: unused_ok) => {
+    }
+    Err(error: unused_err) => {
+    }
+  }
   return unit;
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(args: args, drivers: unused_drivers, cwd: cwd, stdout: unused_stdout, stderr: unused_stderr, handles: handles, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
-  let std::fs::Directory(read: directory, write: directory_write) = move cwd;
-  std::fs::close_directory_write(factory: &handles, directory: move directory_write);
-  std::fs::close_directory(factory: &handles, directory: move directory);
-  let port_result = parse_port(args: &args);
-  match port_result {
-    Ok(value: port) => {
+  let Inputs(args: args, drivers: unused_drivers, cwd: cwd, stdout: unused_stdout, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd;
+  let write_close = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
+  match write_close {
+    Ok(value: unused_ok) => {
+    }
+    Err(error: unused_err) => {
+    }
+  }
+  let read_close = std::fs::close_directory(factory: &factory, directory: move cwd_read);
+  match read_close {
+    Ok(value: unused_ok) => {
+    }
+    Err(error: unused_err) => {
+    }
+  }
+  let port_option = parse_port(args: &args);
+  match port_option {
+    Some(value: port) => {
       let address = std::net::socket_address_v4(a: 127_u8, b: 0_u8, c: 0_u8, d: 1_u8, port: port);
-      let listen_result = std::net::tcp_listen(factory: &handles, address: &address);
-      match move listen_result {
+      let listen_result = std::net::tcp_listen(factory: &factory, address: &address);
+      match listen_result {
         Ok(value: listener) => {
-          let i = 0_u64;
-          let no_deadline = None<Instant>();
-          let cancel = std::time::cancel_never();
-          let success = True();
-          loop @accept_loop {
-            if i < 12_u64 {
+          let peer_count = 0_u64;
+          loop @accept {
+            if peer_count < 12_u64 {
             } else {
-              break @accept_loop;
+              break @accept;
             }
-            let accept_result = std::net::tcp_accept(factory: &handles, listener: &listener, deadline: no_deadline, cancel: &cancel);
-            match move accept_result {
+            let no_deadline = None<Instant>();
+            let cancel = std::time::cancel_never();
+            let accept_result = std::net::tcp_accept(factory: &factory, listener: &listener, deadline: no_deadline, cancel: &cancel);
+            std::time::close_cancel_watch(watch: move cancel);
+            match accept_result {
               Ok(value: accepted) => {
-                let connection = move accepted.connection;
-                let receive = move connection.receive;
-                let send = move connection.send;
-                let factory_share = std::io::factory_share(factory: &handles);
-                spawn echo_peer(factory: move factory_share, receive: move receive, send: move send);
-                set i = i + 1_u64;
+                let connection = accepted.connection;
+                let shared_factory = std::io::factory_share(factory: &factory);
+                spawn echo_peer(factory: move shared_factory, connection: move connection);
+                set peer_count = peer_count + 1_u64;
               }
               Err(error: problem) => {
-                set success = False();
-                break @accept_loop;
+                break @accept;
               }
             }
           }
-          std::time::close_cancel_watch(watch: move cancel);
-          let close_listener_result = std::net::close_listener(factory: &handles, listener: move listener);
-          if success {
-            return std::process::exit_status(code: 0_u8);
+          let listener_close = std::net::close_listener(factory: &factory, listener: move listener);
+          match listener_close {
+            Ok(value: unused_ok) => {
+            }
+            Err(error: unused_err) => {
+            }
           }
-          return std::process::exit_status(code: 1_u8);
+          return exit_status(code: 0_u8);
         }
         Err(error: problem) => {
-          return std::process::exit_status(code: 1_u8);
+          return exit_status(code: 1_u8);
         }
       }
     }
-    Err(error: problem) => {
-      return std::process::exit_status(code: 1_u8);
+    None() => {
+      return exit_status(code: 1_u8);
     }
   }
 }

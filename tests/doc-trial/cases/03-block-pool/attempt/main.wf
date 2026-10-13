@@ -1,129 +1,138 @@
 alias ExitStatus = std::process::ExitStatus;
-alias Inputs = std::process::Inputs;
 alias exit_status = std::process::exit_status;
+alias Inputs = std::process::Inputs;
+alias HandleFactory = std::io::HandleFactory;
+alias OutputStream = std::io::OutputStream;
+alias IoError = std::io::IoError;
+alias Instant = std::time::Instant;
 
-nocopy struct BlockLease {
-  index: u64;
+struct BlockLease {
 }
 
-nocopy struct BlockPool {
+struct BlockPool {
   free_count: u64;
 }
 
-fn create_pool() -> result: BlockPool pure {
-  return BlockPool(free_count: 8_u64);
-}
-
-fn take_lease(pool: BlockPool) -> (pool: BlockPool, lease: Option<BlockLease>) pure {
-  if pool.free_count > 0_u64 {
-    let index = pool.free_count - 1_u64;
-    let new_pool = BlockPool(free_count: index);
-    let block_lease = BlockLease(index: index);
-    let lease = Some<BlockLease>(value: move block_lease);
-    return move new_pool, move lease;
-  }
-  let no_lease = None<BlockLease>();
-  return move pool, move no_lease;
-}
-
-fn return_lease(pool: BlockPool, lease: BlockLease) -> (pool: BlockPool, success: Bool) pure {
-  if pool.free_count < 8_u64 {
-    let new_count = pool.free_count + 1_u64;
-    let new_pool = BlockPool(free_count: new_count);
-    return move new_pool, True();
-  }
-  return move pool, False();
-}
-
-fn u64_to_bytes(value: u64) -> result: Array<u8, 8> pure {
+fn u64_to_le_bytes(value: u64) -> result: Array<u8, 8> pure {
   let bytes = array_filled::<u8, 8>(value: 0_u8);
-  set bytes[0_u64] = cvt.wrap::<u64, u8>(value);
-  let shift1 = ishr(value, 8_u32);
-  set bytes[1_u64] = cvt.wrap::<u64, u8>(shift1);
-  let shift2 = ishr(value, 16_u32);
-  set bytes[2_u64] = cvt.wrap::<u64, u8>(shift2);
-  let shift3 = ishr(value, 24_u32);
-  set bytes[3_u64] = cvt.wrap::<u64, u8>(shift3);
-  let shift4 = ishr(value, 32_u32);
-  set bytes[4_u64] = cvt.wrap::<u64, u8>(shift4);
-  let shift5 = ishr(value, 40_u32);
-  set bytes[5_u64] = cvt.wrap::<u64, u8>(shift5);
-  let shift6 = ishr(value, 48_u32);
-  set bytes[6_u64] = cvt.wrap::<u64, u8>(shift6);
-  let shift7 = ishr(value, 56_u32);
-  set bytes[7_u64] = cvt.wrap::<u64, u8>(shift7);
-  return move bytes;
+  set bytes[0_u64] = cvt::<u64, u8>(iand(value, 255_u64));
+  set bytes[1_u64] = cvt::<u64, u8>(iand(ishr(value, 8_u32), 255_u64));
+  set bytes[2_u64] = cvt::<u64, u8>(iand(ishr(value, 16_u32), 255_u64));
+  set bytes[3_u64] = cvt::<u64, u8>(iand(ishr(value, 24_u32), 255_u64));
+  set bytes[4_u64] = cvt::<u64, u8>(iand(ishr(value, 32_u32), 255_u64));
+  set bytes[5_u64] = cvt::<u64, u8>(iand(ishr(value, 40_u32), 255_u64));
+  set bytes[6_u64] = cvt::<u64, u8>(iand(ishr(value, 48_u32), 255_u64));
+  set bytes[7_u64] = cvt::<u64, u8>(iand(ishr(value, 56_u32), 255_u64));
+  return bytes;
+}
+
+fn take_lease(pool: &BlockPool) -> result: Option<BlockLease> writes(pool.free_count) {
+  if pool^.free_count > 0_u64 {
+    set pool^.free_count = pool^.free_count - 1_u64;
+    return Some<BlockLease>(value: BlockLease());
+  }
+  return None<BlockLease>();
+}
+
+fn return_lease(pool: &BlockPool, lease: BlockLease) -> result: Result<unit, BlockLease> writes(pool.free_count) {
+  if pool^.free_count < 8_u64 {
+    set pool^.free_count = pool^.free_count + 1_u64;
+    return Ok<unit, BlockLease>(value: unit);
+  }
+  return Err<unit, BlockLease>(error: lease);
+}
+
+fn write_all(factory: &HandleFactory, output: &OutputStream, source: &[u8]) -> result: Result<unit, IoError> reads(source), writes(factory), writes(output) waits {
+  let length = source^.len;
+  let sent = 0_u64;
+  loop @sending {
+    if sent < length {
+    } else {
+      break @sending;
+    }
+    let no_deadline = None<Instant>();
+    let cancel = std::time::cancel_never();
+    let outcome = std::io::write_once(factory: factory, output: output, source: source, start: sent, end: length, deadline: no_deadline, cancel: &cancel);
+    std::time::close_cancel_watch(watch: move cancel);
+    match outcome {
+      Ok(value: next) => {
+        set sent = next;
+      }
+      Err(error: problem) => {
+        return Err<unit, IoError>(error: problem);
+      }
+    }
+  }
+  return Ok<unit, IoError>(value: unit);
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(cwd: cwd_directory, handles: factory, stdout: output, ..) = move inputs;
+  let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: stdout_stream, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
   let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
   std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
   std::fs::close_directory(factory: &factory, directory: move cwd_read);
-
-  let pool = create_pool();
-
-  let initial_count = pool.free_count;
-  if initial_count != 8_u64 {
+  let pool = BlockPool(free_count: 8_u64);
+  if pool.free_count != 8_u64 {
     return exit_status(code: 2_u8);
   }
-
-  let taken = take_lease(pool: move pool);
-  let pool = taken.0;
-  let lease = taken.1;
-
-  let mid_count = pool.free_count;
-  if mid_count != 7_u64 {
-    return exit_status(code: 3_u8);
-  }
-
-  let final_result = match move lease {
-    Some(value: l) => {
-      return_lease(pool: move pool, lease: move l)
+  let initial_count = pool.free_count;
+  let lease_opt = take_lease(pool: &pool);
+  let held_count = pool.free_count;
+  match lease_opt {
+    Some(value: lease) => {
+      let return_result = return_lease(pool: &pool, lease: move lease);
+      let final_count = pool.free_count;
+      match return_result {
+        Ok(value: unused_ok) => {
+          if final_count != 8_u64 {
+            return exit_status(code: 4_u8);
+          }
+          let count1_bytes = u64_to_le_bytes(value: initial_count);
+          let count2_bytes = u64_to_le_bytes(value: held_count);
+          let count3_bytes = u64_to_le_bytes(value: final_count);
+          let output = array_filled::<u8, 24>(value: 0_u8);
+          set output[0_u64] = count1_bytes[0_u64];
+          set output[1_u64] = count1_bytes[1_u64];
+          set output[2_u64] = count1_bytes[2_u64];
+          set output[3_u64] = count1_bytes[3_u64];
+          set output[4_u64] = count1_bytes[4_u64];
+          set output[5_u64] = count1_bytes[5_u64];
+          set output[6_u64] = count1_bytes[6_u64];
+          set output[7_u64] = count1_bytes[7_u64];
+          set output[8_u64] = count2_bytes[0_u64];
+          set output[9_u64] = count2_bytes[1_u64];
+          set output[10_u64] = count2_bytes[2_u64];
+          set output[11_u64] = count2_bytes[3_u64];
+          set output[12_u64] = count2_bytes[4_u64];
+          set output[13_u64] = count2_bytes[5_u64];
+          set output[14_u64] = count2_bytes[6_u64];
+          set output[15_u64] = count2_bytes[7_u64];
+          set output[16_u64] = count3_bytes[0_u64];
+          set output[17_u64] = count3_bytes[1_u64];
+          set output[18_u64] = count3_bytes[2_u64];
+          set output[19_u64] = count3_bytes[3_u64];
+          set output[20_u64] = count3_bytes[4_u64];
+          set output[21_u64] = count3_bytes[5_u64];
+          set output[22_u64] = count3_bytes[6_u64];
+          set output[23_u64] = count3_bytes[7_u64];
+          let view = &output[0_u64..24_u64];
+          let write_result = write_all(factory: &factory, output: &stdout_stream, source: view);
+          match write_result {
+            Ok(value: unused_ok) => {
+              return exit_status(code: 0_u8);
+            }
+            Err(error: unused_error) => {
+              return exit_status(code: 250_u8);
+            }
+          }
+        }
+        Err(error: unused_lease) => {
+          return exit_status(code: 5_u8);
+        }
+      }
     }
     None() => {
       return exit_status(code: 3_u8);
-    }
-  };
-
-  let pool = final_result.0;
-  let success = final_result.1;
-
-  let final_count = pool.free_count;
-  if final_count != 8_u64 {
-    return exit_status(code: 4_u8);
-  }
-
-  if bnot(success) {
-    return exit_status(code: 5_u8);
-  }
-
-  let bytes1 = u64_to_bytes(value: initial_count);
-  let bytes2 = u64_to_bytes(value: mid_count);
-  let bytes3 = u64_to_bytes(value: final_count);
-
-  let output_buffer = array_filled::<u8, 24>(value: 0_u8);
-  for (i in 0_u64..8_u64) {
-    set output_buffer[i] = bytes1[i];
-    set output_buffer[i + 8_u64] = bytes2[i];
-    set output_buffer[i + 16_u64] = bytes3[i];
-  }
-
-  let output_view = &output_buffer[0_u64..24_u64];
-  let no_deadline = None<std::time::Instant>();
-  let cancel = std::time::cancel_never();
-  let write_outcome = std::io::write_once(factory: &factory, output: &output, source: output_view, start: 0_u64, end: 24_u64, deadline: no_deadline, cancel: &cancel);
-  std::time::close_cancel_watch(watch: move cancel);
-
-  match write_outcome {
-    Ok(value: written) => {
-      if written == 24_u64 {
-        return exit_status(code: 0_u8);
-      }
-      return exit_status(code: 250_u8);
-    }
-    Err(error: problem) => {
-      return exit_status(code: 250_u8);
     }
   }
 }

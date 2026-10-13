@@ -1,75 +1,62 @@
 alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
 alias exit_status = std::process::exit_status;
-alias HandleFactory = std::io::HandleFactory;
-alias InputStream = std::io::InputStream;
-alias OutputStream = std::io::OutputStream;
 alias ReadStop = std::io::ReadStop;
-alias IoError = std::io::IoError;
-alias Directory = std::fs::Directory;
-alias CancelWatch = std::time::CancelWatch;
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(cwd: cwd_directory, stdout: output, handles: factory, stdin: input, ..) = move inputs;
+  let Inputs(cwd: cwd_directory, stdout: stdout_stream, handles: factory, stdin: stdin_stream, ..) = move inputs;
   let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
-  std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
-  std::fs::close_directory(factory: &factory, directory: move cwd_read);
+  let write_closed = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
+  let read_closed = std::fs::close_directory(factory: &factory, directory: move cwd_read);
+  match write_closed {
+    Ok(value: unused_ok) => {
+    }
+    Err(error: unused_err) => {
+    }
+  }
+  match read_closed {
+    Ok(value: unused_ok) => {
+    }
+    Err(error: unused_err) => {
+    }
+  }
   let buffer = array_filled::<u8, 4096>(value: 0_u8);
-  let buffer_slice = &buffer[0_u64..4096_u64];
-  let exit_code = echo_loop(factory: &factory, input: &input, output: &output, buffer: buffer_slice);
-  return exit_status(code: exit_code);
-}
-
-fn echo_loop(factory: &HandleFactory, input: &InputStream, output: &OutputStream, buffer: &[u8]) -> code: u8 writes(factory), writes(input), writes(buffer), writes(output) waits {
-  let buf_len = buffer^.len;
-  loop {
-    let cancel = std::time::cancel_never();
+  loop @read_loop {
     let no_deadline = None<std::time::Instant>();
-    let read_result = std::io::read_next(factory: factory, input: input, destination: buffer, start: 0_u64, end: buf_len, deadline: no_deadline, cancel: &cancel);
+    let cancel = std::time::cancel_never();
+    let read_result = std::io::read_next(factory: &factory, input: &stdin_stream, destination: &buffer, start: 0_u64, end: 4096_u64, deadline: no_deadline, cancel: &cancel);
     std::time::close_cancel_watch(watch: move cancel);
     match read_result {
       Ok(value: bytes_read) => {
-        let write_offset = write_all(factory: factory, output: output, source: buffer, end: bytes_read);
-        if write_offset < bytes_read {
-          return 4_u8;
+        let written = 0_u64;
+        loop @write_loop {
+          if written >= bytes_read {
+            break @write_loop;
+          }
+          let no_deadline_write = None<std::time::Instant>();
+          let cancel_write = std::time::cancel_never();
+          let write_result = std::io::write_once(factory: &factory, output: &stdout_stream, source: &buffer, start: written, end: bytes_read, deadline: no_deadline_write, cancel: &cancel_write);
+          std::time::close_cancel_watch(watch: move cancel_write);
+          match write_result {
+            Ok(value: written_index) => {
+              set written = written_index;
+            }
+            Err(error: write_error) => {
+              return exit_status(code: 4_u8);
+            }
+          }
         }
       }
-      Err(error: stop) => {
-        match stop {
+      Err(error: read_stop) => {
+        match read_stop {
           ReadEnd() => {
-            return 0_u8;
+            return exit_status(code: 0_u8);
           }
-          ReadFailed(error: problem) => {
-            return 3_u8;
+          ReadFailed(error: io_error) => {
+            return exit_status(code: 3_u8);
           }
         }
       }
     }
   }
-}
-
-fn write_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], end: u64) -> written: u64 reads(source), writes(factory), writes(output) waits contract {
-  requires end <= source^.len;
-} {
-  let offset = 0_u64;
-  loop {
-    let pending = offset < end;
-    if pending {
-    } else {
-      break;
-    }
-    let cancel = std::time::cancel_never();
-    let no_deadline = None<std::time::Instant>();
-    let write_result = std::io::write_once(factory: factory, output: output, source: source, start: offset, end: end, deadline: no_deadline, cancel: &cancel);
-    std::time::close_cancel_watch(watch: move cancel);
-    match write_result {
-      Ok(value: next) => {
-        set offset = next;
-      }
-      Err(error: problem) => {
-        return offset;
-      }
-    }
-  }
-  return offset;
 }

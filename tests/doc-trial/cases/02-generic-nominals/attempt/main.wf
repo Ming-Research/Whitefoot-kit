@@ -1,8 +1,6 @@
 alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
 alias exit_status = std::process::exit_status;
-alias HandleFactory = std::io::HandleFactory;
-alias OutputStream = std::io::OutputStream;
 alias Instant = std::time::Instant;
 alias CancelWatch = std::time::CancelWatch;
 
@@ -16,150 +14,154 @@ enum Choice<T> {
   Absent();
 }
 
-struct BytePacket {
-  first: u8;
-  second: u8;
-}
-
-fn write_u64_le(buffer: &[u8], offset: u64, value: u64) -> result: unit writes(buffer) contract {
-  requires offset + 8_u64 <= buffer^.len;
-} {
-  let b0 = cvt.wrap::<u64, u8>(value);
-  set buffer^[offset] = b0;
-  let v1 = ishr(value, 8_u32);
-  let b1 = cvt.wrap::<u64, u8>(v1);
-  let off1 = offset + 1_u64;
-  set buffer^[off1] = b1;
-  let v2 = ishr(value, 16_u32);
-  let b2 = cvt.wrap::<u64, u8>(v2);
-  let off2 = offset + 2_u64;
-  set buffer^[off2] = b2;
-  let v3 = ishr(value, 24_u32);
-  let b3 = cvt.wrap::<u64, u8>(v3);
-  let off3 = offset + 3_u64;
-  set buffer^[off3] = b3;
-  let v4 = ishr(value, 32_u32);
-  let b4 = cvt.wrap::<u64, u8>(v4);
-  let off4 = offset + 4_u64;
-  set buffer^[off4] = b4;
-  let v5 = ishr(value, 40_u32);
-  let b5 = cvt.wrap::<u64, u8>(v5);
-  let off5 = offset + 5_u64;
-  set buffer^[off5] = b5;
-  let v6 = ishr(value, 48_u32);
-  let b6 = cvt.wrap::<u64, u8>(v6);
-  let off6 = offset + 6_u64;
-  set buffer^[off6] = b6;
-  let v7 = ishr(value, 56_u32);
-  let b7 = cvt.wrap::<u64, u8>(v7);
-  let off7 = offset + 7_u64;
-  set buffer^[off7] = b7;
+fn u64_to_le(value: u64, buffer: &[u8], offset: u64) -> result: unit writes(buffer) {
+  let byte0 = iand(value, 255_u64);
+  set buffer^[offset] = cvt::<u64, u8>(byte0);
+  let offset1 = offset +wrap 1_u64;
+  let shifted1 = ishr(value, 8_u32);
+  let byte1 = iand(shifted1, 255_u64);
+  set buffer^[offset1] = cvt::<u64, u8>(byte1);
+  let offset2 = offset +wrap 2_u64;
+  let shifted2 = ishr(value, 16_u32);
+  let byte2 = iand(shifted2, 255_u64);
+  set buffer^[offset2] = cvt::<u64, u8>(byte2);
+  let offset3 = offset +wrap 3_u64;
+  let shifted3 = ishr(value, 24_u32);
+  let byte3 = iand(shifted3, 255_u64);
+  set buffer^[offset3] = cvt::<u64, u8>(byte3);
+  let offset4 = offset +wrap 4_u64;
+  let shifted4 = ishr(value, 32_u32);
+  let byte4 = iand(shifted4, 255_u64);
+  set buffer^[offset4] = cvt::<u64, u8>(byte4);
+  let offset5 = offset +wrap 5_u64;
+  let shifted5 = ishr(value, 40_u32);
+  let byte5 = iand(shifted5, 255_u64);
+  set buffer^[offset5] = cvt::<u64, u8>(byte5);
+  let offset6 = offset +wrap 6_u64;
+  let shifted6 = ishr(value, 48_u32);
+  let byte6 = iand(shifted6, 255_u64);
+  set buffer^[offset6] = cvt::<u64, u8>(byte6);
+  let offset7 = offset +wrap 7_u64;
+  let shifted7 = ishr(value, 56_u32);
+  let byte7 = iand(shifted7, 255_u64);
+  set buffer^[offset7] = cvt::<u64, u8>(byte7);
   return unit;
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(cwd: cwd_directory, handles: factory, stdout: output, ..) = move inputs;
-  let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
-  let write_close_result = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
-  let read_close_result = std::fs::close_directory(factory: &factory, directory: move cwd_read);
-  match write_close_result {
-    Ok(value: unused_ok_write) => {
-    }
-    Err(error: unused_err_write) => {
-    }
-  }
-  match read_close_result {
-    Ok(value: unused_ok_read) => {
-    }
-    Err(error: unused_err_read) => {
-    }
-  }
+  let Inputs(args: unused_args, drivers: unused_drivers, cwd: directory, stdout: output, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let std::fs::Directory(read: directory_read, write: directory_write) = move directory;
+  std::fs::close_directory_write(factory: &factory, directory: move directory_write);
+  std::fs::close_directory(factory: &factory, directory: move directory_read);
+
   let byte_pair = Pair<u8>(left: 7_u8, right: 7_u8);
   let signed_pair = Pair<i64>(left: -9_i64, right: -9_i64);
-  let choice_present_3 = Choice<u64>::Present(value: 3_u64);
-  let choice_present_neg5 = Choice<i64>::Present(value: -5_i64);
-  let byte_add_result = 1_u8 +checked 2_u8;
-  let overflow_result = 255_u8 +checked 1_u8;
-  let signed_add_result = -4_i64 +checked 9_i64;
-  let optional_byte = Some<u8>(value: 19_u8);
-  let packet = BytePacket(first: 11_u8, second: 11_u8);
-  let boxed_packet = box_new::<BytePacket>(value: move packet);
-  let buffer = array_filled::<u8, 72>(value: 0_u8);
-  let word1 = cvt::<u8, u64>(byte_pair.left);
-  write_u64_le(buffer: &buffer, offset: 0_u64, value: word1);
-  let signed_right_as_u64 = cvt.wrap::<i64, u64>(signed_pair.right);
-  write_u64_le(buffer: &buffer, offset: 8_u64, value: signed_right_as_u64);
-  let word3 = match choice_present_3 {
-    Present(value: choice_val) => {
-      give choice_val;
+
+  let choice1 = Choice<u8>::Present(value: 3_u8);
+  let choice2 = Choice<i64>::Present(value: -5_i64);
+
+  let sum1_result = 1_u8 +checked 2_u8;
+  let sum1_value = match sum1_result {
+    Ok(value: v) => {
+      give v;
     }
-    Absent() => {
-      return exit_status(code: 1_u8);
+    Err(error: e) => {
+      give 0_u8;
     }
   }
-  write_u64_le(buffer: &buffer, offset: 16_u64, value: word3);
-  let word4_raw = match choice_present_neg5 {
-    Present(value: choice_val) => {
-      give choice_val;
+
+  let sum2_result = 255_u8 +checked 1_u8;
+  let overflow_marker = match sum2_result {
+    Ok(value: v) => {
+      give 0_u8;
     }
-    Absent() => {
-      return exit_status(code: 1_u8);
-    }
-  }
-  let word4_as_u64 = cvt.wrap::<i64, u64>(word4_raw);
-  write_u64_le(buffer: &buffer, offset: 24_u64, value: word4_as_u64);
-  let word5 = match byte_add_result {
-    Ok(value: sum_value) => {
-      give cvt::<u8, u64>(sum_value);
-    }
-    Err(error: overflow_err) => {
-      return exit_status(code: 1_u8);
+    Err(error: e) => {
+      give 1_u8;
     }
   }
-  write_u64_le(buffer: &buffer, offset: 32_u64, value: word5);
-  let word6 = match overflow_result {
-    Ok(value: sum_value) => {
-      return exit_status(code: 1_u8);
+
+  let sum3_result = -4_i64 +checked 9_i64;
+  let sum3_value = match sum3_result {
+    Ok(value: v) => {
+      give v;
     }
-    Err(error: overflow_err) => {
-      give 1_u64;
-    }
-  }
-  write_u64_le(buffer: &buffer, offset: 40_u64, value: word6);
-  let word7 = match signed_add_result {
-    Ok(value: sum_value) => {
-      give cvt::<i64, u64>(sum_value);
-    }
-    Err(error: overflow_err) => {
-      return exit_status(code: 1_u8);
+    Err(error: e) => {
+      give 0_i64;
     }
   }
-  write_u64_le(buffer: &buffer, offset: 48_u64, value: word7);
-  let word8 = match optional_byte {
-    Some(value: byte_value) => {
-      give cvt::<u8, u64>(byte_value);
+
+  let optional = Some<u8>(value: 19_u8);
+  let recovered_byte = match move optional {
+    Some(value: v) => {
+      give v;
     }
     None() => {
-      return exit_status(code: 1_u8);
+      give 0_u8;
     }
   }
-  write_u64_le(buffer: &buffer, offset: 56_u64, value: word8);
-  let word9 = cvt::<u8, u64>(boxed_packet.inner.second);
-  write_u64_le(buffer: &buffer, offset: 64_u64, value: word9);
-  let buffer_slice = &buffer[0_u64..72_u64];
-  let no_deadline = None<std::time::Instant>();
+
+  let packet = Pair<u8>(left: 11_u8, right: 11_u8);
+  let packet_cell = box_new::<Pair<u8>>(value: move packet);
+  let packet_second = packet_cell.inner.right;
+
+  let buffer = array_filled::<u8, 72>(value: 0_u8);
+  let buffer_view = &buffer[0_u64..72_u64];
+
+  let val1 = cvt::<u8, u64>(byte_pair.left);
+  u64_to_le(value: val1, buffer: buffer_view, offset: 0_u64);
+
+  let val2 = reinterpret::<i64, u64>(signed_pair.right);
+  u64_to_le(value: val2, buffer: buffer_view, offset: 8_u64);
+
+  let val3 = match choice1 {
+    Present(value: v) => {
+      give cvt::<u8, u64>(v);
+    }
+    Absent() => {
+      give 0_u64;
+    }
+  }
+  u64_to_le(value: val3, buffer: buffer_view, offset: 16_u64);
+
+  let val4 = match choice2 {
+    Present(value: v) => {
+      give reinterpret::<i64, u64>(v);
+    }
+    Absent() => {
+      give 0_u64;
+    }
+  }
+  u64_to_le(value: val4, buffer: buffer_view, offset: 24_u64);
+
+  let val5 = cvt::<u8, u64>(sum1_value);
+  u64_to_le(value: val5, buffer: buffer_view, offset: 32_u64);
+
+  let val6 = cvt::<u8, u64>(overflow_marker);
+  u64_to_le(value: val6, buffer: buffer_view, offset: 40_u64);
+
+  let val7 = reinterpret::<i64, u64>(sum3_value);
+  u64_to_le(value: val7, buffer: buffer_view, offset: 48_u64);
+
+  let val8 = cvt::<u8, u64>(recovered_byte);
+  u64_to_le(value: val8, buffer: buffer_view, offset: 56_u64);
+
+  let val9 = cvt::<u8, u64>(packet_second);
+  u64_to_le(value: val9, buffer: buffer_view, offset: 64_u64);
+
+  let no_deadline = None<Instant>();
   let cancel = std::time::cancel_never();
-  let write_result = std::io::write_once(factory: &factory, output: &output, source: buffer_slice, start: 0_u64, end: 72_u64, deadline: no_deadline, cancel: &cancel);
+  let write_result = std::io::write_once(factory: &factory, output: &output, source: buffer_view, start: 0_u64, end: 72_u64, deadline: no_deadline, cancel: &cancel);
   std::time::close_cancel_watch(watch: move cancel);
+
   match write_result {
     Ok(value: written) => {
       if written == 72_u64 {
         return exit_status(code: 0_u8);
       } else {
-        return exit_status(code: 250_u8);
+        return exit_status(code: 1_u8);
       }
     }
-    Err(error: io_error) => {
+    Err(error: problem) => {
       return exit_status(code: 250_u8);
     }
   }

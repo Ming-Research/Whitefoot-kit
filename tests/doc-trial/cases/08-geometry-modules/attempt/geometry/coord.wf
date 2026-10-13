@@ -1,84 +1,106 @@
-fn coord_from_whole(pixels: i32) -> result: Coord pure {
-  let clamped = if pixels > 33554431_i32 {
-    give 2147483647_i32;
-  } else if pixels < -33554432_i32 {
-    give -2147483648_i32;
-  } else {
-    give pixels;
-  }
-  let raw = clamped *sat 64_i32;
+fn coord_from_pixels(pixels: i32) -> result: Coord pure {
+  let raw = pixels *sat 64_i32;
   return Coord(raw: raw);
 }
 
-fn coord_from_f64(pixels: f64) -> result: Coord pure {
-  let scaled = fmul.strict(pixels, 64.0_f64);
+fn coord_from_f64(value: f64) -> result: Coord pure {
+  let scaled = fmul.strict(value, 64.0_f64);
   let rounded = froundeven(scaled);
-  let raw_candidate = cvt.checked::<f64, i32>(rounded);
-  match raw_candidate {
+  let checked = cvt.checked::<f64, i32>(rounded);
+  let raw = match checked {
     Ok(value: r) => {
-      return Coord(raw: r);
+      give r;
     }
-    Err(error: overflow_err) => {
-      let is_positive = fge(pixels, 0.0_f64);
-      if is_positive {
-        return Coord(raw: 2147483647_i32);
+    Err(error: problem) => {
+      let sign = flt(value, 0.0_f64);
+      if sign {
+        give -2147483648_i32;
       } else {
-        return Coord(raw: -2147483648_i32);
+        give 2147483647_i32;
       }
     }
   }
+  return Coord(raw: raw);
 }
 
 fn coord_to_f64(coord: Coord) -> result: f64 pure {
-  let as_f64 = cvt::<i32, f64>(coord.raw);
-  let result = fdiv.strict(as_f64, 64.0_f64);
+  let raw_f64 = cvt::<i32, f64>(coord.raw);
+  let result = fdiv.strict(raw_f64, 64.0_f64);
   return result;
 }
 
-fn coord_add_sat(left: Coord, right: Coord) -> result: Coord pure {
-  let sum = left.raw +sat right.raw;
-  return Coord(raw: sum);
+fn coord_add_saturate(a: Coord, b: Coord) -> result: Coord pure {
+  let sum = a.raw +checked b.raw;
+  let raw = match sum {
+    Ok(value: s) => {
+      give s;
+    }
+    Err(error: problem) => {
+      let is_positive = a.raw >= 0_i32;
+      if is_positive {
+        give 2147483647_i32;
+      } else {
+        give -2147483648_i32;
+      }
+    }
+  }
+  return Coord(raw: raw);
 }
 
-fn coord_sub_sat(left: Coord, right: Coord) -> result: Coord pure {
-  let diff = left.raw -sat right.raw;
-  return Coord(raw: diff);
+fn coord_sub_saturate(a: Coord, b: Coord) -> result: Coord pure {
+  let diff = a.raw -checked b.raw;
+  let raw = match diff {
+    Ok(value: d) => {
+      give d;
+    }
+    Err(error: problem) => {
+      let is_positive = a.raw >= 0_i32;
+      if is_positive {
+        give 2147483647_i32;
+      } else {
+        give -2147483648_i32;
+      }
+    }
+  }
+  return Coord(raw: raw);
 }
 
-fn coord_min(left: Coord, right: Coord) -> result: Coord pure {
-  let minimum = imin(left.raw, right.raw);
-  return Coord(raw: minimum);
+fn coord_min(a: Coord, b: Coord) -> result: Coord pure {
+  let is_less = a.raw < b.raw;
+  if is_less {
+    return Coord(raw: a.raw);
+  } else {
+    return Coord(raw: b.raw);
+  }
 }
 
-fn coord_max(left: Coord, right: Coord) -> result: Coord pure {
-  let maximum = imax(left.raw, right.raw);
-  return Coord(raw: maximum);
+fn coord_max(a: Coord, b: Coord) -> result: Coord pure {
+  let is_greater = a.raw > b.raw;
+  if is_greater {
+    return Coord(raw: a.raw);
+  } else {
+    return Coord(raw: b.raw);
+  }
 }
 
-fn point_in_rect(point: Point, rect: Rect) -> result: Bool pure {
-  let x_at_least = point.x.raw >= rect.x.raw;
-  let right_bound = rect.x.raw +sat rect.width.raw;
-  let x_before_right = point.x.raw < right_bound;
-  let x_in = band(x_at_least, x_before_right);
-  let y_at_least = point.y.raw >= rect.y.raw;
-  let bottom_bound = rect.y.raw +sat rect.height.raw;
-  let y_before_bottom = point.y.raw < bottom_bound;
-  let y_in = band(y_at_least, y_before_bottom);
-  let contained = band(x_in, y_in);
-  return contained;
+fn rect_contains(rect: Rect, point: Point) -> result: Bool pure {
+  let x_min = rect.x.raw;
+  let x_max_coord = coord_add_saturate(rect.x, rect.width);
+  let x_max = x_max_coord.raw;
+  let y_min = rect.y.raw;
+  let y_max_coord = coord_add_saturate(rect.y, rect.height);
+  let y_max = y_max_coord.raw;
+  let x_in_range = band(x_min <= point.x.raw, point.x.raw < x_max);
+  let y_in_range = band(y_min <= point.y.raw, point.y.raw < y_max);
+  return band(x_in_range, y_in_range);
 }
 
-fn rects_intersect(a: Rect, b: Rect) -> result: Bool pure {
-  let a_right = a.x.raw +sat a.width.raw;
-  let b_right = b.x.raw +sat b.width.raw;
-  let a_bottom = a.y.raw +sat a.height.raw;
-  let b_bottom = b.y.raw +sat b.height.raw;
-  let a_left_before_b_right = a.x.raw < b_right;
-  let b_left_before_a_right = b.x.raw < a_right;
-  let x_overlap = band(a_left_before_b_right, b_left_before_a_right);
-  let a_top_before_b_bottom = a.y.raw < b_bottom;
-  let b_top_before_a_bottom = b.y.raw < a_bottom;
-  let y_overlap = band(a_top_before_b_bottom, b_top_before_a_bottom);
-  let intersect = band(x_overlap, y_overlap);
-  return intersect;
+fn rect_intersects(a: Rect, b: Rect) -> result: Bool pure {
+  let a_right = coord_add_saturate(a.x, a.width);
+  let b_right = coord_add_saturate(b.x, b.width);
+  let a_bottom = coord_add_saturate(a.y, a.height);
+  let b_bottom = coord_add_saturate(b.y, b.height);
+  let x_overlap = band(a.x.raw < b_right.raw, b.x.raw < a_right.raw);
+  let y_overlap = band(a.y.raw < b_bottom.raw, b.y.raw < a_bottom.raw);
+  return band(x_overlap, y_overlap);
 }

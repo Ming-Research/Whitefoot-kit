@@ -1,45 +1,46 @@
 alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
 alias exit_status = std::process::exit_status;
-alias HandleFactory = std::io::HandleFactory;
-alias OutputStream = std::io::OutputStream;
+alias heap_in_use = std::process::heap_in_use;
 alias IoError = std::io::IoError;
-alias Instant = std::time::Instant;
+alias OutputStream = std::io::OutputStream;
+alias HandleFactory = std::io::HandleFactory;
 
-fn write_u64_le(factory: &HandleFactory, output: &OutputStream, value: u64) -> result: Result<unit, IoError> writes(factory), writes(output) waits {
+fn write_le_u64(factory: &HandleFactory, output: &OutputStream, value: u64) -> result: Result<unit, IoError> writes(factory), writes(output) waits {
   let bytes = array_filled::<u8, 8>(value: 0_u8);
-  set bytes[0_u64] = cvt.wrap::<u64, u8>(value);
-  let sh1 = ishr(value, 8_u32);
-  set bytes[1_u64] = cvt.wrap::<u64, u8>(sh1);
-  let sh2 = ishr(value, 16_u32);
-  set bytes[2_u64] = cvt.wrap::<u64, u8>(sh2);
-  let sh3 = ishr(value, 24_u32);
-  set bytes[3_u64] = cvt.wrap::<u64, u8>(sh3);
-  let sh4 = ishr(value, 32_u32);
-  set bytes[4_u64] = cvt.wrap::<u64, u8>(sh4);
-  let sh5 = ishr(value, 40_u32);
-  set bytes[5_u64] = cvt.wrap::<u64, u8>(sh5);
-  let sh6 = ishr(value, 48_u32);
-  set bytes[6_u64] = cvt.wrap::<u64, u8>(sh6);
-  let sh7 = ishr(value, 56_u32);
-  set bytes[7_u64] = cvt.wrap::<u64, u8>(sh7);
-  let buffer = &bytes[0_u64..8_u64];
-  let no_deadline = None<Instant>();
+  set bytes[0_u64] = cvt.wrap::<u64, u8>(iand(value, 255_u64));
+  set bytes[1_u64] = cvt.wrap::<u64, u8>(iand(ishr(value, 8_u32), 255_u64));
+  set bytes[2_u64] = cvt.wrap::<u64, u8>(iand(ishr(value, 16_u32), 255_u64));
+  set bytes[3_u64] = cvt.wrap::<u64, u8>(iand(ishr(value, 24_u32), 255_u64));
+  set bytes[4_u64] = cvt.wrap::<u64, u8>(iand(ishr(value, 32_u32), 255_u64));
+  set bytes[5_u64] = cvt.wrap::<u64, u8>(iand(ishr(value, 40_u32), 255_u64));
+  set bytes[6_u64] = cvt.wrap::<u64, u8>(iand(ishr(value, 48_u32), 255_u64));
+  set bytes[7_u64] = cvt.wrap::<u64, u8>(iand(ishr(value, 56_u32), 255_u64));
+  let view = &bytes[0_u64..8_u64];
+  let no_deadline = None<std::time::Instant>();
   let cancel = std::time::cancel_never();
-  let result = std::io::write_once(factory: factory, output: output, source: buffer, start: 0_u64, end: 8_u64, deadline: no_deadline, cancel: &cancel);
+  let outcome = std::io::write_once(factory: factory, output: output, source: view, start: 0_u64, end: 8_u64, deadline: no_deadline, cancel: &cancel);
   std::time::close_cancel_watch(watch: move cancel);
-  match result {
+  match outcome {
     Ok(value: next) => {
       if next == 8_u64 {
         return Ok<unit, IoError>(value: unit);
       }
-      let error = IoError::WriteZero(code: 0_u32, origin: 0_u8);
+      let error = IoError::UnexpectedEnd(code: 0_u32, origin: 0_u8);
       return Err<unit, IoError>(error: error);
     }
-    Err(error: e) => {
-      return Err<unit, IoError>(error: e);
+    Err(error: problem) => {
+      return Err<unit, IoError>(error: problem);
     }
   }
+}
+
+fn sum_range(run: &Run<u64>) -> result: u64 reads(run) {
+  let sum = 0_u64;
+  for (i in 0_u64..run^.len) {
+    set sum = sum +wrap run^[i];
+  }
+  return sum;
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
@@ -47,120 +48,147 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let std::fs::Directory(read: directory_read, write: directory_write) = move directory;
   std::fs::close_directory_write(factory: &factory, directory: move directory_write);
   std::fs::close_directory(factory: &factory, directory: move directory_read);
-  let baseline = std::process::heap_in_use(meter: &meter);
-  let pool0 = box_paged_new::<u64>(capacity: 0_u64);
-  let heap0 = std::process::heap_in_use(meter: &meter);
-  let diff0 = heap0 -wrap baseline;
-  free_empty(window: move pool0);
-  let pool0b = box_paged_new::<u64>(capacity: 0_u64);
-  grow_paged(cell: &pool0b, capacity: 0_u64);
-  let heap0b = std::process::heap_in_use(meter: &meter);
-  let diff0b = heap0b -wrap baseline;
-  free_empty(window: move pool0b);
-  let pool0c = box_paged_new::<u64>(capacity: 0_u64);
-  let heap0c = std::process::heap_in_use(meter: &meter);
-  free_empty(window: move pool0c);
-  let pool1 = box_paged_new::<u64>(capacity: 1_u64);
-  place_back(window: &pool1.inner, value: 73_u64);
-  let heap1 = std::process::heap_in_use(meter: &meter);
-  let diff1 = heap1 -wrap baseline;
-  grow_paged(cell: &pool1, capacity: 2_u64);
-  place_back(window: &pool1.inner, value: 1_u64);
-  let heap2 = std::process::heap_in_use(meter: &meter);
-  let diff2 = heap2 -wrap baseline;
-  grow_paged(cell: &pool1, capacity: 3_u64);
-  place_back(window: &pool1.inner, value: 2_u64);
-  let heap3 = std::process::heap_in_use(meter: &meter);
-  let diff3 = heap3 -wrap baseline;
-  let cap3_actual = pool1.inner.len;
-  grow_paged(cell: &pool1, capacity: 4_u64);
-  let heap4 = std::process::heap_in_use(meter: &meter);
-  let diff4 = heap4 -wrap baseline;
-  grow_paged(cell: &pool1, capacity: 512_u64);
+  let baseline = heap_in_use(meter: &meter);
+  let result_code = 0_u8;
+  let results = slots_new::<u64, 18>();
+  let pool = box_paged_new::<u64>(capacity: 0_u64);
+  let diff = 0_u64;
+  let heap_after_zero = heap_in_use(meter: &meter);
+  if heap_after_zero >= baseline {
+    set diff = heap_after_zero - baseline;
+  }
+  place_back(window: &results, value: diff);
+  grow_paged(cell: &pool, capacity: 0_u64);
+  let heap_after_zero_grow = heap_in_use(meter: &meter);
+  let diff_zero_grow = 0_u64;
+  if heap_after_zero_grow >= baseline {
+    set diff_zero_grow = heap_after_zero_grow - baseline;
+  }
+  place_back(window: &results, value: diff_zero_grow);
+  let other_pool = box_paged_new::<u64>(capacity: 0_u64);
+  free_empty(window: move other_pool);
+  let heap_after_other_zero = heap_in_use(meter: &meter);
+  let diff_other_zero = 0_u64;
+  if heap_after_other_zero >= baseline {
+    set diff_other_zero = heap_after_other_zero - baseline;
+  }
+  place_back(window: &results, value: diff_other_zero);
+  grow_paged(cell: &pool, capacity: 1_u64);
+  place_back(window: &pool.inner, value: 73_u64);
+  let heap_at_cap_1 = heap_in_use(meter: &meter);
+  let diff_cap_1 = 0_u64;
+  if heap_at_cap_1 >= baseline {
+    set diff_cap_1 = heap_at_cap_1 - baseline;
+  }
+  place_back(window: &results, value: diff_cap_1);
+  grow_paged(cell: &pool, capacity: 2_u64);
+  place_back(window: &pool.inner, value: 1_u64);
+  let heap_at_cap_2 = heap_in_use(meter: &meter);
+  let diff_cap_2 = 0_u64;
+  if heap_at_cap_2 >= baseline {
+    set diff_cap_2 = heap_at_cap_2 - baseline;
+  }
+  place_back(window: &results, value: diff_cap_2);
+  grow_paged(cell: &pool, capacity: 3_u64);
+  place_back(window: &pool.inner, value: 2_u64);
+  let heap_at_cap_3 = heap_in_use(meter: &meter);
+  let diff_cap_3 = 0_u64;
+  if heap_at_cap_3 >= baseline {
+    set diff_cap_3 = heap_at_cap_3 - baseline;
+  }
+  place_back(window: &results, value: diff_cap_3);
+  grow_paged(cell: &pool, capacity: 4_u64);
+  let heap_at_cap_4 = heap_in_use(meter: &meter);
+  let diff_cap_4 = 0_u64;
+  if heap_at_cap_4 >= baseline {
+    set diff_cap_4 = heap_at_cap_4 - baseline;
+  }
+  place_back(window: &results, value: diff_cap_4);
+  grow_paged(cell: &pool, capacity: 512_u64);
   for (i in 3_u64..512_u64) {
-    if pool1.inner.len < pool1.inner.cap {
-      place_back(window: &pool1.inner, value: i);
+    place_back(window: &pool.inner, value: i);
+  }
+  let heap_at_cap_512 = heap_in_use(meter: &meter);
+  let diff_cap_512 = 0_u64;
+  if heap_at_cap_512 >= baseline {
+    set diff_cap_512 = heap_at_cap_512 - baseline;
+  }
+  place_back(window: &results, value: diff_cap_512);
+  grow_paged(cell: &pool, capacity: 513_u64);
+  place_back(window: &pool.inner, value: 512_u64);
+  let heap_at_cap_513 = heap_in_use(meter: &meter);
+  let diff_cap_513 = 0_u64;
+  if heap_at_cap_513 >= baseline {
+    set diff_cap_513 = heap_at_cap_513 - baseline;
+  }
+  place_back(window: &results, value: diff_cap_513);
+  let run = &pool.inner[0_u64..pool.inner.len];
+  let sum_before_release = sum_range(run: run);
+  if True() {
+    let released_pool = move pool;
+  }
+  let heap_after_release = heap_in_use(meter: &meter);
+  let diff_after_release = 0_u64;
+  if heap_after_release >= baseline {
+    set diff_after_release = heap_after_release - baseline;
+  }
+  place_back(window: &results, value: diff_after_release);
+  let heap_at_sep = 0_u64;
+  let diff_sep = 0_u64;
+  if True() {
+    let pool_sep = box_paged_new::<u64>(capacity: 3_u64);
+    place_back(window: &pool_sep.inner, value: 19_u64);
+    set heap_at_sep = heap_in_use(meter: &meter);
+    if heap_at_sep >= baseline {
+      set diff_sep = heap_at_sep - baseline;
     }
   }
-  let heap512 = std::process::heap_in_use(meter: &meter);
-  let diff512 = heap512 -wrap baseline;
-  grow_paged(cell: &pool1, capacity: 513_u64);
-  place_back(window: &pool1.inner, value: 512_u64);
-  let heap513 = std::process::heap_in_use(meter: &meter);
-  let diff513 = heap513 -wrap baseline;
-  let sum = 0_u64;
-  for (i in 0_u64..pool1.inner.len) {
-    let val = pool1.inner[i];
-    set sum = sum +wrap val;
+  place_back(window: &results, value: diff_sep);
+  let heap_after_sep_release = heap_in_use(meter: &meter);
+  let diff_after_sep_release = 0_u64;
+  if heap_after_sep_release >= baseline {
+    set diff_after_sep_release = heap_after_sep_release - baseline;
   }
-  let first = pool1.inner[0_u64];
+  place_back(window: &results, value: diff_after_sep_release);
+  let heap_at_zero_elem = 0_u64;
+  let diff_zero_elem = 0_u64;
+  if True() {
+    let pool_zero = box_paged_new::<Array<u8, 0>>(capacity: 1_u64);
+    place_back(window: &pool_zero.inner, value: array_filled::<u8, 0>(value: 0_u8));
+    grow_paged(cell: &pool_zero, capacity: 3_u64);
+    set heap_at_zero_elem = heap_in_use(meter: &meter);
+    if heap_at_zero_elem >= baseline {
+      set diff_zero_elem = heap_at_zero_elem - baseline;
+    }
+  }
+  place_back(window: &results, value: diff_zero_elem);
+  let heap_after_zero_release = heap_in_use(meter: &meter);
+  let diff_after_zero_release = 0_u64;
+  if heap_after_zero_release >= baseline {
+    set diff_after_zero_release = heap_after_zero_release - baseline;
+  }
+  place_back(window: &results, value: diff_after_zero_release);
+  place_back(window: &results, value: 3_u64);
+  place_back(window: &results, value: sum_before_release);
+  place_back(window: &results, value: 73_u64);
+  place_back(window: &results, value: 19_u64);
+  let i = 0_u64;
   loop {
-    if pool1.inner.len == 0_u64 {
-      break;
-    }
-    let unused = take_back(window: &pool1.inner);
-  }
-  free_empty(window: move pool1);
-  let heap_after = std::process::heap_in_use(meter: &meter);
-  let diff_after = heap_after -wrap baseline;
-  let pool5 = box_paged_new::<u64>(capacity: 3_u64);
-  place_back(window: &pool5.inner, value: 19_u64);
-  let heap5 = std::process::heap_in_use(meter: &meter);
-  let diff5 = heap5 -wrap baseline;
-  let val5 = pool5.inner[0_u64];
-  loop {
-    if pool5.inner.len == 0_u64 {
-      break;
-    }
-    let unused = take_back(window: &pool5.inner);
-  }
-  free_empty(window: move pool5);
-  let heap5_after = std::process::heap_in_use(meter: &meter);
-  let diff5_after = heap5_after -wrap baseline;
-  let pool6 = box_paged_new::<Array<u8, 0>>(capacity: 1_u64);
-  let zero_array = array_filled::<u8, 0>(value: 0_u8);
-  place_back(window: &pool6.inner, value: zero_array);
-  grow_paged(cell: &pool6, capacity: 3_u64);
-  let heap6_grown = std::process::heap_in_use(meter: &meter);
-  let diff6_grown = heap6_grown -wrap baseline;
-  loop {
-    if pool6.inner.len == 0_u64 {
-      break;
-    }
-    let unused = take_back(window: &pool6.inner);
-  }
-  free_empty(window: move pool6);
-  let heap6_after = std::process::heap_in_use(meter: &meter);
-  let diff6_after = heap6_after -wrap baseline;
-  let results = array_filled::<u64, 18>(value: 0_u64);
-  set results[0_u64] = diff0;
-  set results[1_u64] = diff0b;
-  set results[2_u64] = heap0c -wrap baseline;
-  set results[3_u64] = diff1;
-  set results[4_u64] = diff2;
-  set results[5_u64] = diff3;
-  set results[6_u64] = diff4;
-  set results[7_u64] = diff512;
-  set results[8_u64] = diff513;
-  set results[9_u64] = diff_after;
-  set results[10_u64] = diff5;
-  set results[11_u64] = diff5_after;
-  set results[12_u64] = diff6_grown;
-  set results[13_u64] = diff6_after;
-  set results[14_u64] = cap3_actual;
-  set results[15_u64] = sum;
-  set results[16_u64] = first;
-  set results[17_u64] = val5;
-  let mut_code = 0_u8;
-  for (i in 0_u64..18_u64) {
-    let outcome = write_u64_le(factory: &factory, output: &output, value: results[i]);
-    match outcome {
-      Ok(value: unused_ok) => {
+    if i < results.len {
+      let val = results[i];
+      let write_result = write_le_u64(factory: &factory, output: &output, value: val);
+      match write_result {
+        Ok(value: unused) => {
+        }
+        Err(error: unused) => {
+          set result_code = 250_u8;
+          return exit_status(code: result_code);
+        }
       }
-      Err(error: unused_err) => {
-        set mut_code = 250_u8;
-      }
+      set i = i + 1_u64;
+    } else {
+      break;
     }
   }
-  return exit_status(code: mut_code);
+  return exit_status(code: result_code);
 }
