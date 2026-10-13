@@ -39,14 +39,21 @@ fn write_i64_le(buffer: &[u8], offset: u64, value: i64) -> result: unit writes(b
   let s7 = ishr(value, 56_u32);
   let b7 = cvt.wrap::<i64, u8>(s7);
   let b0 = cvt.wrap::<i64, u8>(value);
+  let o1 = offset + 1_u64;
+  let o2 = offset + 2_u64;
+  let o3 = offset + 3_u64;
+  let o4 = offset + 4_u64;
+  let o5 = offset + 5_u64;
+  let o6 = offset + 6_u64;
+  let o7 = offset + 7_u64;
   set buffer^[offset] = b0;
-  set buffer^[offset + 1_u64] = b1;
-  set buffer^[offset + 2_u64] = b2;
-  set buffer^[offset + 3_u64] = b3;
-  set buffer^[offset + 4_u64] = b4;
-  set buffer^[offset + 5_u64] = b5;
-  set buffer^[offset + 6_u64] = b6;
-  set buffer^[offset + 7_u64] = b7;
+  set buffer^[o1] = b1;
+  set buffer^[o2] = b2;
+  set buffer^[o3] = b3;
+  set buffer^[o4] = b4;
+  set buffer^[o5] = b5;
+  set buffer^[o6] = b6;
+  set buffer^[o7] = b7;
   return unit;
 }
 
@@ -71,14 +78,21 @@ fn write_u64_le(buffer: &[u8], offset: u64, value: u64) -> result: unit writes(b
   let s7 = ishr(value, 56_u32);
   let b7 = cvt.wrap::<u64, u8>(s7);
   let b0 = cvt.wrap::<u64, u8>(value);
+  let o1 = offset + 1_u64;
+  let o2 = offset + 2_u64;
+  let o3 = offset + 3_u64;
+  let o4 = offset + 4_u64;
+  let o5 = offset + 5_u64;
+  let o6 = offset + 6_u64;
+  let o7 = offset + 7_u64;
   set buffer^[offset] = b0;
-  set buffer^[offset + 1_u64] = b1;
-  set buffer^[offset + 2_u64] = b2;
-  set buffer^[offset + 3_u64] = b3;
-  set buffer^[offset + 4_u64] = b4;
-  set buffer^[offset + 5_u64] = b5;
-  set buffer^[offset + 6_u64] = b6;
-  set buffer^[offset + 7_u64] = b7;
+  set buffer^[o1] = b1;
+  set buffer^[o2] = b2;
+  set buffer^[o3] = b3;
+  set buffer^[o4] = b4;
+  set buffer^[o5] = b5;
+  set buffer^[o6] = b6;
+  set buffer^[o7] = b7;
   return unit;
 }
 

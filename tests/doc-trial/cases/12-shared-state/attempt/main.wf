@@ -31,6 +31,23 @@ fn consume(queue: Shared<Ring<u64, 8>>, total: Shared<u64>) -> result: unit pure
   return unit;
 }
 
+fn run_activities(counter: Shared<u64>, queue: Shared<Ring<u64, 8>>, total: Shared<u64>) -> result: unit pure waits {
+  for (i in 0_u64..16_u64) {
+    let counter_handle = shared_share::<u64>(shared: &counter);
+    spawn add_to_counter(counter: move counter_handle);
+  }
+  for (i in 0_u64..4_u64) {
+    let queue_handle = shared_share::<Ring<u64, 8>>(shared: &queue);
+    spawn produce(queue: move queue_handle);
+  }
+  for (i in 0_u64..4_u64) {
+    let queue_handle = shared_share::<Ring<u64, 8>>(shared: &queue);
+    let total_handle = shared_share::<u64>(shared: &total);
+    spawn consume(queue: move queue_handle, total: move total_handle);
+  }
+  return unit;
+}
+
 fn write_u64(factory: &HandleFactory, output: &OutputStream, value: u64) -> result: Result<unit, std::io::IoError> writes(factory), writes(output) waits {
   let bytes = array_filled::<u8, 8>(value: 0_u8);
   set bytes[0_u64] = cvt.wrap::<u64, u8>(value);
@@ -80,19 +97,10 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let initial_ring = ring_new::<u64, 8>();
   let queue = shared_new::<Ring<u64, 8>>(value: move initial_ring);
   let total = shared_new::<u64>(value: 0_u64);
-  for (i in 0_u64..16_u64) {
-    let counter_handle = shared_share::<u64>(shared: &counter);
-    let unused = spawn add_to_counter(counter: move counter_handle);
-  }
-  for (i in 0_u64..4_u64) {
-    let queue_handle = shared_share::<Ring<u64, 8>>(shared: &queue);
-    spawn produce(queue: move queue_handle);
-  }
-  for (i in 0_u64..4_u64) {
-    let queue_handle = shared_share::<Ring<u64, 8>>(shared: &queue);
-    let total_handle = shared_share::<u64>(shared: &total);
-    spawn consume(queue: move queue_handle, total: move total_handle);
-  }
+  let counter_for_activities = shared_share::<u64>(shared: &counter);
+  let queue_for_activities = shared_share::<Ring<u64, 8>>(shared: &queue);
+  let total_for_activities = shared_share::<u64>(shared: &total);
+  run_activities(counter: move counter_for_activities, queue: move queue_for_activities, total: move total_for_activities);
   let observed_counter = 0_u64;
   atomic count = &counter {
     set observed_counter = count^;

@@ -66,7 +66,7 @@ fn echo_peer(factory: HandleFactory, receive: std::net::TcpReceive, send: std::n
   let cancel = std::time::cancel_never();
   loop @read_loop {
     let outcome = std::net::receive_next(receive: &receive, destination: &buf[0_u64..256_u64], start: 0_u64, end: 256_u64, deadline: no_deadline, cancel: &cancel);
-    match move outcome {
+    match outcome {
       Ok(value: next) => {
         if next > 0_u64 {
           let sent = 0_u64;
@@ -76,7 +76,7 @@ fn echo_peer(factory: HandleFactory, receive: std::net::TcpReceive, send: std::n
               break @send_loop;
             }
             let send_outcome = std::net::send_once(send: &send, source: &buf[0_u64..256_u64], start: sent, end: next, deadline: no_deadline, cancel: &cancel);
-            match move send_outcome {
+            match send_outcome {
               Ok(value: sent_len) => {
                 set sent = sent_len;
               }
@@ -89,7 +89,7 @@ fn echo_peer(factory: HandleFactory, receive: std::net::TcpReceive, send: std::n
         }
       }
       Err(error: stop) => {
-        match move stop {
+        match stop {
           ReadEnd() => {
             break @read_loop;
           }
@@ -112,7 +112,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   std::fs::close_directory_write(factory: &handles, directory: move directory_write);
   std::fs::close_directory(factory: &handles, directory: move directory);
   let port_result = parse_port(args: &args);
-  match move port_result {
+  match port_result {
     Ok(value: port) => {
       let address = std::net::socket_address_v4(a: 127_u8, b: 0_u8, c: 0_u8, d: 1_u8, port: port);
       let listen_result = std::net::tcp_listen(factory: &handles, address: &address);

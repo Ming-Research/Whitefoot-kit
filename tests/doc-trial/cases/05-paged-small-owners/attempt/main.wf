@@ -77,7 +77,9 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let heap4 = std::process::heap_in_use(meter: &meter);
   let diff4 = heap4 -wrap baseline;
   for (i in 3_u64..512_u64) {
-    place_back(window: &pool1.inner, value: i);
+    if pool1.inner.len < pool1.inner.cap {
+      place_back(window: &pool1.inner, value: i);
+    }
   }
   let heap512 = std::process::heap_in_use(meter: &meter);
   let diff512 = heap512 -wrap baseline;

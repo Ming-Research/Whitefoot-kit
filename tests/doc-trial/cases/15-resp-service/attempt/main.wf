@@ -125,7 +125,8 @@ fn handle_client(factory: &std::io::HandleFactory, conn: std::net::TcpConnection
         break @process_requests;
       }
       let pos_plus = pos + 1_u64;
-      let crlf_res = crlf_pos(buf: &rbuf, from: pos_plus);
+      let rbuf_slice = &rbuf[0_u64..16384_u64];
+      let crlf_res = crlf_pos(buf: rbuf_slice, from: pos_plus);
       match crlf_res {
         None() => {
           break @process_requests;
@@ -160,7 +161,7 @@ fn handle_client(factory: &std::io::HandleFactory, conn: std::net::TcpConnection
                       break @scan_args;
                     }
                     let offset_plus = offset + 1_u64;
-                    let arg_crlf_res = crlf_pos(buf: &rbuf, from: offset_plus);
+                    let arg_crlf_res = crlf_pos(buf: rbuf_slice, from: offset_plus);
                     match arg_crlf_res {
                       None() => {
                         set req_valid = False();
@@ -204,7 +205,7 @@ fn handle_client(factory: &std::io::HandleFactory, conn: std::net::TcpConnection
                 }
                 if req_valid {
                   let first_arg_offset_plus = first_arg_offset + 1_u64;
-                  let arg_crlf_2 = crlf_pos(buf: &rbuf, from: first_arg_offset_plus);
+                  let arg_crlf_2 = crlf_pos(buf: rbuf_slice, from: first_arg_offset_plus);
                   match arg_crlf_2 {
                     None() => {
                       set pos = offset;

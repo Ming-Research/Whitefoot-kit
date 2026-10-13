@@ -6,7 +6,9 @@ alias OutputStream = std::io::OutputStream;
 alias CancelWatch = std::time::CancelWatch;
 alias Instant = std::time::Instant;
 
-fn hex_digit_value(byte: u8) -> result: Option<u8> pure {
+fn hex_digit_value(byte: u8) -> result: Option<u8> pure contract {
+  ensures when Some(value: v): v < 16_u8;
+} {
   let is_decimal_low = byte >= 48_u8;
   let is_decimal_high = byte <= 57_u8;
   let is_decimal = band(is_decimal_low, is_decimal_high);

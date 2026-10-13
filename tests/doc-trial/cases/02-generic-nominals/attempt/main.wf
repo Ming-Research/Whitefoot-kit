@@ -76,19 +76,14 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   }
   let byte_pair = Pair<u8>(left: 7_u8, right: 7_u8);
   let signed_pair = Pair<i64>(left: -9_i64, right: -9_i64);
-
   let choice_present_3 = Choice<u64>::Present(value: 3_u64);
   let choice_present_neg5 = Choice<i64>::Present(value: -5_i64);
-
   let byte_add_result = 1_u8 +checked 2_u8;
   let overflow_result = 255_u8 +checked 1_u8;
   let signed_add_result = -4_i64 +checked 9_i64;
-
   let optional_byte = Some<u8>(value: 19_u8);
-
   let packet = BytePacket(first: 11_u8, second: 11_u8);
   let boxed_packet = box_new::<BytePacket>(value: move packet);
-
   let buffer = array_filled::<u8, 72>(value: 0_u8);
 
   let word1 = cvt::<u8, u64>(byte_pair.left);
@@ -160,13 +155,11 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
 
   let word9 = cvt::<u8, u64>(boxed_packet.inner.second);
   write_u64_le(buffer: &buffer, offset: 64_u64, value: word9);
-
   let buffer_slice = &buffer[0_u64..72_u64];
   let no_deadline = None<std::time::Instant>();
   let cancel = std::time::cancel_never();
   let write_result = std::io::write_once(factory: &factory, output: &output, source: buffer_slice, start: 0_u64, end: 72_u64, deadline: no_deadline, cancel: &cancel);
   std::time::close_cancel_watch(watch: move cancel);
-
   match write_result {
     Ok(value: written) => {
       if written == 72_u64 {

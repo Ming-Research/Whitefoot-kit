@@ -84,7 +84,7 @@ fn u64_to_little_endian(value: u64) -> result: Array<u8, 8> pure {
   set bytes[6_u64] = cvt.wrap::<u64, u8>(shift6);
   let shift7 = ishr(value, 56_u32);
   set bytes[7_u64] = cvt.wrap::<u64, u8>(shift7);
-  return move bytes;
+  return bytes;
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {

@@ -18,7 +18,8 @@ fn take_lease(pool: BlockPool) -> (pool: BlockPool, lease: Option<BlockLease>) p
   if pool.free_count > 0_u64 {
     let index = pool.free_count - 1_u64;
     let new_pool = BlockPool(free_count: index);
-    let lease = Some<BlockLease>(value: BlockLease(index: index));
+    let block_lease = BlockLease(index: index);
+    let lease = Some<BlockLease>(value: move block_lease);
     return move new_pool, move lease;
   }
   let no_lease = None<BlockLease>();

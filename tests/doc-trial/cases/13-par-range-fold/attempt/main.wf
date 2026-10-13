@@ -52,7 +52,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let sum = a +wrap b;
   let sum = sum +wrap c;
   let sum = sum +wrap d;
-
   let buffer = array_filled::<u8, 8>(value: 0_u8);
   set buffer[0_u64] = cvt.wrap::<u64, u8>(sum);
   let shift1 = ishr(sum, 8_u32);
