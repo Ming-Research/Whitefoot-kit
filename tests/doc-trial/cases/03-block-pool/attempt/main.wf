@@ -2,26 +2,16 @@ alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
 alias exit_status = std::process::exit_status;
 
-struct Block {
-  data: [u8; 256];
-}
-
 nocopy struct BlockLease {
   index: u64;
 }
 
 nocopy struct BlockPool {
-  blocks: Box<Slots<Block, 8>>;
   free_count: u64;
 }
 
 fn create_pool() -> result: BlockPool pure {
-  let blocks = box_slots_new::<Block>(capacity: 8_u64);
-  for (i in 0_u64..8_u64) {
-    let block = Block(data: array_filled::<u8, 256>(value: 0_u8));
-    place_back(window: &blocks.inner, value: move block);
-  }
-  return BlockPool(blocks: move blocks, free_count: 8_u64);
+  return BlockPool(free_count: 8_u64);
 }
 
 fn take_lease(pool: BlockPool) -> result: (pool: BlockPool, lease: Option<BlockLease>) pure {

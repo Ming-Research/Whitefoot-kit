@@ -20,7 +20,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   return exit_status(code: exit_code);
 }
 
-fn echo_loop(factory: &HandleFactory, input: &InputStream, output: &OutputStream, buffer: &[u8]) -> code: u8 reads(input), reads(buffer), writes(factory), writes(input), writes(buffer), writes(output) waits {
+fn echo_loop(factory: &HandleFactory, input: &InputStream, output: &OutputStream, buffer: &[u8]) -> code: u8 writes(factory), writes(input), writes(buffer), writes(output) waits {
   let buf_len = buffer^.len;
   loop {
     let cancel = std::time::cancel_never();

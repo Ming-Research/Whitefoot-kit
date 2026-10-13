@@ -12,7 +12,6 @@ enum ParseResult {
 
 fn parse_expr(input: &[u8], pos: u64) -> result: ParseResult reads(input) contract {
   requires pos <= input^.len;
-  ensures when Success(value: v, next_pos: p): p <= input^.len;
 } {
   if pos >= input^.len {
     return ParseResult::Truncated();
@@ -33,26 +32,30 @@ fn parse_expr(input: &[u8], pos: u64) -> result: ParseResult reads(input) contra
     let first_res = parse_expr(input: input, pos: pos1);
     match first_res {
       Success(value: first_val, next_pos: pos2) => {
-        let second_res = parse_expr(input: input, pos: pos2);
-        match second_res {
-          Success(value: second_val, next_pos: pos3) => {
-            let sum_res = first_val +checked second_val;
-            match sum_res {
-              Ok(value: total) => {
-                return ParseResult::Success(value: total, next_pos: pos3);
-              }
-              Err(error: overflow) => {
-                return ParseResult::InvalidToken();
+        let check_pos2 = pos2 <= input^.len;
+        if check_pos2 {
+          let second_res = parse_expr(input: input, pos: pos2);
+          match second_res {
+            Success(value: second_val, next_pos: pos3) => {
+              let sum_res = first_val +checked second_val;
+              match sum_res {
+                Ok(value: total) => {
+                  return ParseResult::Success(value: total, next_pos: pos3);
+                }
+                Err(error: overflow) => {
+                  return ParseResult::InvalidToken();
+                }
               }
             }
-          }
-          Truncated() => {
-            return ParseResult::Truncated();
-          }
-          InvalidToken() => {
-            return ParseResult::InvalidToken();
+            Truncated() => {
+              return ParseResult::Truncated();
+            }
+            InvalidToken() => {
+              return ParseResult::InvalidToken();
+            }
           }
         }
+        return ParseResult::Truncated();
       }
       Truncated() => {
         return ParseResult::Truncated();

@@ -142,14 +142,16 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     }
   }
   let expected = 3000_u64;
-  let code = if final_sent == 8_u64 {
-    give if result == expected {
-      give 0_u8;
-    } else {
-      give 1_u8;
-    }
+  let correct_result = result == expected;
+  let inner_code = if correct_result {
+    give 0_u8;
+  } else {
+    give 1_u8;
+  }
+  let result_code = if final_sent == 8_u64 {
+    give inner_code;
   } else {
     give 2_u8;
   }
-  return exit_status(code: code);
+  return exit_status(code: result_code);
 }

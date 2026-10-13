@@ -19,7 +19,8 @@ fn coord_from_f64(pixels: f64) -> result: Coord pure {
       return Coord(raw: r);
     }
     Err(error: overflow_err) => {
-      if pixels >= 0.0_f64 {
+      let is_positive = fge(pixels, 0.0_f64);
+      if is_positive {
         return Coord(raw: 2147483647_i32);
       } else {
         return Coord(raw: -2147483648_i32);

@@ -3,7 +3,9 @@ alias Inputs = std::process::Inputs;
 alias exit_status = std::process::exit_status;
 
 const mix_multiplier: u64 = 6364136223846793005_u64;
+
 const mix_addend: u64 = 1442695040888963407_u64;
+
 const mix_rounds: u64 = 24_u64;
 
 fn mix_one(state: u64) -> result: u64 pure {

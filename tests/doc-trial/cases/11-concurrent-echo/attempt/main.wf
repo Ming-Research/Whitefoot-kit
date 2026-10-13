@@ -18,7 +18,7 @@ fn parse_port(args: &Args) -> result: Result<u16, unit> reads(args) {
         return Err<u16, unit>(error: unit);
       }
       let buf = array_filled::<u8, 5>(value: 0_u8);
-      let copy_result = std::text::host_copy_bytes(value: &arg_string, destination: &buf, start: 0_u64, end: len);
+      let copy_result = std::text::host_copy_bytes(value: &arg_string, destination: &buf[0_u64..5_u64], start: 0_u64, end: len);
       match move copy_result {
         Ok(value: copied_len) => {
           let port = 0_u16;
@@ -65,7 +65,7 @@ fn echo_peer(factory: HandleFactory, receive: std::net::TcpReceive, send: std::n
   let no_deadline = None<Instant>();
   let cancel = std::time::cancel_never();
   loop @read_loop {
-    let outcome = std::net::receive_next(receive: &receive, destination: &buf, start: 0_u64, end: 256_u64, deadline: no_deadline, cancel: &cancel);
+    let outcome = std::net::receive_next(receive: &receive, destination: &buf[0_u64..256_u64], start: 0_u64, end: 256_u64, deadline: no_deadline, cancel: &cancel);
     match move outcome {
       Ok(value: next) => {
         if next > 0_u64 {
@@ -75,7 +75,7 @@ fn echo_peer(factory: HandleFactory, receive: std::net::TcpReceive, send: std::n
             } else {
               break @send_loop;
             }
-            let send_outcome = std::net::send_once(send: &send, source: &buf, start: sent, end: next, deadline: no_deadline, cancel: &cancel);
+            let send_outcome = std::net::send_once(send: &send, source: &buf[0_u64..256_u64], start: sent, end: next, deadline: no_deadline, cancel: &cancel);
             match move send_outcome {
               Ok(value: sent_len) => {
                 set sent = sent_len;

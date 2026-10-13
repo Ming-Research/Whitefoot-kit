@@ -266,19 +266,7 @@ fn handle_client(factory: &std::io::HandleFactory, conn: std::net::TcpConnection
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(
-    args: args,
-    drivers: d,
-    cwd: cd,
-    stdout: out,
-    stderr: err,
-    handles: factory,
-    stdin: in_,
-    clock: clk,
-    wall_clock: wc,
-    stops: stops,
-    memory_meter: mm
-  ) = move inputs;
+  let Inputs(args: args, drivers: d, cwd: cd, stdout: out, stderr: err, handles: factory, stdin: in_, clock: clk, wall_clock: wc, stops: stops, memory_meter: mm) = move inputs;
   let std::fs::Directory(read: cwd_read, write: cwd_write) = move cd;
   let close1 = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
   let close2 = std::fs::close_directory(factory: &factory, directory: move cwd_read);
