@@ -27,7 +27,7 @@ fn produce_values(queue: Shared<Ring<u64, 8>>) -> result: unit pure waits {
       break;
     }
     atomic items = &queue when items^.len < items^.cap {
-      place_back(window: items, value: move value);
+      place_back(window: items, value: value);
     }
     set value = value + 1_u64;
   }

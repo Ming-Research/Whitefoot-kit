@@ -90,8 +90,12 @@ fn rect_contains(rect: Rect, point: Point) -> result: Bool pure {
   let y_min = rect.y.raw;
   let y_max_coord = coord_add_saturate(rect.y, rect.height);
   let y_max = y_max_coord.raw;
-  let x_in_range = band(x_min <= point.x.raw, point.x.raw < x_max);
-  let y_in_range = band(y_min <= point.y.raw, point.y.raw < y_max);
+  let x_ge_min = x_min <= point.x.raw;
+  let x_lt_max = point.x.raw < x_max;
+  let x_in_range = band(x_ge_min, x_lt_max);
+  let y_ge_min = y_min <= point.y.raw;
+  let y_lt_max = point.y.raw < y_max;
+  let y_in_range = band(y_ge_min, y_lt_max);
   return band(x_in_range, y_in_range);
 }
 
@@ -100,7 +104,11 @@ fn rect_intersects(a: Rect, b: Rect) -> result: Bool pure {
   let b_right = coord_add_saturate(b.x, b.width);
   let a_bottom = coord_add_saturate(a.y, a.height);
   let b_bottom = coord_add_saturate(b.y, b.height);
-  let x_overlap = band(a.x.raw < b_right.raw, b.x.raw < a_right.raw);
-  let y_overlap = band(a.y.raw < b_bottom.raw, b.y.raw < a_bottom.raw);
+  let a_x_lt_b_right = a.x.raw < b_right.raw;
+  let b_x_lt_a_right = b.x.raw < a_right.raw;
+  let x_overlap = band(a_x_lt_b_right, b_x_lt_a_right);
+  let a_y_lt_b_bottom = a.y.raw < b_bottom.raw;
+  let b_y_lt_a_bottom = b.y.raw < a_bottom.raw;
+  let y_overlap = band(a_y_lt_b_bottom, b_y_lt_a_bottom);
   return band(x_overlap, y_overlap);
 }

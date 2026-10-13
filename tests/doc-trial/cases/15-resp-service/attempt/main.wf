@@ -228,10 +228,10 @@ fn handle_connection(store: Shared<unit>, send: TcpSend, receive: TcpReceive, fa
                           if working == 0_i64 {
                             break @digit_loop;
                           }
-                          let digit = working %wrap 10_i64;
+                          let digit = working % 10_i64;
                           let byte = cvt::<i64, u8>(digit) +wrap 48_u8;
                           place_back(window: &digits, value: byte);
-                          set working = working /wrap 10_i64;
+                          set working = working / 10_i64;
                           continue @digit_loop;
                         }
                       }

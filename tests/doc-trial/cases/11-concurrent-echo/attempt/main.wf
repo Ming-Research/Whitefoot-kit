@@ -9,7 +9,7 @@ alias HandleFactory = std::io::HandleFactory;
 alias Args = std::text::Args;
 alias Instant = std::time::Instant;
 
-fn parse_port_bytes(bytes: &[u8]) -> result: Option<u16> reads(bytes) pure {
+fn parse_port_bytes(bytes: &[u8]) -> result: Option<u16> reads(bytes) {
   let len = bytes^.len;
   if len == 0_u64 {
     return None<u16>();

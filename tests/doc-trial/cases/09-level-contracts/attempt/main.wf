@@ -44,7 +44,8 @@ fn count_groups(depths: &[u32]) -> result: u64 pure {
       set max_depth = d;
     }
   }
-  let count = cvt::<u32, u64>(max_depth) + 1_u64;
+  let max_as_u64 = cvt::<u32, u64>(max_depth);
+  let count = max_as_u64 + 1_u64;
   return count;
 }
 

@@ -17,14 +17,16 @@ fn create_list() -> result: Box<LinkNode> pure {
     let value = 63_u64 - i;
     let node = LinkNode(value: value, next: move current);
     let boxed = box_new::<LinkNode>(value: move node);
-    set current = Some<Box<LinkNode>>(value: move boxed);
+    let wrapped = Some<Box<LinkNode>>(value: move boxed);
+    set current = move wrapped;
   }
   match move current {
     Some(value: head) => {
       return move head;
     }
     None() => {
-      let node = LinkNode(value: 0_u64, next: None<Box<LinkNode>>());
+      let empty_next = None<Box<LinkNode>>();
+      let node = LinkNode(value: 0_u64, next: move empty_next);
       return box_new::<LinkNode>(value: move node);
     }
   }
@@ -50,7 +52,8 @@ fn filter_list(node: &LinkNode) -> result: Option<Box<LinkNode>> reads(node) {
         return filter_list(node: &next_box^.inner);
       }
       None() => {
-        return None<Box<LinkNode>>();
+        let empty = None<Box<LinkNode>>();
+        return empty;
       }
     }
   } else {
@@ -60,11 +63,14 @@ fn filter_list(node: &LinkNode) -> result: Option<Box<LinkNode>> reads(node) {
         move filtered
       }
       None() => {
-        None<Box<LinkNode>>()
+        let empty = None<Box<LinkNode>>();
+        move empty
       }
     };
     let new_node = LinkNode(value: node^.value, next: move next_list);
-    return Some<Box<LinkNode>>(value: box_new::<LinkNode>(value: move new_node));
+    let boxed = box_new::<LinkNode>(value: move new_node);
+    let result = Some<Box<LinkNode>>(value: move boxed);
+    return result;
   }
 }
 
@@ -76,11 +82,14 @@ fn increment_list(node: &LinkNode) -> result: Option<Box<LinkNode>> reads(node) 
       move inc
     }
     None() => {
-      None<Box<LinkNode>>()
+      let empty = None<Box<LinkNode>>();
+      move empty
     }
   };
   let new_node = LinkNode(value: incremented, next: move next_list);
-  return Some<Box<LinkNode>>(value: box_new::<LinkNode>(value: move new_node));
+  let boxed = box_new::<LinkNode>(value: move new_node);
+  let result = Some<Box<LinkNode>>(value: move boxed);
+  return result;
 }
 
 fn write_all(factory: &HandleFactory, output: &OutputStream, source: &[u8]) -> result: Result<unit, IoError> writes(factory), writes(output) waits {
@@ -100,11 +109,13 @@ fn write_all(factory: &HandleFactory, output: &OutputStream, source: &[u8]) -> r
         set sent = next;
       }
       Err(error: problem) => {
-        return Err<unit, IoError>(error: problem);
+        let err = Err<unit, IoError>(error: problem);
+        return err;
       }
     }
   }
-  return Ok<unit, IoError>(value: unit);
+  let ok = Ok<unit, IoError>(value: unit);
+  return ok;
 }
 
 fn write_u64_le(factory: &HandleFactory, output: &OutputStream, value: u64) -> result: Result<unit, IoError> writes(factory), writes(output) waits {
@@ -135,7 +146,8 @@ fn write_u64_le(factory: &HandleFactory, output: &OutputStream, value: u64) -> r
   set buffer[7_u64] = b7;
 
   let slice = &buffer[0_u64..8_u64];
-  return write_all(factory: factory, output: output, source: slice);
+  let result = write_all(factory: factory, output: output, source: slice);
+  return result;
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
@@ -160,7 +172,8 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
 
   let sum_before = sum_list(node: &head.inner);
   if sum_before != 2016_u64 {
-    return exit_status(code: 1_u8);
+    let status = exit_status(code: 1_u8);
+    return status;
   }
 
   let filtered_opt = filter_list(node: &head.inner);
@@ -168,7 +181,8 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     Some(value: filtered_head) => {
       let sum_after = sum_list(node: &filtered_head.inner);
       if sum_after != 1024_u64 {
-        return exit_status(code: 2_u8);
+        let status = exit_status(code: 2_u8);
+        return status;
       }
 
       let incremented_opt = increment_list(node: &filtered_head.inner);
@@ -180,7 +194,8 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
           let total_three = sum1 +wrap sum2 +wrap sum3;
 
           if total_three != 3168_u64 {
-            return exit_status(code: 3_u8);
+            let status = exit_status(code: 3_u8);
+            return status;
           }
 
           let write1 = write_u64_le(factory: &factory, output: &output, value: sum_before);
@@ -188,7 +203,8 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
             Ok(value: unused) => {
             }
             Err(error: unused) => {
-              return exit_status(code: 250_u8);
+              let failure = exit_status(code: 250_u8);
+              return failure;
             }
           }
 
@@ -197,7 +213,8 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
             Ok(value: unused) => {
             }
             Err(error: unused) => {
-              return exit_status(code: 250_u8);
+              let failure = exit_status(code: 250_u8);
+              return failure;
             }
           }
 
@@ -206,19 +223,23 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
             Ok(value: unused) => {
             }
             Err(error: unused) => {
-              return exit_status(code: 250_u8);
+              let failure = exit_status(code: 250_u8);
+              return failure;
             }
           }
 
-          return exit_status(code: 0_u8);
+          let success = exit_status(code: 0_u8);
+          return success;
         }
         None() => {
-          return exit_status(code: 2_u8);
+          let status = exit_status(code: 2_u8);
+          return status;
         }
       }
     }
     None() => {
-      return exit_status(code: 2_u8);
+      let status = exit_status(code: 2_u8);
+      return status;
     }
   }
 }

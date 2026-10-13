@@ -5,23 +5,31 @@ alias exit_status = std::process::exit_status;
 fn hex_digit_value(byte: u8) -> result: Option<u8> pure {
   let low_digit = 48_u8;
   let high_digit = 57_u8;
-  let is_digit = band(byte >= low_digit, byte <= high_digit);
+  let low_ok = byte >= low_digit;
+  let high_ok = byte <= high_digit;
+  let is_digit = band(low_ok, high_ok);
   if is_digit {
     let value = byte - low_digit;
     return Some<u8>(value: value);
   }
   let low_upper = 65_u8;
   let high_upper = 70_u8;
-  let is_upper = band(byte >= low_upper, byte <= high_upper);
+  let low_upper_ok = byte >= low_upper;
+  let high_upper_ok = byte <= high_upper;
+  let is_upper = band(low_upper_ok, high_upper_ok);
   if is_upper {
-    let value = byte - low_upper + 10_u8;
+    let diff = byte - low_upper;
+    let value = diff + 10_u8;
     return Some<u8>(value: value);
   }
   let low_lower = 97_u8;
   let high_lower = 102_u8;
-  let is_lower = band(byte >= low_lower, byte <= high_lower);
+  let low_lower_ok = byte >= low_lower;
+  let high_lower_ok = byte <= high_lower;
+  let is_lower = band(low_lower_ok, high_lower_ok);
   if is_lower {
-    let value = byte - low_lower + 10_u8;
+    let diff = byte - low_lower;
+    let value = diff + 10_u8;
     return Some<u8>(value: value);
   }
   return None<u8>();

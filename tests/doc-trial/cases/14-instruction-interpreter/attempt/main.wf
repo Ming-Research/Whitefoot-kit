@@ -75,13 +75,20 @@ fn run_machine(instructions: &[Instruction], counter: u64) -> result: u64 reads(
 fn write_le_u64(factory: &HandleFactory, output: &OutputStream, value: u64) -> result: Result<unit, IoError> reads(factory), writes(factory), writes(output) waits {
   let bytes = array_filled::<u8, 8>(value: 0_u8);
   set bytes[0_u64] = cvt.wrap::<u64, u8>(value);
-  set bytes[1_u64] = cvt.wrap::<u64, u8>(ishr(value, 8_u32));
-  set bytes[2_u64] = cvt.wrap::<u64, u8>(ishr(value, 16_u32));
-  set bytes[3_u64] = cvt.wrap::<u64, u8>(ishr(value, 24_u32));
-  set bytes[4_u64] = cvt.wrap::<u64, u8>(ishr(value, 32_u32));
-  set bytes[5_u64] = cvt.wrap::<u64, u8>(ishr(value, 40_u32));
-  set bytes[6_u64] = cvt.wrap::<u64, u8>(ishr(value, 48_u32));
-  set bytes[7_u64] = cvt.wrap::<u64, u8>(ishr(value, 56_u32));
+  let sh1 = ishr(value, 8_u32);
+  set bytes[1_u64] = cvt.wrap::<u64, u8>(sh1);
+  let sh2 = ishr(value, 16_u32);
+  set bytes[2_u64] = cvt.wrap::<u64, u8>(sh2);
+  let sh3 = ishr(value, 24_u32);
+  set bytes[3_u64] = cvt.wrap::<u64, u8>(sh3);
+  let sh4 = ishr(value, 32_u32);
+  set bytes[4_u64] = cvt.wrap::<u64, u8>(sh4);
+  let sh5 = ishr(value, 40_u32);
+  set bytes[5_u64] = cvt.wrap::<u64, u8>(sh5);
+  let sh6 = ishr(value, 48_u32);
+  set bytes[6_u64] = cvt.wrap::<u64, u8>(sh6);
+  let sh7 = ishr(value, 56_u32);
+  set bytes[7_u64] = cvt.wrap::<u64, u8>(sh7);
 
   let view = &bytes[0_u64..8_u64];
   let sent = 0_u64;

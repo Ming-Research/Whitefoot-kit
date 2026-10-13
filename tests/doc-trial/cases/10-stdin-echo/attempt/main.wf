@@ -24,7 +24,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   loop @read_loop {
     let no_deadline = None<std::time::Instant>();
     let cancel = std::time::cancel_never();
-    let read_result = std::io::read_next(factory: &factory, input: &stdin_stream, destination: &buffer, start: 0_u64, end: 4096_u64, deadline: no_deadline, cancel: &cancel);
+    let read_result = std::io::read_next(factory: &factory, input: &stdin_stream, destination: &buffer[0_u64..4096_u64], start: 0_u64, end: 4096_u64, deadline: no_deadline, cancel: &cancel);
     std::time::close_cancel_watch(watch: move cancel);
     match read_result {
       Ok(value: bytes_read) => {
@@ -35,7 +35,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
           }
           let no_deadline_write = None<std::time::Instant>();
           let cancel_write = std::time::cancel_never();
-          let write_result = std::io::write_once(factory: &factory, output: &stdout_stream, source: &buffer, start: written, end: bytes_read, deadline: no_deadline_write, cancel: &cancel_write);
+          let write_result = std::io::write_once(factory: &factory, output: &stdout_stream, source: &buffer[0_u64..4096_u64], start: written, end: bytes_read, deadline: no_deadline_write, cancel: &cancel_write);
           std::time::close_cancel_watch(watch: move cancel_write);
           match write_result {
             Ok(value: written_index) => {

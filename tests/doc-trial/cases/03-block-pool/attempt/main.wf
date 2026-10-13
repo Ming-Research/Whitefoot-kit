@@ -15,14 +15,29 @@ struct BlockPool {
 
 fn u64_to_le_bytes(value: u64) -> result: Array<u8, 8> pure {
   let bytes = array_filled::<u8, 8>(value: 0_u8);
-  set bytes[0_u64] = cvt::<u64, u8>(iand(value, 255_u64));
-  set bytes[1_u64] = cvt::<u64, u8>(iand(ishr(value, 8_u32), 255_u64));
-  set bytes[2_u64] = cvt::<u64, u8>(iand(ishr(value, 16_u32), 255_u64));
-  set bytes[3_u64] = cvt::<u64, u8>(iand(ishr(value, 24_u32), 255_u64));
-  set bytes[4_u64] = cvt::<u64, u8>(iand(ishr(value, 32_u32), 255_u64));
-  set bytes[5_u64] = cvt::<u64, u8>(iand(ishr(value, 40_u32), 255_u64));
-  set bytes[6_u64] = cvt::<u64, u8>(iand(ishr(value, 48_u32), 255_u64));
-  set bytes[7_u64] = cvt::<u64, u8>(iand(ishr(value, 56_u32), 255_u64));
+  let byte0_val = iand(value, 255_u64);
+  set bytes[0_u64] = cvt::<u64, u8>(byte0_val);
+  let byte1_shift = ishr(value, 8_u32);
+  let byte1_val = iand(byte1_shift, 255_u64);
+  set bytes[1_u64] = cvt::<u64, u8>(byte1_val);
+  let byte2_shift = ishr(value, 16_u32);
+  let byte2_val = iand(byte2_shift, 255_u64);
+  set bytes[2_u64] = cvt::<u64, u8>(byte2_val);
+  let byte3_shift = ishr(value, 24_u32);
+  let byte3_val = iand(byte3_shift, 255_u64);
+  set bytes[3_u64] = cvt::<u64, u8>(byte3_val);
+  let byte4_shift = ishr(value, 32_u32);
+  let byte4_val = iand(byte4_shift, 255_u64);
+  set bytes[4_u64] = cvt::<u64, u8>(byte4_val);
+  let byte5_shift = ishr(value, 40_u32);
+  let byte5_val = iand(byte5_shift, 255_u64);
+  set bytes[5_u64] = cvt::<u64, u8>(byte5_val);
+  let byte6_shift = ishr(value, 48_u32);
+  let byte6_val = iand(byte6_shift, 255_u64);
+  set bytes[6_u64] = cvt::<u64, u8>(byte6_val);
+  let byte7_shift = ishr(value, 56_u32);
+  let byte7_val = iand(byte7_shift, 255_u64);
+  set bytes[7_u64] = cvt::<u64, u8>(byte7_val);
   return bytes;
 }
 

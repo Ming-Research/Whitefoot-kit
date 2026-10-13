@@ -5,7 +5,9 @@ alias HandleFactory = std::io::HandleFactory;
 alias OutputStream = std::io::OutputStream;
 alias IoError = std::io::IoError;
 
-fn write_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], length: u64) -> result: Result<unit, IoError> reads(source), writes(factory), writes(output) waits {
+fn write_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], length: u64) -> result: Result<unit, IoError> reads(source), writes(factory), writes(output) waits contract {
+  requires length <= source^.len;
+} {
   let sent = 0_u64;
   loop @publish {
     if sent < length {
@@ -133,8 +135,9 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
       continue;
     }
   }
-  let publish_bytes = &output_bytes[0_u64..output_bytes.len];
-  let outcome = write_all(factory: &factory, output: &output, source: publish_bytes, length: output_bytes.len);
+  let output_len = output_bytes.len;
+  let publish_bytes = &output_bytes[0_u64..output_len];
+  let outcome = write_all(factory: &factory, output: &output, source: publish_bytes, length: output_len);
   match outcome {
     Ok(value: unused) => {
       return exit_status(code: 0_u8);

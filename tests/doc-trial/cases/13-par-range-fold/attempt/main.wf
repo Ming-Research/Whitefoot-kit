@@ -6,16 +6,16 @@ alias OutputStream = std::io::OutputStream;
 alias IoError = std::io::IoError;
 alias CancelWatch = std::time::CancelWatch;
 
-const CONSTANT_A: u64 = 6364136223846793005_u64;
-const CONSTANT_B: u64 = 1442695040888963407_u64;
-const ROUNDS: u64 = 24_u64;
-const SEED_COUNT: u64 = 400000_u64;
+const constant_a: u64 = 6364136223846793005_u64;
+const constant_b: u64 = 1442695040888963407_u64;
+const rounds: u64 = 24_u64;
+const seed_count: u64 = 400000_u64;
 
 fn mixer(state: u64) -> result: u64 pure {
   let rotated = irotl(state, 27_u32);
-  let multiplied = state *wrap CONSTANT_A;
+  let multiplied = state *wrap constant_a;
   let xored = rotated ixor multiplied;
-  let result = xored +wrap CONSTANT_B;
+  let result = xored +wrap constant_b;
   return result;
 }
 
@@ -23,7 +23,7 @@ fn process_seed(seed: u64) -> result: u64 pure {
   let state = seed;
   let round = 0_u64;
   loop @rounds {
-    if round < ROUNDS {
+    if round < rounds {
       set state = mixer(state: state);
       set round = round +wrap 1_u64;
       continue;
@@ -90,7 +90,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let std::fs::Directory(read: dir_read, write: dir_write) = move cwd_dir;
   std::fs::close_directory_write(factory: &factory, directory: move dir_write);
   std::fs::close_directory(factory: &factory, directory: move dir_read);
-  let sum = sum_range(lo: 0_u64, hi: SEED_COUNT);
+  let sum = sum_range(lo: 0_u64, hi: seed_count);
   let outcome = write_u64_le(factory: &factory, output: &stdout_stream, value: sum);
   match outcome {
     Ok(value: unused) => {

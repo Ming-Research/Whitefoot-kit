@@ -18,7 +18,8 @@ fn parse_expr(bytes: &[u8], pos: u64) -> result: ParseResult reads(bytes) {
   let byte = bytes^[pos];
   let is_plus = byte == 43_u8;
   if is_plus {
-    let result1 = parse_expr(bytes: bytes, pos: pos + 1_u64);
+    let next_pos1 = pos + 1_u64;
+    let result1 = parse_expr(bytes: bytes, pos: next_pos1);
     if result1.error != 0_u8 {
       return result1;
     }
@@ -42,7 +43,8 @@ fn parse_expr(bytes: &[u8], pos: u64) -> result: ParseResult reads(bytes) {
     if is_digit {
       let digit = byte - 48_u8;
       let digit_u64 = cvt::<u8, u64>(digit);
-      return ParseResult(value: digit_u64, next_pos: pos + 1_u64, error: 0_u8);
+      let next_pos_digit = pos + 1_u64;
+      return ParseResult(value: digit_u64, next_pos: next_pos_digit, error: 0_u8);
     } else {
       return ParseResult(value: 0_u64, next_pos: pos, error: 2_u8);
     }
@@ -120,7 +122,8 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let result2 = parse_expr(bytes: &incomplete_bytes[0_u64..2_u64], pos: 0_u64);
   let output_pos = u64_to_le_bytes(value: result1.next_pos);
   let output_value = u64_to_le_bytes(value: result1.value);
-  let output_error = u64_to_le_bytes(value: cvt::<u8, u64>(result2.error));
+  let error_u64 = cvt::<u8, u64>(result2.error);
+  let output_error = u64_to_le_bytes(value: error_u64);
   let output_buffer = array_filled::<u8, 24>(value: 0_u8);
   for (i in 0_u64..8_u64) {
     set output_buffer[i] = output_pos[i];
@@ -136,7 +139,8 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let check_pos = result1.next_pos == 5_u64;
   let check_value = result1.value == 9_u64;
   let check_error = result2.error == 1_u8;
-  let check_success = band(check_pos, band(check_value, check_error));
+  let check_value_and_error = band(check_value, check_error);
+  let check_success = band(check_pos, check_value_and_error);
   if check_success {
   } else {
     return exit_status(code: 1_u8);
