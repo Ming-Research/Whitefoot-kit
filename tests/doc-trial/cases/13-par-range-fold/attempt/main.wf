@@ -29,7 +29,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     let final_state = mixer(state: seed);
     set total = total +wrap final_state;
   }
-
   let output_bytes = array_filled::<u8, 8>(value: 0_u8);
   set output_bytes[0_u64] = cvt.wrap::<u64, u8>(total);
   let byte1_shifted = ishr(total, 8_u32);

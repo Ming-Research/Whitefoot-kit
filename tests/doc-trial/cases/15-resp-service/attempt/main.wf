@@ -93,12 +93,14 @@ fn parse_decimal(buffer: &[u8], start: u64, end: u64) -> result: Result<u64, u64
 }
 
 fn parse_bulk_string(buffer: &[u8], pos: u64) -> result: ParseResult reads(buffer) {
+  let false_val = False();
+  let true_val = True();
   if pos >= buffer^.len {
-    return ParseResult(success: False(), position: pos, value_start: 0_u64, value_len: 0_u64);
+    return ParseResult(success: false_val, position: pos, value_start: 0_u64, value_len: 0_u64);
   }
   let first = buffer^[pos];
   if first != 36_u8 {
-    return ParseResult(success: False(), position: pos, value_start: 0_u64, value_len: 0_u64);
+    return ParseResult(success: false_val, position: pos, value_start: 0_u64, value_len: 0_u64);
   }
   let crlf_start = pos + 1_u64;
   let crlf_result = find_crlf(buffer: buffer, start: crlf_start);
@@ -113,39 +115,41 @@ fn parse_bulk_string(buffer: &[u8], pos: u64) -> result: ParseResult reads(buffe
           let data_end = data_start + length;
           let check1 = data_end > buffer^.len;
           if check1 {
-            return ParseResult(success: False(), position: pos, value_start: 0_u64, value_len: 0_u64);
+            return ParseResult(success: false_val, position: pos, value_start: 0_u64, value_len: 0_u64);
           }
           let after_data = data_end + 2_u64;
           let check2 = after_data > buffer^.len;
           if check2 {
-            return ParseResult(success: False(), position: pos, value_start: 0_u64, value_len: 0_u64);
+            return ParseResult(success: false_val, position: pos, value_start: 0_u64, value_len: 0_u64);
           }
           let cr_check = buffer^[data_end];
           let lf_idx = data_end + 1_u64;
           let lf_check = buffer^[lf_idx];
           if band(cr_check == 13_u8, lf_check == 10_u8) {
-            return ParseResult(success: True(), position: after_data, value_start: data_start, value_len: length);
+            return ParseResult(success: true_val, position: after_data, value_start: data_start, value_len: length);
           }
-          return ParseResult(success: False(), position: pos, value_start: 0_u64, value_len: 0_u64);
+          return ParseResult(success: false_val, position: pos, value_start: 0_u64, value_len: 0_u64);
         }
         Err(error: e) => {
-          return ParseResult(success: False(), position: pos, value_start: 0_u64, value_len: 0_u64);
+          return ParseResult(success: false_val, position: pos, value_start: 0_u64, value_len: 0_u64);
         }
       }
     }
     Err(error: e) => {
-      return ParseResult(success: False(), position: pos, value_start: 0_u64, value_len: 0_u64);
+      return ParseResult(success: false_val, position: pos, value_start: 0_u64, value_len: 0_u64);
     }
   }
 }
 
 fn parse_array_count(buffer: &[u8], pos: u64) -> result: Result<(u64, u64), u64> reads(buffer) {
   if pos >= buffer^.len {
-    return Err<(u64, u64), u64>(error: 0_u64);
+    let error_val = 0_u64;
+    return Err<(u64, u64), u64>(error: error_val);
   }
   let first = buffer^[pos];
   if first != 42_u8 {
-    return Err<(u64, u64), u64>(error: 0_u64);
+    let error_val = 0_u64;
+    return Err<(u64, u64), u64>(error: error_val);
   }
   let start_pos = pos + 1_u64;
   let crlf_result = find_crlf(buffer: buffer, start: start_pos);

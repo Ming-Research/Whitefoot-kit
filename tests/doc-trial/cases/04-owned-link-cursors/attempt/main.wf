@@ -48,9 +48,12 @@ fn remove_evens_rec(list: Option<Box<Node>>) -> result: Option<Box<Node>> pure {
         let next = move node.inner.next;
         return remove_evens_rec(list: move next);
       } else {
-        let new_next = remove_evens_rec(list: move node.inner.next);
-        set node.inner.next = move new_next;
-        return Some<Box<Node>>(value: move node);
+        let value_copy = node.inner.value;
+        let old_next = move node.inner.next;
+        let new_next = remove_evens_rec(list: move old_next);
+        let new_node_struct = Node(value: value_copy, next: move new_next);
+        let new_box = box_new::<Node>(value: move new_node_struct);
+        return Some<Box<Node>>(value: move new_box);
       }
     }
     None() => {

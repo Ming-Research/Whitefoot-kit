@@ -38,7 +38,8 @@ fn parse(bytes: &[u8], pos: u64) -> result: ParseResult reads(bytes) contract {
   let byte_le_nine = byte <= nine;
   let is_digit = band(byte_ge_zero, byte_le_nine);
   if is_plus {
-    let first_result = parse(bytes: bytes, pos: pos + 1_u64);
+    let first_pos = pos + 1_u64;
+    let first_result = parse(bytes: bytes, pos: first_pos);
     match first_result {
       ParseResult::Success(expr: first_expr, next: after_first) => {
         let second_result = parse(bytes: bytes, pos: after_first);
@@ -62,7 +63,8 @@ fn parse(bytes: &[u8], pos: u64) -> result: ParseResult reads(bytes) contract {
     if is_digit {
       let digit_value = byte - zero;
       let digit_expr = Expression::Digit(value: digit_value);
-      return ParseResult::Success(expr: digit_expr, next: pos + 1_u64);
+      let next_pos = pos + 1_u64;
+      return ParseResult::Success(expr: digit_expr, next: next_pos);
     } else {
       let invalid_error = ParseError::InvalidToken();
       return ParseResult::Error(error: invalid_error);
@@ -137,13 +139,20 @@ fn write_bytes(factory: &HandleFactory, output: &OutputStream, source: &[u8], le
 
 fn u64_to_le_bytes(value: u64, buffer: &[u8]) -> result: unit writes(buffer) {
   let b0 = cvt::<u64, u8>(value);
-  let b1 = cvt::<u64, u8>(ishr(value, 8_u32));
-  let b2 = cvt::<u64, u8>(ishr(value, 16_u32));
-  let b3 = cvt::<u64, u8>(ishr(value, 24_u32));
-  let b4 = cvt::<u64, u8>(ishr(value, 32_u32));
-  let b5 = cvt::<u64, u8>(ishr(value, 40_u32));
-  let b6 = cvt::<u64, u8>(ishr(value, 48_u32));
-  let b7 = cvt::<u64, u8>(ishr(value, 56_u32));
+  let shifted1 = ishr(value, 8_u32);
+  let b1 = cvt::<u64, u8>(shifted1);
+  let shifted2 = ishr(value, 16_u32);
+  let b2 = cvt::<u64, u8>(shifted2);
+  let shifted3 = ishr(value, 24_u32);
+  let b3 = cvt::<u64, u8>(shifted3);
+  let shifted4 = ishr(value, 32_u32);
+  let b4 = cvt::<u64, u8>(shifted4);
+  let shifted5 = ishr(value, 40_u32);
+  let b5 = cvt::<u64, u8>(shifted5);
+  let shifted6 = ishr(value, 48_u32);
+  let b6 = cvt::<u64, u8>(shifted6);
+  let shifted7 = ishr(value, 56_u32);
+  let b7 = cvt::<u64, u8>(shifted7);
   set buffer[0_u64] = b0;
   set buffer[1_u64] = b1;
   set buffer[2_u64] = b2;

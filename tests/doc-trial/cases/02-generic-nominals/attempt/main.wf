@@ -18,12 +18,10 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_dir;
   std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
   std::fs::close_directory(factory: &factory, directory: move cwd_read);
-
   let byte_pair = Pair<u8>(left: 7_u8, right: 7_u8);
   let signed_pair = Pair<i64>(left: -9_i64, right: -9_i64);
   let byte_choice = Choice<u8>::Present(value: 3_u8);
   let signed_choice = Choice<i64>::Present(value: -5_i64);
-
   let byte_sum_result = 1_u8 +checked 2_u8;
   let byte_sum = match byte_sum_result {
     Ok(value: sum) => {
@@ -36,7 +34,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   if byte_sum != 3_u8 {
     return exit_status(code: 1_u8);
   }
-
   let overflow_result = 255_u8 +checked 1_u8;
   let overflow_marker = match overflow_result {
     Ok(value: unused) => {
@@ -49,7 +46,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   if overflow_marker != 1_u64 {
     return exit_status(code: 1_u8);
   }
-
   let signed_sum_result = -4_i64 +checked 9_i64;
   let signed_sum = match signed_sum_result {
     Ok(value: sum) => {
@@ -62,7 +58,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   if signed_sum != 5_i64 {
     return exit_status(code: 1_u8);
   }
-
   let optional_byte = Some<u8>(value: 19_u8);
   let recovered_byte = match optional_byte {
     Some(value: b) => {
@@ -75,7 +70,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   if recovered_byte != 19_u8 {
     return exit_status(code: 1_u8);
   }
-
   let packet = array_filled::<u8, 2>(value: 11_u8);
   let cell = box_new::<Array<u8, 2>>(value: move packet);
   let packet_inner = cell.inner;
@@ -83,11 +77,8 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   if packet_byte != 11_u8 {
     return exit_status(code: 1_u8);
   }
-
   let buffer = array_filled::<u8, 72>(value: 0_u8);
-
   set buffer[0_u64] = byte_pair.left;
-
   let val2 = signed_pair.right;
   let v2_shift8 = ishr(val2, 8_u32);
   let v2_shift16 = ishr(val2, 16_u32);
@@ -112,7 +103,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   set buffer[13_u64] = v2_b5;
   set buffer[14_u64] = v2_b6;
   set buffer[15_u64] = v2_b7;
-
   let choice3_val = match byte_choice {
     Absent() => {
       give 0_u8;
@@ -122,7 +112,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     }
   }
   set buffer[16_u64] = choice3_val;
-
   let choice4_val = match signed_choice {
     Absent() => {
       give 0_i64;
@@ -154,9 +143,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   set buffer[29_u64] = c4_b5;
   set buffer[30_u64] = c4_b6;
   set buffer[31_u64] = c4_b7;
-
   set buffer[32_u64] = byte_sum;
-
   let om_shift8 = ishr(overflow_marker, 8_u32);
   let om_shift16 = ishr(overflow_marker, 16_u32);
   let om_shift24 = ishr(overflow_marker, 24_u32);
@@ -180,7 +167,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   set buffer[45_u64] = om_b5;
   set buffer[46_u64] = om_b6;
   set buffer[47_u64] = om_b7;
-
   let ss_shift8 = ishr(signed_sum, 8_u32);
   let ss_shift16 = ishr(signed_sum, 16_u32);
   let ss_shift24 = ishr(signed_sum, 24_u32);
@@ -204,17 +190,13 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   set buffer[53_u64] = ss_b5;
   set buffer[54_u64] = ss_b6;
   set buffer[55_u64] = ss_b7;
-
   set buffer[56_u64] = recovered_byte;
-
   set buffer[64_u64] = packet_byte;
-
   let view = &buffer[0_u64..72_u64];
   let no_deadline = None<Instant>();
   let cancel = std::time::cancel_never();
   let write_result = std::io::write_once(factory: &factory, output: &stdout_stream, source: view, start: 0_u64, end: 72_u64, deadline: no_deadline, cancel: &cancel);
   std::time::close_cancel_watch(watch: move cancel);
-
   match write_result {
     Ok(value: next) => {
       if next == 72_u64 {

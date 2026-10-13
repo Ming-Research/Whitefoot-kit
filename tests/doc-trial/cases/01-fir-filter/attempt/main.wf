@@ -47,25 +47,20 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let history = slots_new::<f64, 8>();
   let outputs = slots_new::<f64, 64>();
   let sum = 0.0_f64;
-
   for (sample_index in 0_u64..64_u64) {
     let current = if sample_index == 0_u64 {
       give 8.0_f64;
     } else {
       give 0.0_f64;
     }
-
     let out_val = fmul.strict(current, 0.125_f64);
-
     for (hist_idx in 0_u64..history.len) {
       let hist = history[hist_idx];
       let contrib = fmul.strict(hist, 0.125_f64);
       set out_val = fadd.strict(out_val, contrib);
     }
-
     place_back(window: &outputs, value: out_val);
     set sum = fadd.strict(sum, out_val);
-
     if history.len < 8_u64 {
       place_back(window: &history, value: current);
     } else {
@@ -73,19 +68,15 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
       insert_at(window: &history, index: 0_u64, value: current);
     }
   }
-
   if outputs.len != 64_u64 {
     return exit_status(code: 1_u8);
   }
-
   let sum_valid = feq(sum, 8.0_f64);
   if sum_valid {
   } else {
     return exit_status(code: 1_u8);
   }
-
   let buffer = array_filled::<u8, 520>(value: 0_u8);
-
   for (out_idx in 0_u64..64_u64) {
     let out_val = outputs[out_idx];
     let out_bytes = f64_to_bytes(value: out_val);
@@ -95,19 +86,16 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
       set buffer[buf_idx] = out_bytes[byte_idx];
     }
   }
-
   let sum_bytes = f64_to_bytes(value: sum);
   let sum_base = 512_u64;
   for (byte_idx in 0_u64..8_u64) {
     let buf_idx = sum_base +wrap byte_idx;
     set buffer[buf_idx] = sum_bytes[byte_idx];
   }
-
   let no_deadline = None<Instant>();
   let cancel_watch = std::time::cancel_never();
   let write_result = std::io::write_once(factory: &factory, output: &output, source: &buffer[0_u64..520_u64], start: 0_u64, end: 520_u64, deadline: no_deadline, cancel: &cancel_watch);
   std::time::close_cancel_watch(watch: move cancel_watch);
-
   match write_result {
     Ok(value: written) => {
       if written == 520_u64 {

@@ -27,7 +27,7 @@ fn execute(instructions: &[Instruction], initial_counter: u64) -> result: u64 re
     let instruction = &instructions^[pc];
     match instruction^ {
       Add(value: v) => {
-        set accumulator = accumulator +wrap v;
+        set accumulator = accumulator +wrap v^;
         set pc = pc + 1_u64;
       }
       Decrement() => {
@@ -37,7 +37,7 @@ fn execute(instructions: &[Instruction], initial_counter: u64) -> result: u64 re
       JumpIfNonzero(position: pos) => {
         let is_nonzero = counter != 0_u64;
         if is_nonzero {
-          set pc = pos;
+          set pc = pos^;
         } else {
           set pc = pc + 1_u64;
         }

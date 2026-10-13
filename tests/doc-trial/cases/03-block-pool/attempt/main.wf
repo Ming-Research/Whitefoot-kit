@@ -94,7 +94,8 @@ fn pool_take(pool: BlockPool) -> result: Result<Lease, TakeError> pure {
         return Ok<Lease, TakeError>(value: move lease);
       }
       None() => {
-        return Err<Lease, TakeError>(error: TakeError::NoFreeBlocks());
+        let take_err = TakeError::NoFreeBlocks();
+        return Err<Lease, TakeError>(error: move take_err);
       }
     }
   }
@@ -137,7 +138,8 @@ fn lease_return(lease: Lease) -> result: Result<BlockPool, ReturnError> pure {
     return Ok<BlockPool, ReturnError>(value: move pool);
   }
   let unused_block = move block;
-  return Err<BlockPool, ReturnError>(error: ReturnError::NoRoom());
+  let return_err = ReturnError::NoRoom();
+  return Err<BlockPool, ReturnError>(error: move return_err);
 }
 
 fn u64_to_le_bytes(value: u64, bytes: &[u8], start: u64) -> result: unit writes(bytes) contract {
@@ -202,7 +204,8 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
           u64_to_le_bytes(value: final_count, bytes: &output_buffer[0_u64..24_u64], start: 16_u64);
           let no_deadline = None<std::time::Instant>();
           let cancel = std::time::cancel_never();
-          let write_result = std::io::write_once(factory: &factory, output: &output, source: &output_buffer[0_u64..24_u64], start: 0_u64, end: 24_u64, deadline: no_deadline, cancel: &cancel);
+          let output_slice = &output_buffer[0_u64..24_u64];
+          let write_result = std::io::write_once(factory: &factory, output: &output, source: output_slice, start: 0_u64, end: 24_u64, deadline: no_deadline, cancel: &cancel);
           std::time::close_cancel_watch(watch: move cancel);
           match move write_result {
             Ok(value: written) => {

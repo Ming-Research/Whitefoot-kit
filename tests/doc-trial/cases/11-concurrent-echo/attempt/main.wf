@@ -51,7 +51,7 @@ fn get_port_from_args(args: &std::text::Args) -> result: u16 reads(args) {
     Err(error: e) => {
       give 8080_u16;
     }
-  };
+  }
   return port;
 }
 

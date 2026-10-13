@@ -90,7 +90,7 @@ fn validate_and_process(parents: &[u32], depths: &[u32]) -> (is_valid: Bool, gro
       Err(error: narrow) => {
         give False();
       }
-    };
+    }
     if is_sentinel {
     } else {
       let i_u32 = cvt.checked::<u64, u32>(i);
@@ -234,7 +234,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     Err(error: narrow) => {
       give 0_u64;
     }
-  };
+  }
 
   let outcome2 = write_u64_le(factory: &factory, output: &output, value: num_groups_val);
   match outcome2 {
