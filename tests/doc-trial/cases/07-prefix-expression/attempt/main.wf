@@ -29,11 +29,13 @@ fn parse_digit_or_plus(bytes: &Array<u8, 5>, pos: u64) -> result: Result<ParseRe
   let byte = bytes^[pos];
 
   if byte == '+'_u8 {
-    return parse_plus_args(bytes: bytes, pos: pos + 1_u64);
+    let next_pos = pos + 1_u64;
+    return parse_plus_args(bytes: bytes, pos: next_pos);
   } else if byte >= '0'_u8 && byte <= '9'_u8 {
     let digit_val = byte - '0'_u8;
     let expr = Expression::Digit(value: digit_val);
-    let result = ParseResult(expr: move expr, next_pos: pos + 1_u64);
+    let next_pos = pos + 1_u64;
+    let result = ParseResult(expr: move expr, next_pos: next_pos);
     return Ok<ParseResult, ParseError>(move result);
   } else {
     let err = ParseError::InvalidToken();
@@ -116,11 +118,13 @@ fn parse_digit_or_plus_2(bytes: &Array<u8, 2>, pos: u64) -> result: Result<Parse
   let byte = bytes^[pos];
 
   if byte == '+'_u8 {
-    return parse_plus_args_2(bytes: bytes, pos: pos + 1_u64);
+    let next_pos = pos + 1_u64;
+    return parse_plus_args_2(bytes: bytes, pos: next_pos);
   } else if byte >= '0'_u8 && byte <= '9'_u8 {
     let digit_val = byte - '0'_u8;
     let expr = Expression::Digit(value: digit_val);
-    let result = ParseResult(expr: move expr, next_pos: pos + 1_u64);
+    let next_pos = pos + 1_u64;
+    let result = ParseResult(expr: move expr, next_pos: next_pos);
     return Ok<ParseResult, ParseError>(move result);
   } else {
     let err = ParseError::InvalidToken();
@@ -167,13 +171,20 @@ fn place_u64_le(window: &Slots<u8, 24>, index: u64, value: u64) -> result: unit 
   let b7 = cvt::<u64, u8>(ishr(value, 56_u32));
 
   set window^[index] = b0;
-  set window^[index + 1_u64] = b1;
-  set window^[index + 2_u64] = b2;
-  set window^[index + 3_u64] = b3;
-  set window^[index + 4_u64] = b4;
-  set window^[index + 5_u64] = b5;
-  set window^[index + 6_u64] = b6;
-  set window^[index + 7_u64] = b7;
+  let i1 = index + 1_u64;
+  set window^[i1] = b1;
+  let i2 = index + 2_u64;
+  set window^[i2] = b2;
+  let i3 = index + 3_u64;
+  set window^[i3] = b3;
+  let i4 = index + 4_u64;
+  set window^[i4] = b4;
+  let i5 = index + 5_u64;
+  set window^[i5] = b5;
+  let i6 = index + 6_u64;
+  set window^[i6] = b6;
+  let i7 = index + 7_u64;
+  set window^[i7] = b7;
 
   return unit;
 }

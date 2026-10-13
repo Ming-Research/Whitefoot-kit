@@ -83,7 +83,7 @@ fn u64_to_le_bytes(value: u64, buffer: &[u8], offset: u64) -> result: unit write
   return unit;
 }
 
-fn main(inputs: pkg::process::Inputs) -> result: pkg::process::ExitStatus {
+fn main(inputs: pkg::process::Inputs) -> result: pkg::process::ExitStatus pure {
   let pool = BlockPool(free_map: [true, true, true, true, true, true, true, true]);
 
   let count1 = count_free_blocks(pool: &pool);

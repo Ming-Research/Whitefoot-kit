@@ -18,7 +18,7 @@ fn parse_port(buffer: &[u8], len: u64) -> port: u16 pure {
   return cvt::<u64, u16>(result);
 }
 
-fn echo_peer(factory: &std::io::HandleFactory, recv: &std::net::TcpReceive, send: &std::net::TcpSend, cancel: &std::time::CancelWatch) -> result: unit waits {
+fn echo_peer(factory: &std::io::HandleFactory, recv: &std::net::TcpReceive, send: &std::net::TcpSend, cancel: &std::time::CancelWatch) -> result: unit reads(cancel), writes(recv), writes(send) waits {
   let buffer: Slots<u8, 1024> = slots_new::<u8, 1024>();
 
   loop {

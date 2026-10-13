@@ -37,9 +37,13 @@ fn main(inputs: std::process::Inputs) -> result: u32 pure {
       give sum;
     }
     Err(value: err) => {
-      return 1_u32;
+      give 0_u8;
     }
   };
+
+  if byte_sum != 3_u8 {
+    return 1_u32;
+  }
 
   let overflow_marker = match byte_overflow_result {
     Ok(value: sum) => {
@@ -55,36 +59,52 @@ fn main(inputs: std::process::Inputs) -> result: u32 pure {
       give sum;
     }
     Err(value: err) => {
-      return 1_u32;
+      give -4_i64;
     }
   };
+
+  if signed_sum != 5_i64 {
+    return 1_u32;
+  }
 
   let optional_value = match optional_byte {
     Present(value: v) => {
       give v;
     }
     Absent() => {
-      return 1_u32;
+      give 0_u8;
     }
   };
+
+  if optional_value != 19_u8 {
+    return 1_u32;
+  }
 
   let choice1_val = match choice1 {
     Present(value: v) => {
       give v;
     }
     Absent() => {
-      return 1_u32;
+      give 0_i64;
     }
   };
+
+  if choice1_val != 3_i64 {
+    return 1_u32;
+  }
 
   let choice2_val = match choice2 {
     Present(value: v) => {
       give v;
     }
     Absent() => {
-      return 1_u32;
+      give 0_i64;
     }
   };
+
+  if choice2_val != -5_i64 {
+    return 1_u32;
+  }
 
   let buffer = box_slots_new::<u8>(capacity: 72_u64);
 

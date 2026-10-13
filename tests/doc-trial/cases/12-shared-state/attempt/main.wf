@@ -139,31 +139,52 @@ fn main(inputs: pkg::process::Inputs) -> result: pkg::process::ExitStatus pure w
   }
 
   let b0 = cvt.wrap::<u64, u8>(final_counter);
-  let b1 = cvt.wrap::<u64, u8>(ishr(final_counter, 8_u32));
-  let b2 = cvt.wrap::<u64, u8>(ishr(final_counter, 16_u32));
-  let b3 = cvt.wrap::<u64, u8>(ishr(final_counter, 24_u32));
-  let b4 = cvt.wrap::<u64, u8>(ishr(final_counter, 32_u32));
-  let b5 = cvt.wrap::<u64, u8>(ishr(final_counter, 40_u32));
-  let b6 = cvt.wrap::<u64, u8>(ishr(final_counter, 48_u32));
-  let b7 = cvt.wrap::<u64, u8>(ishr(final_counter, 56_u32));
+  let s1 = ishr(final_counter, 8_u32);
+  let b1 = cvt.wrap::<u64, u8>(s1);
+  let s2 = ishr(final_counter, 16_u32);
+  let b2 = cvt.wrap::<u64, u8>(s2);
+  let s3 = ishr(final_counter, 24_u32);
+  let b3 = cvt.wrap::<u64, u8>(s3);
+  let s4 = ishr(final_counter, 32_u32);
+  let b4 = cvt.wrap::<u64, u8>(s4);
+  let s5 = ishr(final_counter, 40_u32);
+  let b5 = cvt.wrap::<u64, u8>(s5);
+  let s6 = ishr(final_counter, 48_u32);
+  let b6 = cvt.wrap::<u64, u8>(s6);
+  let s7 = ishr(final_counter, 56_u32);
+  let b7 = cvt.wrap::<u64, u8>(s7);
 
   let b8 = cvt.wrap::<u64, u8>(final_total);
-  let b9 = cvt.wrap::<u64, u8>(ishr(final_total, 8_u32));
-  let b10 = cvt.wrap::<u64, u8>(ishr(final_total, 16_u32));
-  let b11 = cvt.wrap::<u64, u8>(ishr(final_total, 24_u32));
-  let b12 = cvt.wrap::<u64, u8>(ishr(final_total, 32_u32));
-  let b13 = cvt.wrap::<u64, u8>(ishr(final_total, 40_u32));
-  let b14 = cvt.wrap::<u64, u8>(ishr(final_total, 48_u32));
-  let b15 = cvt.wrap::<u64, u8>(ishr(final_total, 56_u32));
+  let s9 = ishr(final_total, 8_u32);
+  let b9 = cvt.wrap::<u64, u8>(s9);
+  let s10 = ishr(final_total, 16_u32);
+  let b10 = cvt.wrap::<u64, u8>(s10);
+  let s11 = ishr(final_total, 24_u32);
+  let b11 = cvt.wrap::<u64, u8>(s11);
+  let s12 = ishr(final_total, 32_u32);
+  let b12 = cvt.wrap::<u64, u8>(s12);
+  let s13 = ishr(final_total, 40_u32);
+  let b13 = cvt.wrap::<u64, u8>(s13);
+  let s14 = ishr(final_total, 48_u32);
+  let b14 = cvt.wrap::<u64, u8>(s14);
+  let s15 = ishr(final_total, 56_u32);
+  let b15 = cvt.wrap::<u64, u8>(s15);
 
   let b16 = cvt.wrap::<u64, u8>(final_len);
-  let b17 = cvt.wrap::<u64, u8>(ishr(final_len, 8_u32));
-  let b18 = cvt.wrap::<u64, u8>(ishr(final_len, 16_u32));
-  let b19 = cvt.wrap::<u64, u8>(ishr(final_len, 24_u32));
-  let b20 = cvt.wrap::<u64, u8>(ishr(final_len, 32_u32));
-  let b21 = cvt.wrap::<u64, u8>(ishr(final_len, 40_u32));
-  let b22 = cvt.wrap::<u64, u8>(ishr(final_len, 48_u32));
-  let b23 = cvt.wrap::<u64, u8>(ishr(final_len, 56_u32));
+  let s17 = ishr(final_len, 8_u32);
+  let b17 = cvt.wrap::<u64, u8>(s17);
+  let s18 = ishr(final_len, 16_u32);
+  let b18 = cvt.wrap::<u64, u8>(s18);
+  let s19 = ishr(final_len, 24_u32);
+  let b19 = cvt.wrap::<u64, u8>(s19);
+  let s20 = ishr(final_len, 32_u32);
+  let b20 = cvt.wrap::<u64, u8>(s20);
+  let s21 = ishr(final_len, 40_u32);
+  let b21 = cvt.wrap::<u64, u8>(s21);
+  let s22 = ishr(final_len, 48_u32);
+  let b22 = cvt.wrap::<u64, u8>(s22);
+  let s23 = ishr(final_len, 56_u32);
+  let b23 = cvt.wrap::<u64, u8>(s23);
 
   let output_buffer: Array<u8, 24> = [b0, b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17, b18, b19, b20, b21, b22, b23];
 

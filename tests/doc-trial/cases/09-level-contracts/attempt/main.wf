@@ -20,30 +20,30 @@ fn main(inputs: std::process::Inputs) -> result: unit pure {
   let len = 6_u64;
 
   let tag1 = if is_valid_tree(parents: &parents, depths: &depths, len: len) {
-    1_u64
+    give 1_u64;
   } else {
-    0_u64
+    give 0_u64;
   };
 
   let parents2 = Array::<u32, 6>(6_u32, 2_u32, 0_u32, 1_u32, 1_u32, 2_u32);
   let tag2 = if is_valid_tree(parents: &parents2, depths: &depths, len: len) {
-    1_u64
+    give 1_u64;
   } else {
-    0_u64
+    give 0_u64;
   };
 
   let depths3 = Array::<u32, 6>(0_u32, 1_u32, 1_u32, 1_u32, 2_u32, 2_u32);
   let tag3 = if is_valid_tree(parents: &parents, depths: &depths3, len: len) {
-    1_u64
+    give 1_u64;
   } else {
-    0_u64
+    give 0_u64;
   };
 
   let depths4 = Array::<u32, 6>(4097_u32, 1_u32, 1_u32, 2_u32, 2_u32, 2_u32);
   let tag4 = if is_valid_tree(parents: &parents, depths: &depths4, len: len) {
-    1_u64
+    give 1_u64;
   } else {
-    0_u64
+    give 0_u64;
   };
 
   let output = box_slots_new::<u8>(capacity: 168_u64);

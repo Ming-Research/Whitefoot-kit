@@ -29,7 +29,7 @@ fn sum_list(head: &Option<Box<Node>>) -> result: u64 reads(head) {
 }
 
 fn remove_evens(head: &Option<Box<Node>>) -> result: unit writes(head) {
-  loop (invariant ok: true) {
+  loop (invariant ok: 0_u64 < 1_u64) {
     match move head^ {
       None() => {
         return unit;

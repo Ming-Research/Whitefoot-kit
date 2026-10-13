@@ -1,9 +1,9 @@
-const ZERO_HISTORY: Array<f64, 8> = [0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64];
+const ZeroHistory: Array<f64, 8> = [0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64];
 
 fn main(inputs: std::process::Inputs) -> result: u32 pure {
   let std::process::Inputs(args: unused_args, drivers: unused_drivers, cwd: unused_cwd, stdout: stdout_write, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
 
-  let history = ZERO_HISTORY;
+  let history = ZeroHistory;
   let coefficients = 0.125_f64;
   let total_sum = 0.0_f64;
   let write_head = 0_u64;

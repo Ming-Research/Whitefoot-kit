@@ -5,6 +5,8 @@ enum Instruction {
   Halt();
 }
 
+const INSTRUCTIONS: Array<Instruction, 4> = [Instruction::Add(value: 3_u64), Instruction::Decrement(), Instruction::JumpIfNonzero(position: 0_u64), Instruction::Halt()];
+
 fn execute(instructions: &[Instruction], initial_counter: u64) -> result: u64 reads(instructions) {
   let accumulator = 0_u64;
   let counter = initial_counter;
@@ -65,8 +67,7 @@ fn main(inputs: Inputs) -> result: ExitStatus pure {
 
   pkg::fs::close_directory_write(factory: &factory, directory: move cwd_directory);
 
-  let instructions = [Instruction::Add(value: 3_u64), Instruction::Decrement(), Instruction::JumpIfNonzero(position: 0_u64), Instruction::Halt()];
-  let result = execute(instructions: &instructions, initial_counter: 1000_u64);
+  let result = execute(instructions: &INSTRUCTIONS, initial_counter: 1000_u64);
 
   let expected = 3000_u64;
 
