@@ -4,7 +4,7 @@ alias Inputs = std::process::Inputs;
 alias CancelWatch = std::time::CancelWatch;
 alias Instant = std::time::Instant;
 
-fn increment_counter(counter: Shared<u64>) -> result: unit pure waits {
+fn increment_counter(counter: Shared<u64>) -> result: unit reads(counter), writes(counter) {
   for (i in 0_u64..20000_u64) {
     atomic count = &counter {
       set count^ = count^ +wrap 1_u64;
@@ -13,7 +13,7 @@ fn increment_counter(counter: Shared<u64>) -> result: unit pure waits {
   return unit;
 }
 
-fn producer(queue: Shared<Box<Ring<u32>>>) -> result: unit pure waits {
+fn producer(queue: Shared<Box<Ring<u32>>>) -> result: unit reads(queue), writes(queue) {
   for (i in 0_u64..5000_u64) {
     let i_u32 = cvt::<u64, u32>(i);
     loop {
@@ -32,7 +32,7 @@ fn producer(queue: Shared<Box<Ring<u32>>>) -> result: unit pure waits {
   return unit;
 }
 
-fn consumer(queue: Shared<Box<Ring<u32>>>, total: Shared<u64>) -> result: unit pure waits {
+fn consumer(queue: Shared<Box<Ring<u32>>>, total: Shared<u64>) -> result: unit reads(queue), reads(total), writes(queue), writes(total) {
   for (i in 0_u64..5000_u64) {
     loop {
       let item = None<u32>();
@@ -58,7 +58,7 @@ fn consumer(queue: Shared<Box<Ring<u32>>>, total: Shared<u64>) -> result: unit p
   return unit;
 }
 
-fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+fn main(inputs: Inputs) -> status: ExitStatus pure {
   let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: output, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
   let std::fs::Directory(read: cwd, write: cwd_write) = move cwd_directory;
   let write_closed = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);

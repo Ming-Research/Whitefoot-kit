@@ -5,28 +5,28 @@ alias HandleFactory = std::io::HandleFactory;
 alias OutputStream = std::io::OutputStream;
 
 fn hex_value(byte: u8) -> result: Option<u8> pure {
-  let digit_low = byte >= 48_u8;
-  let digit_high = byte <= 57_u8;
-  let is_digit = band(digit_low, digit_high);
+  let is_digit_low = byte >= 48_u8;
+  let is_digit_high = byte <= 57_u8;
+  let is_digit = band(is_digit_low, is_digit_high);
   if is_digit {
-    let digit_val = byte - 48_u8;
-    return Some<u8>(value: digit_val);
+    let result = byte - 48_u8;
+    return Some<u8>(value: result);
   }
-  let upper_low = byte >= 65_u8;
-  let upper_high = byte <= 70_u8;
-  let is_upper = band(upper_low, upper_high);
+  let is_upper_low = byte >= 65_u8;
+  let is_upper_high = byte <= 70_u8;
+  let is_upper = band(is_upper_low, is_upper_high);
   if is_upper {
-    let offset = byte - 65_u8;
-    let upper_val = offset + 10_u8;
-    return Some<u8>(value: upper_val);
+    let upper_base = byte - 65_u8;
+    let upper_result = upper_base + 10_u8;
+    return Some<u8>(value: upper_result);
   }
-  let lower_low = byte >= 97_u8;
-  let lower_high = byte <= 102_u8;
-  let is_lower = band(lower_low, lower_high);
+  let is_lower_low = byte >= 97_u8;
+  let is_lower_high = byte <= 102_u8;
+  let is_lower = band(is_lower_low, is_lower_high);
   if is_lower {
-    let offset = byte - 97_u8;
-    let lower_val = offset + 10_u8;
-    return Some<u8>(value: lower_val);
+    let lower_base = byte - 97_u8;
+    let lower_result = lower_base + 10_u8;
+    return Some<u8>(value: lower_result);
   }
   return None<u8>();
 }
@@ -255,8 +255,8 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
         return exit_status(code: 1_u8);
       }
     }
-    Err(error: code) => {
-      return exit_status(code: code);
+    Err(error: decode_code) => {
+      return exit_status(code: decode_code);
     }
   }
 }

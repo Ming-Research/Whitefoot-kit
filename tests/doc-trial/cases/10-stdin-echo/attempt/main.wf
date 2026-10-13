@@ -1,35 +1,33 @@
 alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
 alias exit_status = std::process::exit_status;
+alias HandleFactory = std::io::HandleFactory;
+alias InputStream = std::io::InputStream;
+alias OutputStream = std::io::OutputStream;
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let Inputs(cwd: cwd_directory, stdout: stdout_stream, handles: factory, stdin: stdin_stream, ..) = move inputs;
   let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
   let write_close_result = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
   let read_close_result = std::fs::close_directory(factory: &factory, directory: move cwd_read);
-
   match write_close_result {
     Ok(value: unused_write_closed) => {
     }
     Err(error: unused_write_error) => {
     }
   }
-
   match read_close_result {
     Ok(value: unused_read_closed) => {
     }
     Err(error: unused_read_error) => {
     }
   }
-
   let buffer = array_filled::<u8, 4096>(value: 0_u8);
-
   loop {
     let no_deadline = None<std::time::Instant>();
     let cancel = std::time::cancel_never();
     let read_result = std::io::read_next(factory: &factory, input: &stdin_stream, destination: &buffer[0_u64..4096_u64], start: 0_u64, end: 4096_u64, deadline: no_deadline, cancel: &cancel);
     std::time::close_cancel_watch(watch: move cancel);
-
     match read_result {
       Ok(value: bytes_read) => {
         let bytes_written = 0_u64;

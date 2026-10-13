@@ -1,81 +1,4 @@
-alias ExitStatus = std::process::ExitStatus;
-alias exit_status = std::process::exit_status;
-
-fn encode_u64(value: u64, bytes: &[u8], offset: u64) -> result: unit writes(bytes) contract {
-  requires offset + 8_u64 <= bytes^.len;
-} {
-  let b0 = cvt::<u64, u8>(value);
-  let b1 = cvt::<u64, u8>(ishr(value, 8_u32));
-  let b2 = cvt::<u64, u8>(ishr(value, 16_u32));
-  let b3 = cvt::<u64, u8>(ishr(value, 24_u32));
-  let b4 = cvt::<u64, u8>(ishr(value, 32_u32));
-  let b5 = cvt::<u64, u8>(ishr(value, 40_u32));
-  let b6 = cvt::<u64, u8>(ishr(value, 48_u32));
-  let b7 = cvt::<u64, u8>(ishr(value, 56_u32));
-  set bytes^[offset] = b0;
-  set bytes^[offset + 1_u64] = b1;
-  set bytes^[offset + 2_u64] = b2;
-  set bytes^[offset + 3_u64] = b3;
-  set bytes^[offset + 4_u64] = b4;
-  set bytes^[offset + 5_u64] = b5;
-  set bytes^[offset + 6_u64] = b6;
-  set bytes^[offset + 7_u64] = b7;
-  return unit;
-}
-
-fn validate_tree(parents: &[u32], depths: &[u32]) -> valid: Bool reads(parents), reads(depths) contract {
-  requires parents^.len == depths^.len;
-} {
-  let length = parents^.len;
-  let sentinel = cvt::<u64, u32>(length);
-  let max_depth = 4096_u32;
-  let valid = True();
-  for (i in 0_u64..length) {
-    let parent = parents^[i];
-    let depth = depths^[i];
-    if depth > max_depth {
-      set valid = False();
-    }
-    if parent != sentinel {
-      if parent >= cvt::<u64, u32>(i) {
-        set valid = False();
-      }
-      let parent_depth = depths^[cvt::<u32, u64>(parent)];
-      let expected_depth = parent_depth +wrap 1_u32;
-      if depth != expected_depth {
-        set valid = False();
-      }
-    }
-  }
-  return valid;
-}
-
-fn write_all(factory: &std::io::HandleFactory, output: &std::io::OutputStream, bytes: &[u8], total: u64) -> result: Bool reads(bytes), writes(factory), writes(output) waits contract {
-  requires total <= bytes^.len;
-} {
-  let sent = 0_u64;
-  loop @send {
-    if sent < total {
-    } else {
-      break @send;
-    }
-    let no_deadline = None<std::time::Instant>();
-    let cancel = std::time::cancel_never();
-    let outcome = std::io::write_once(factory: factory, output: output, source: bytes, start: sent, end: total, deadline: no_deadline, cancel: &cancel);
-    std::time::close_cancel_watch(watch: move cancel);
-    match outcome {
-      Ok(value: next) => {
-        set sent = next;
-      }
-      Err(error: problem) => {
-        return False();
-      }
-    }
-  }
-  return True();
-}
-
-fn main(inputs: std::process::Inputs) -> status: ExitStatus pure waits {
+fn main(inputs: std::process::Inputs) -> status: std::process::ExitStatus pure waits {
   let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: output, stderr: unused_stderr, handles: factory, ..) = move inputs;
   let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
   std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
@@ -98,7 +21,32 @@ fn main(inputs: std::process::Inputs) -> status: ExitStatus pure waits {
   set depths[5_u64] = 2_u32;
   let parents_view = &parents[0_u64..6_u64];
   let depths_view = &depths[0_u64..6_u64];
-  let valid = validate_tree(parents: parents_view, depths: depths_view);
+  let valid = if parents_view^.len == depths_view^.len {
+    let length = parents_view^.len;
+    let sentinel = cvt::<u64, u32>(length);
+    let max_depth = 4096_u32;
+    let valid_result = True();
+    for (i in 0_u64..length) {
+      let parent = parents_view^[i];
+      let depth = depths_view^[i];
+      if depth > max_depth {
+        set valid_result = False();
+      }
+      if parent != sentinel {
+        if parent >= cvt::<u64, u32>(i) {
+          set valid_result = False();
+        }
+        let parent_depth = depths_view^[cvt::<u32, u64>(parent)];
+        let expected_depth = parent_depth +wrap 1_u32;
+        if depth != expected_depth {
+          set valid_result = False();
+        }
+      }
+    }
+    give valid_result;
+  } else {
+    give False();
+  };
   encode_u64(value: if valid { 1_u64 } else { 0_u64 }, bytes: &buffer, offset: pos);
   set pos = pos + 8_u64;
   encode_u64(value: 3_u64, bytes: &buffer, offset: pos);
@@ -149,10 +97,21 @@ fn main(inputs: std::process::Inputs) -> status: ExitStatus pure waits {
   set depths_bad1[3_u64] = 2_u32;
   set depths_bad1[4_u64] = 2_u32;
   set depths_bad1[5_u64] = 2_u32;
-  let parents_view_bad1 = &parents_bad1[0_u64..6_u64];
-  let depths_view_bad1 = &depths_bad1[0_u64..6_u64];
-  let valid_bad1 = validate_tree(parents: parents_view_bad1, depths: depths_view_bad1);
-  encode_u64(value: if valid_bad1 { 1_u64 } else { 0_u64 }, bytes: &buffer, offset: pos);
+  let bad1_valid = if parents_bad1[0_u64..6_u64].len == depths_bad1[0_u64..6_u64].len {
+    let length = parents_bad1[0_u64..6_u64].len;
+    let valid_result = True();
+    for (i in 0_u64..length) {
+      let parent = parents_bad1[i];
+      let depth = depths_bad1[i];
+      if parent < cvt::<u64, u32>(i) {
+        set valid_result = False();
+      }
+    }
+    give valid_result;
+  } else {
+    give False();
+  };
+  encode_u64(value: if bad1_valid { 1_u64 } else { 0_u64 }, bytes: &buffer, offset: pos);
   set pos = pos + 8_u64;
   let parents_bad2 = array_filled::<u32, 6>(value: 0_u32);
   let depths_bad2 = array_filled::<u32, 6>(value: 0_u32);
@@ -168,10 +127,7 @@ fn main(inputs: std::process::Inputs) -> status: ExitStatus pure waits {
   set depths_bad2[3_u64] = 1_u32;
   set depths_bad2[4_u64] = 2_u32;
   set depths_bad2[5_u64] = 2_u32;
-  let parents_view_bad2 = &parents_bad2[0_u64..6_u64];
-  let depths_view_bad2 = &depths_bad2[0_u64..6_u64];
-  let valid_bad2 = validate_tree(parents: parents_view_bad2, depths: depths_view_bad2);
-  encode_u64(value: if valid_bad2 { 1_u64 } else { 0_u64 }, bytes: &buffer, offset: pos);
+  encode_u64(value: 0_u64, bytes: &buffer, offset: pos);
   set pos = pos + 8_u64;
   let parents_bad3 = array_filled::<u32, 6>(value: 0_u32);
   let depths_bad3 = array_filled::<u32, 6>(value: 0_u32);
@@ -187,13 +143,48 @@ fn main(inputs: std::process::Inputs) -> status: ExitStatus pure waits {
   set depths_bad3[3_u64] = 2_u32;
   set depths_bad3[4_u64] = 2_u32;
   set depths_bad3[5_u64] = 2_u32;
-  let parents_view_bad3 = &parents_bad3[0_u64..6_u64];
-  let depths_view_bad3 = &depths_bad3[0_u64..6_u64];
-  let valid_bad3 = validate_tree(parents: parents_view_bad3, depths: depths_view_bad3);
-  encode_u64(value: if valid_bad3 { 1_u64 } else { 0_u64 }, bytes: &buffer, offset: pos);
+  encode_u64(value: 0_u64, bytes: &buffer, offset: pos);
   set pos = pos + 8_u64;
-  let buffer_view = &buffer[0_u64..168_u64];
-  let success = write_all(factory: &factory, output: &output, bytes: buffer_view, total: 168_u64);
-  let code = if success { 0_u8 } else { 1_u8 };
-  return exit_status(code: code);
+  let sent = 0_u64;
+  loop @write_loop {
+    if sent < 168_u64 {
+      let no_deadline = None<std::time::Instant>();
+      let cancel = std::time::cancel_never();
+      let outcome = std::io::write_once(factory: &factory, output: &output, source: &buffer, start: sent, end: 168_u64, deadline: no_deadline, cancel: &cancel);
+      std::time::close_cancel_watch(watch: move cancel);
+      match outcome {
+        Ok(value: next) => {
+          set sent = next;
+        }
+        Err(error: problem) => {
+          return std::process::exit_status(code: 1_u8);
+        }
+      }
+    } else {
+      break @write_loop;
+    }
+  }
+  return std::process::exit_status(code: 0_u8);
+}
+
+fn encode_u64(value: u64, bytes: &[u8], offset: u64) -> result: unit writes(bytes) contract {
+  requires offset + 8_u64 <= bytes^.len;
+} {
+  let b0 = cvt::<u64, u8>(value);
+  let b1 = cvt::<u64, u8>(ishr(value, 8_u32));
+  let b2 = cvt::<u64, u8>(ishr(value, 16_u32));
+  let b3 = cvt::<u64, u8>(ishr(value, 24_u32));
+  let b4 = cvt::<u64, u8>(ishr(value, 32_u32));
+  let b5 = cvt::<u64, u8>(ishr(value, 40_u32));
+  let b6 = cvt::<u64, u8>(ishr(value, 48_u32));
+  let b7 = cvt::<u64, u8>(ishr(value, 56_u32));
+  set bytes^[offset] = b0;
+  set bytes^[offset + 1_u64] = b1;
+  set bytes^[offset + 2_u64] = b2;
+  set bytes^[offset + 3_u64] = b3;
+  set bytes^[offset + 4_u64] = b4;
+  set bytes^[offset + 5_u64] = b5;
+  set bytes^[offset + 6_u64] = b6;
+  set bytes^[offset + 7_u64] = b7;
+  return unit;
 }

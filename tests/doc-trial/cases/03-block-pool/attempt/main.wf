@@ -29,7 +29,7 @@ fn write_u64_le(buffer: &[u8], offset: u64, value: u64) -> result: unit writes(b
   return unit;
 }
 
-fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+fn main(inputs: Inputs) -> result: ExitStatus pure waits {
   let Inputs(cwd: cwd_dir, handles: factory, stdout: output, ..) = move inputs;
   let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_dir;
   std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
