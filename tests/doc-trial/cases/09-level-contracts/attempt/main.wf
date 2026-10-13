@@ -1,4 +1,4 @@
-fn main(inputs: std::process::Inputs) -> result: unit waits {
+fn main(inputs: std::process::Inputs) -> result: unit {
   let std::process::Inputs(
     args: unused_args,
     drivers: unused_drivers,

@@ -1,18 +1,21 @@
 fn hex_digit_value(byte: u8) -> result: Option<u8> pure {
-  let is_digit = band(byte >= '0'_u8, byte <= '9'_u8);
-  if is_digit {
-    let value = byte - '0'_u8;
-    return Some<u8>(value: value);
+  if byte >= '0'_u8 {
+    if byte <= '9'_u8 {
+      let value = byte - '0'_u8;
+      return Some<u8>(value: value);
+    }
   }
-  let is_upper = band(byte >= 'A'_u8, byte <= 'F'_u8);
-  if is_upper {
-    let value = byte - 'A'_u8 + 10_u8;
-    return Some<u8>(value: value);
+  if byte >= 'A'_u8 {
+    if byte <= 'F'_u8 {
+      let value = byte - 'A'_u8 + 10_u8;
+      return Some<u8>(value: value);
+    }
   }
-  let is_lower = band(byte >= 'a'_u8, byte <= 'f'_u8);
-  if is_lower {
-    let value = byte - 'a'_u8 + 10_u8;
-    return Some<u8>(value: value);
+  if byte >= 'a'_u8 {
+    if byte <= 'f'_u8 {
+      let value = byte - 'a'_u8 + 10_u8;
+      return Some<u8>(value: value);
+    }
   }
   return None<u8>();
 }

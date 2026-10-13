@@ -1,8 +1,3 @@
-module : [geometry] {
-  path = "geometry";
-}
-
-module : [client] {
-  path = "client";
-  depends = [geometry];
-}
+module : [geometry] = "geometry";
+module : [client] = "client" depends [geometry];
+entry : main;

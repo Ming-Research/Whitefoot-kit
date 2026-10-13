@@ -19,7 +19,7 @@ fn sum_list(head: &Option<Box<Node>>) -> result: u64 reads(head) {
     None() => {
       return 0_u64;
     }
-    Some(node_ref) => {
+    Some(value: node_ref) => {
       let current_value = node_ref^.inner.value;
       let rest_sum = sum_list(head: &node_ref^.inner.next);
       let total = current_value +wrap rest_sum;
@@ -34,7 +34,7 @@ fn remove_evens(head: &mut Option<Box<Node>>) -> result: unit writes(head) {
       None() => {
         return unit;
       }
-      Some(node) => {
+      Some(value: node) => {
         if (node.inner.value & 1_u64) == 0_u64 {
           let next = node.inner.next;
           set head^ = move next;
@@ -43,7 +43,7 @@ fn remove_evens(head: &mut Option<Box<Node>>) -> result: unit writes(head) {
           set head^ = Some<Box<Node>>(value: move node);
           match head {
             None() => return unit;
-            Some(next_node) => {
+            Some(value: next_node) => {
               remove_evens(head: &mut next_node^.inner.next);
               return unit;
             }
@@ -59,7 +59,7 @@ fn increment_list(head: &mut Option<Box<Node>>) -> result: unit writes(head) {
     None() => {
       return unit;
     }
-    Some(node_ref) => {
+    Some(value: node_ref) => {
       let new_value = node_ref^.inner.value +wrap 1_u64;
       set node_ref^.inner.value = new_value;
       increment_list(head: &mut node_ref^.inner.next);

@@ -93,7 +93,7 @@ fn parse_u16_from_bytes(bytes: &[u8]) -> result: Option<u16> reads(bytes) pure {
   let value: u16 = 0_u16;
   for (i in 0_u64..len) {
     let b = bytes^[i];
-    if b < 48_u8 || b > 57_u8 {
+    if bor(b < 48_u8, b > 57_u8) {
       return None<u16>();
     }
     let digit = cvt::<u8, u16>(b - 48_u8);
@@ -116,7 +116,7 @@ fn parse_u64_from_bytes(bytes: &[u8]) -> result: Option<u64> reads(bytes) pure {
   let value: u64 = 0_u64;
   for (i in 0_u64..len) {
     let b = bytes^[i];
-    if b < 48_u8 || b > 57_u8 {
+    if bor(b < 48_u8, b > 57_u8) {
       return None<u64>();
     }
     let digit = cvt::<u8, u64>(b - 48_u8);
@@ -151,7 +151,7 @@ fn parse_i64_from_bytes(bytes: &[u8]) -> result: Option<i64> reads(bytes) pure {
   let value: i64 = 0_i64;
   for (i in start..len) {
     let b = bytes^[i];
-    if b < 48_u8 || b > 57_u8 {
+    if bor(b < 48_u8, b > 57_u8) {
       return None<i64>();
     }
     let digit = cvt::<u8, i64>(b - 48_u8);
@@ -377,7 +377,7 @@ fn parse_command(parts: &Array<GrowVector<u8, 1024>, 5>, count: u64) -> result: 
     let b2 = cmd_slice^[2_u64];
     let b3 = cmd_slice^[3_u64];
 
-    if b0 == 80_u8 && b1 == 73_u8 && b2 == 78_u8 && b3 == 71_u8 {
+    if band(band(band(b0 == 80_u8, b1 == 73_u8), b2 == 78_u8), b3 == 71_u8) {
       if count == 1_u64 {
         return Some<Request>(value: Request::Ping());
       }
@@ -391,14 +391,14 @@ fn parse_command(parts: &Array<GrowVector<u8, 1024>, 5>, count: u64) -> result: 
     let b1 = cmd_slice^[1_u64];
     let b2 = cmd_slice^[2_u64];
 
-    if b0 == 71_u8 && b1 == 69_u8 && b2 == 84_u8 {
+    if band(band(b0 == 71_u8, b1 == 69_u8), b2 == 84_u8) {
       if count == 2_u64 {
         return Some<Request>(value: Request::Get(key: copy_vector(src: &parts^[1_u64])));
       }
       return None<Request>();
     }
 
-    if b0 == 68_u8 && b1 == 69_u8 && b2 == 76_u8 {
+    if band(band(b0 == 68_u8, b1 == 69_u8), b2 == 76_u8) {
       if count == 2_u64 {
         return Some<Request>(value: Request::Del(key: copy_vector(src: &parts^[1_u64])));
       }
@@ -412,7 +412,7 @@ fn parse_command(parts: &Array<GrowVector<u8, 1024>, 5>, count: u64) -> result: 
     let b1 = cmd_slice^[1_u64];
     let b2 = cmd_slice^[2_u64];
 
-    if b0 == 83_u8 && b1 == 69_u8 && b2 == 84_u8 {
+    if band(band(b0 == 83_u8, b1 == 69_u8), b2 == 84_u8) {
       if count == 3_u64 {
         return Some<Request>(value: Request::Set(key: copy_vector(src: &parts^[1_u64]), value: copy_vector(src: &parts^[2_u64])));
       }
@@ -427,7 +427,7 @@ fn parse_command(parts: &Array<GrowVector<u8, 1024>, 5>, count: u64) -> result: 
     let b2 = cmd_slice^[2_u64];
     let b3 = cmd_slice^[3_u64];
 
-    if b0 == 73_u8 && b1 == 78_u8 && b2 == 67_u8 && b3 == 82_u8 {
+    if band(band(band(b0 == 73_u8, b1 == 78_u8), b2 == 67_u8), b3 == 82_u8) {
       if count == 2_u64 {
         return Some<Request>(value: Request::Incr(key: copy_vector(src: &parts^[1_u64])));
       }
