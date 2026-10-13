@@ -1,6 +1,6 @@
 # Writing Whitefoot
 
-This guide is for agents that write Whitefoot programs and is 2029 lines long. Read all of it before writing code. If a file reader shows only part, read the rest in numbered ranges until the final section is received. Before writing concurrent code, read all of Part 3, including child completion and its examples.
+This guide is for agents that write Whitefoot programs and is 2129 lines long. Read all of it before writing code. If a file reader shows only part, read the rest in numbered ranges until the final section is received. Before writing concurrent code, read all of Part 3, including child completion and its examples.
 
 - Part 1, syntax, holds the forms every program needs. Most first rejections come from these forms; write them as shown, not as another language would.
 - Parts 2 and 3 say how to design a sequential and a concurrent program: where data lives, who owns it, what the checker must be told, how contexts share state. Rejections cannot teach these.
@@ -359,7 +359,7 @@ pkg::client: [pkg::geometry, std::process];
 entry main = pkg::client::main;
 ```
 
-Public declarations belong in `module.wfm`; interface functions end with `doc "...";`, never a plain `;`. Definitions repeat the header without `public`. Aliases bind public declarations in direct dependencies and grant no graph edge. These four files complete the graph above; check the graph as one module program, not each file as a source bundle. [MOD-4, MOD-5, MOD-6, MOD-7, MOD-8]
+Public declarations belong in `module.wfm`; interface functions end with `doc "...";`, never a plain `;`. Definitions repeat the header without `public`. Aliases bind public declarations in direct dependencies and grant no graph edge. A qualified path is never an operand: bind a constant such as `pkg::limits::cap` with `alias cap = pkg::limits::cap;` and write `cap`. A qualified path appears only as a type, callee, construction or destructuring target [MOD-4, MOD-5]. These four files complete the graph above; check the graph as one module program, not each file as a source bundle. [MOD-4, MOD-5, MOD-6, MOD-7, MOD-8]
 
 `geometry/module.wfm`:
 
@@ -417,7 +417,7 @@ It requires `start <= end` and `end <= source^.len`. `Ok` carries the index afte
 
 Grammar tokens cannot be identifiers: [FORM-3]
 
-`alias apart atomic binding break const continue contract copy define doc drop else ensures entry enum f32 f64 fn for forall give i16 i32 i64 i8 if in interface invariant is let loop match move musttail no_heap nocopy nodrop not opaque package pkg program propagate public pure readonly reads requires return set spawn std struct times u16 u32 u64 u8 unchanged unit use waits when writes`
+`alias apart atomic binding break const continue contract copy define doc drop else ensures entry enum f32 f64 fn for forall give held i16 i32 i64 i8 if in interface invariant is let loop match move musttail no_heap nocopy nodrop not opaque package pkg program propagate public pure readonly reads requires return set spawn std struct times u16 u32 u64 u8 unchanged unit use waits when writes`
 
 Mode words: `wrap defined checked sat strict nearest`.
 
@@ -499,7 +499,7 @@ Require heap independence with first-item `program no_heap;` or graph entry `no_
 
 Choose `&[T]` for contiguous consumers and `&Run<T>` for possibly paged logical access: the kind states the representation promise. `Run` is not an owned value type [TYPE-8, REF-4].
 
-`&a[lo..hi]` requires `lo <= hi <= a.len`; length is captured `hi - lo`, indexing is relative to lo. Alias with `let other = part;`; reslice with `&part^[a..b]`, preserving its kind [REF-1, REF-4].
+`&a[lo..hi]` requires `lo <= hi <= a.len`; length is captured `hi - lo`, indexing is relative to lo. Alias with `let other = part;`; reslice with `&part^[a..b]`, preserving its kind [REF-1, REF-4]. When `part` is a range-reference variable, that `let` makes `other` a range alias identified through `part`'s identifying variable: facts proved on either hold on both, while neither is rebound by `set` anywhere in the body. A conditional initializer (a value `if` or `match`) or any rebinding makes `other` a separate reference with no shared facts, and a write through either kills the facts of both [ENT-2].
 
 ```whitefoot
 alias ExitStatus = std::process::ExitStatus;
@@ -1656,6 +1656,106 @@ Prepare independent inputs first; validate current state and apply the transitio
 **Silent failure:** separate atomic reads and writes can lose intervening updates. Splitting removal from accounting can expose an impossible state even though every access is race-free.
 
 **Check:** enumerate what another statement can observe between your atomic statements, including error exits. The checker cannot choose the application's transaction boundary.
+
+### How do I export one held observation?
+
+A contract, of a function or a function-kind formal, may carry one `requires held(a, b);` clause. It requires reference arguments from data held by the caller's same atomic statement, with their regions unwritten throughout its whole block. Name distinct reference parameters; the function must be nonwaiting and `pure` or reads-only. Protection includes owned descendants. A wrapper forwards by declaring the same contract. Aliases and checked projections preserve held origin; copied values do not. Call in the block, never its guard. [HOLD-1, GRAM-2, REF-3]
+
+**Known conservative check:** a block that may write a protected region counts as writing it, even on another possible path, before or after the call, through aliases, callees or cleanup. Proved disjoint writes are admitted. [HOLD-1]
+
+Call `std::snapshot::capture_export::<V>` in one atomic statement holding the whole map and the log. Its `cut: &u64` must refer to the held log cut itself. It captures all present keys and owned values with that cut at one effect point, unaffected by later parent mutation. Define the cut's log meaning. The child runs a supplied encoder, with no user callback. [PRE-2, HOLD-1, SNAP-3, SHARE-3]
+
+Complete file; `sequence` is the log cut, and atomic bindings are references.
+
+```whitefoot
+alias Reserve = std::snapshot::Reserve;
+alias Job = std::snapshot::Job;
+alias CreateError = std::snapshot::CreateError;
+
+fn forward(reserve: Reserve, map: &ConcurrentHashMap<u8>, cut: &u64) -> result: Result<Job, CreateError> reads(map), reads(cut) contract {
+  requires held(map, cut);
+} {
+  return std::snapshot::capture_export::<u8>(reserve: move reserve, map: map, cut: cut);
+}
+
+fn capture(reserve: Reserve, table: &Shared<ConcurrentHashMap<u8>>, sequence: &Shared<u64>) -> result: Result<Job, CreateError> reads(table), reads(sequence) waits {
+  atomic held_map = &table^, held_cut = &sequence^ {
+    return forward(reserve: move reserve, map: held_map, cut: held_cut);
+  }
+}
+```
+
+Wrong: this copy loses held origin. Pass `held_cut` itself. [HOLD-1]
+
+```text
+let copied_cut = held_cut^;
+return std::snapshot::capture_export::<u8>(reserve: move reserve, map: held_map, cut: &copied_cut);
+```
+
+`V` must satisfy `drop` and the owned-graph judgment, including every inactive enum payload. `Shared`, `SharedRead`, `Frozen`, `ConcurrentHashMap`, `Entries`, `KeySet` and fieldless opaque resources are forbidden at any depth. The stream uses the exact schema and declaration order; chunks may split records. [SNAP-1, SNAP-2]
+
+`Reserve` and `Job` are linear `nodrop` owners. Outside the atomic statement, `prepare` returns a reserve or an error retaining no resources. Consume unused reserves with `discard`, or move them into `capture_export`. Nonwaiting capture consumes the reserve on both outcomes: failure releases it outside the hold; success owns one job despite later child failure. `read` borrows the job and requires a nonempty window. EOF (`Ok(0)`) proves no export success; deadline/cancellation errors retain a usable job. Every path must consume each job exactly once with `finish` or `abort`, outside the atomic statement. `finish` drains and discards unread bytes; `abort` requests termination. Both await termination, reap and release resources. [PRE-2, SNAP-3]
+
+Complete file: `collect` reads at most one byte; `finish` discards the rest. For full collection, read until EOF and inspect the outcome.
+
+```whitefoot
+alias Reserve = std::snapshot::Reserve;
+alias Job = std::snapshot::Job;
+alias CreateError = std::snapshot::CreateError;
+
+fn preparation(scratch: u64, output: u64) -> result: unit pure waits {
+  let prepared = std::snapshot::prepare(scratch_bytes: scratch, output_bytes: output);
+  match move prepared {
+    Ok(value: reserved) => {
+      std::snapshot::discard(reserve: move reserved);
+    }
+    Err(error: preparation_error) => {
+    }
+  }
+  return unit;
+}
+
+fn collect(job: Job) -> result: std::snapshot::Outcome pure waits {
+  let bytes = array_filled::<u8, 1>(value: 0_u8);
+  let deadline = None<std::time::Instant>();
+  let watch = std::time::cancel_never();
+  let read_result = std::snapshot::read(job: &job, out: &bytes[0_u64..1_u64], deadline: deadline, cancel: &watch);
+  match read_result {
+    Ok(value: count) => {
+    }
+    Err(error: read_error) => {
+      match read_error {
+        SnapshotReadFailed() => {
+        }
+        DeadlinePassed() => {
+        }
+        Cancelled() => {
+        }
+      }
+    }
+  }
+  return std::snapshot::finish(job: move job);
+}
+
+fn cancel(job: Job) -> result: std::snapshot::Outcome pure waits {
+  return std::snapshot::abort(job: move job);
+}
+
+fn creation(created: Result<Job, CreateError>) -> result: unit pure waits {
+  match move created {
+    Ok(value: running) => {
+      let outcome = std::snapshot::abort(job: move running);
+    }
+    Err(error: creation_error) => {
+    }
+  }
+  return unit;
+}
+```
+
+**Memory promise:** `scratch_bytes` bounds requested encoder workspace (`SnapshotScratchExhausted` on exhaustion). Control storage adds at most 65536 requested bytes; output/status pipe payload capacities are at most 65536/4096 bytes. `output_bytes` bounds emitted data including framing/terminal bytes (`SnapshotOutputExhausted`). No reserve buffer scales with the dataset or a whole record. Total memory is unbounded by these promises: allocator rounding, kernel metadata, ordinary stacks, page tables, retained image pages and copy-on-write growth are excluded. No aggregate memory reserve, automatic COW-budget abort, capture-pause or elapsed cleanup bound is promised. This research route requires Linux x86-64 LP64 with glibc; other targets report unsupported composition. [SNAP-3]
+
+**Check:** complete collection requires `SnapshotExportComplete` in `Outcome.child`, `SnapshotCollected` in `Outcome.collection`, and `abort_requested` equal to `False`; neither a successful read nor a terminal alone suffices. Durable publication of the base and its log suffix remains the application's responsibility. [SNAP-2, SNAP-3]
 
 ### How do I lock an object only on paths that use it?
 
