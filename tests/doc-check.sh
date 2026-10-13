@@ -23,7 +23,7 @@ trap 'exit 1' HUP INT TERM
 # tilde or longer-backtick fence is still just that fence's contents.
 opening='^[[:space:]]*(`{3,}|~{3,})(.*)$'
 closing='^[[:space:]]*(`{3,}|~{3,})[[:space:]]*$'
-language='^whitefoot[[:space:]]*$'
+language='^[[:space:]]*whitefoot[[:space:]]*$'
 fence=
 whitefoot=0
 count=0
@@ -38,7 +38,7 @@ while IFS= read -r line || [ -n "$line" ]; do
       fence=${BASH_REMATCH[1]}
       info=${BASH_REMATCH[2]}
       whitefoot=0
-      if [ "$fence" = '```' ] && [[ "$info" =~ $language ]]; then
+      if [[ "$info" =~ $language ]]; then
         whitefoot=1
         count=$((count + 1))
         printf '%s\n' "$line_number" > "$scratch/$count.line"

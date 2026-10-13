@@ -413,7 +413,7 @@ It requires `start <= end` and `end <= source^.len`. `Ok` carries the index afte
 
 Grammar tokens cannot be identifiers: [FORM-3]
 
-`alias apart atomic binding break const continue contract copy define doc drop else ensures entry enum f32 f64 fn for forall give i16 i32 i64 i8 if in interface invariant is let loop match move musttail no_heap nocopy nodrop opaque package pkg program propagate public pure readonly reads requires return set spawn std struct times u16 u32 u64 u8 unchanged unit use waits when writes`
+`alias apart atomic binding break const continue contract copy define doc drop else ensures entry enum f32 f64 fn for forall give i16 i32 i64 i8 if in interface invariant is let loop match move musttail no_heap nocopy nodrop not opaque package pkg program propagate public pure readonly reads requires return set spawn std struct times u16 u32 u64 u8 unchanged unit use waits when writes`
 
 Mode words: `wrap defined checked sat strict nearest`.
 
@@ -963,7 +963,7 @@ Effect paths begin at the formal without `^`. Write covers reads/writes below it
 
 `next`, `last`, `filled` and `free` are effect-only window parts, never readable fields or borrow targets. `last` covers successive rear removals, not just one entry slot [WIN-2].
 
-`entry(window)` denotes entry storage; bare written-reference terms denote exit storage. Requirements permit larger arithmetic than published `ensures`, whose relation sides admit one supported datum displaced by a constant. Pass a scalar final total when publishing a relation to a larger sum [FN-9, MSR-3].
+`entry(window)` denotes entry storage; bare written-reference terms denote exit storage. Requirements permit larger arithmetic than published `ensures`, whose relation sides admit one supported datum displaced by a constant, plus at most one bare integer parameter with coefficient one on one side, as in `ensures after <= base + limit;`. Pass a scalar final total when publishing a relation to a larger sum [FN-9, MSR-3].
 
 Contract `define` abbreviates proof expressions, expands recursively, executes/snapshots nothing and is unavailable in the body. Contract +/−/* are mathematical arithmetic; they do not prove body-operation domains. Calls/allocation/partial division, remainder and shifts are inadmissible; use total queries or relations [FN-8].
 
@@ -1563,11 +1563,10 @@ A key-set binding is an `&Entries<V>` indexed in key-set order. A whole-map
 target holds the map even when a helper accesses just one entry.
 
 **Silent failure:** adding one global counter to every request can serialize
-otherwise independent keys. A runtime-engineer measurement on an i9-14900K
-reported all contexts incrementing one `Shared<u64>` at **11.08 million
-increments/s with 2 cores**, falling to **0.72 million/s with 16 hyperthreads**;
-separate objects reached **346 million/s** on that machine. These measurements
-do not generalize to other machines or establish semantic equivalence.
+otherwise independent keys. When every context updates the same
+`Shared<u64>`, total throughput falls as contexts are added, instead of
+rising; giving each context its own object restores scaling. Nothing in the
+compiler reports this; measure with the counter and without it.
 
 `Shards<T>` is **not yet available** in this release. For a final aggregate,
 keep counts local and return them from bound spawns, then combine them after
@@ -1771,7 +1770,7 @@ LOCK <function>  <file:line:col of the atomic>  targets(<names>): <state type>  
 `<when>` is `before the guard`, `on every path`, `on some paths` or `never`.
 An object you meant to take only on some requests must read `on some paths`;
 `on every path` or `before the guard` means a use, a helper's footprint, a
-guard or an earlier-ordered group takes it on every execution, and
+guard or a later-ordered group takes it on every execution, and
 `taken with` names the later group whose first use pulled it in. Result
 checks establish state transitions, not lock timing, and `--par-ledger` is
 not a substitute.

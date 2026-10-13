@@ -80,6 +80,17 @@ returns success fails. A change that rewrites a section of the guide reruns
 the trial for the categories that section serves; the owner's acceptance
 criterion is that every category passes.
 
+## Rejections the guide covers for now
+
+Entries of the fourth kind stay in the guide until Whitefoot's rejection
+names the fix; each is covered by a request on the owner's status board in
+Whitefoot's project, and is deleted from the guide when that request is done.
+
+- Every row of the guide's table "When the compiler says…": the request
+  "agents can fix common syntax errors from the compiler's rejections"
+  (board key `kit-req-diag-baseline`, filed 2026-10-13 with the baseline
+  trial's minimal sources and rejections).
+
 ## Review checklist
 
 The completion review marks each item:
@@ -88,7 +99,8 @@ The completion review marks each item:
   CI shows it.
 - K2. The guide is within 153,600 bytes.
 - K3. Each new or changed entry belongs to one of the four kinds above; an
-  entry of the fourth kind names the request filed with Whitefoot.
+  entry of the fourth kind is covered by a request listed under "Rejections
+  the guide covers for now".
 - K4. No statement contradicts the specification at the release CI used;
   current compiler behavior that the specification only permits is marked
   as such.

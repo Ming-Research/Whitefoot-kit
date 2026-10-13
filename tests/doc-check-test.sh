@@ -55,14 +55,19 @@ fn main( {
 fn main( {
 ```
 ~~~
-``` whitefoot
-fn main( {
-```
 EOF
 cat "$fixtures/valid.md" >> "$scratch/ignored.md"
 check "other fences hide Whitefoot-looking lines" "$(run "$scratch/ignored.md")" 0
 check "only the real whitefoot block is checked" \
   "$(grep -c 'checked 1 whitefoot block(s)' "$scratch/last.log")" 1
+
+# Every CommonMark spelling of a whitefoot fence is checked: a space before
+# the info string, a longer backtick fence and a tilde fence.
+for opening in '``` whitefoot' '````whitefoot' '~~~whitefoot' '~~~~ whitefoot '; do
+  closing=${opening%%[^\`~]*}
+  printf '%s\nfn main( {\n%s\n' "$opening" "$closing" > "$scratch/spelled.md"
+  check "a fence opened by [$opening] is checked" "$(run "$scratch/spelled.md")" 1
+done
 
 printf '```whitefoot\nfn main( {\n```\n\n```whitefoot\nfn main( {\n```\n' > "$scratch/multiple.md"
 check "multiple rejected blocks fail together" "$(run "$scratch/multiple.md")" 1
