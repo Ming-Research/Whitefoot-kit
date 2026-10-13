@@ -93,6 +93,10 @@ Whitefoot's project, and is deleted from the guide when that request is done.
   "agents can fix common syntax errors from the compiler's rejections"
   (board key `kit-req-diag-baseline`, filed 2026-10-13 with the baseline
   trial's minimal sources and rejections).
+- The row "`FN-8` at a call although the preceding call's `ensures` states
+  exactly the missing fact": Whitefoot's diagnostics item reporting a
+  callee's unproved guarantee at the callee (board key `coord-wfbl-01-15`,
+  Whitefoot#446), from Firn's report of 2026-10-13.
 
 ## Review checklist
 
