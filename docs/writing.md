@@ -1,6 +1,6 @@
 # Writing Whitefoot
 
-This guide is for agents that write Whitefoot programs and is 1965 lines long. Read all of it before writing code. If a file reader shows only part, read the rest in numbered ranges until the final section is received. Before writing concurrent code, read all of Part 3, including child completion and its examples.
+This guide is for agents that write Whitefoot programs and is 1983 lines long. Read all of it before writing code. If a file reader shows only part, read the rest in numbered ranges until the final section is received. Before writing concurrent code, read all of Part 3, including child completion and its examples.
 
 - Part 1, syntax, holds the forms every program needs. Most first rejections come from these forms; write them as shown, not as another language would.
 - Parts 2 and 3 say how to design a sequential and a concurrent program: where data lives, who owns it, what the checker must be told, how contexts share state. Rejections cannot teach these.
@@ -976,6 +976,24 @@ Effect paths begin at the formal without `^`. Write covers reads/writes below it
 `next`, `last`, `filled` and `free` are effect-only window parts, never readable fields or borrow targets. `last` covers successive rear removals, not just one entry slot [WIN-2].
 
 `entry(window)` denotes entry storage; bare written-reference terms denote exit storage. Requirements permit larger arithmetic than published `ensures`, whose relation sides admit one supported datum displaced by a constant, plus at most one bare integer parameter with coefficient one on one side, as in `ensures after <= base + limit;`. Pass a scalar final total when publishing a relation to a larger sum [FN-9, MSR-3].
+
+A call inside a recursive cycle, to the function itself or to another function of the same call-graph cycle, receives the callee's postconditions, written `ensures` included, as induction hypotheses. A body never assumes its own `ensures` at entry, every exit still proves them, and writes to a reference argument after the call kill its facts as for any call. Split recursion can therefore bound its combination directly instead of using a loop or `+sat`: [DIAG-2, FN-9]
+
+```whitefoot
+fn halves(n: u64) -> total: u64 pure contract {
+  ensures total <= n;
+} {
+  if n <= 1_u64 {
+    return n;
+  }
+  let half = n / 2_u64;
+  let rest = n - half;
+  let a = halves(n: half);
+  let b = halves(n: rest);
+  let total = a + b;
+  return total;
+}
+```
 
 Contract `define` abbreviates proof expressions, expands recursively, executes/snapshots nothing and is unavailable in the body. Contract +/−/* are mathematical arithmetic; they do not prove body-operation domains. Calls/allocation/partial division, remainder and shifts are inadmissible; use total queries or relations [FN-8].
 
