@@ -17,11 +17,12 @@ fn parse_expr(bytes: &[u8], pos: u64) -> result: ParseResult reads(bytes) {
     return ParseResult::Error(error_code: 1_u8);
   }
   let byte = bytes^[pos];
-  let plus_code = 43_u8;
-  let is_plus = byte == plus_code;
+  let plus_byte = 43_u8;
+  let zero_byte = 48_u8;
+  let nine_byte = 57_u8;
+  let is_plus = byte == plus_byte;
   if is_plus {
-    let next_pos = pos + 1_u64;
-    let first = parse_expr(bytes: bytes, pos: next_pos);
+    let first = parse_expr(bytes: bytes, pos: pos +wrap 1_u64);
     match first {
       Success(next_pos: pos1, value: left) => {
         let second = parse_expr(bytes: bytes, pos: pos1);
@@ -32,7 +33,7 @@ fn parse_expr(bytes: &[u8], pos: u64) -> result: ParseResult reads(bytes) {
               Ok(value: result) => {
                 return ParseResult::Success(next_pos: pos2, value: result);
               }
-              Err(error: overflow_error) => {
+              Err(error: err1) => {
                 return ParseResult::Error(error_code: 3_u8);
               }
             }
@@ -47,15 +48,11 @@ fn parse_expr(bytes: &[u8], pos: u64) -> result: ParseResult reads(bytes) {
       }
     }
   } else {
-    let zero_code = 48_u8;
-    let nine_code = 57_u8;
-    let is_digit_start = byte >= zero_code;
-    let is_digit_end = byte <= nine_code;
-    let is_digit = band(is_digit_start, is_digit_end);
-    if is_digit {
-      let digit = byte - zero_code;
+    let check_digit = band(byte >= zero_byte, byte <= nine_byte);
+    if check_digit {
+      let digit = byte - zero_byte;
       let value = cvt::<u8, u64>(digit);
-      return ParseResult::Success(next_pos: pos + 1_u64, value: value);
+      return ParseResult::Success(next_pos: pos +wrap 1_u64, value: value);
     } else {
       return ParseResult::Error(error_code: 2_u8);
     }

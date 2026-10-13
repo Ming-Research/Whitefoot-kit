@@ -165,8 +165,8 @@ fn echo_connection(connection: TcpConnection, factory: &HandleFactory) -> result
       }
     }
   }
-  let close_recv_result = std::net::close_receive(factory: factory, receive: move connection.receive);
-  let close_send_result = std::net::close_send(factory: factory, send: move connection.send);
+  let unused_close_recv = std::net::close_receive(factory: factory, receive: move connection.receive);
+  let unused_close_send = std::net::close_send(factory: factory, send: move connection.send);
   return unit;
 }
 
@@ -185,8 +185,8 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     memory_meter: unused_memory_meter
   ) = move inputs;
   let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
-  let close_write_result = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
-  let close_read_result = std::fs::close_directory(factory: &factory, directory: move cwd_read);
+  let unused_close_write = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
+  let unused_close_dir = std::fs::close_directory(factory: &factory, directory: move cwd_read);
   let port_result = get_port(args: &args);
   let port = match port_result {
     Ok(value: p) => {
@@ -232,7 +232,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
       }
     }
   }
-  let close_listener_result = std::net::close_listener(factory: &factory, listener: move listener);
+  let unused_close_listener = std::net::close_listener(factory: &factory, listener: move listener);
   if connections.len != 12_u64 {
     free_empty(window: move connections);
     return exit_status(code: 1_u8);

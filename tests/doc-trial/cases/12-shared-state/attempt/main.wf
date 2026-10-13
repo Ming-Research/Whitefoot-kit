@@ -14,12 +14,13 @@ fn increment_counter(counter: Shared<u64>) -> result: unit pure waits {
 }
 
 fn producer(queue: Shared<Box<Ring<u32>>>) -> result: unit pure waits {
-  for (i in 0_u32..5000_u32) {
+  for (i in 0_u64..5000_u64) {
+    let i_u32 = cvt::<u64, u32>(i);
     loop {
       let placed = False();
       atomic q = &queue {
         if q^.inner.len < 8_u64 {
-          deque_push_back(values: q, value: i);
+          deque_push_back(values: q, value: i_u32);
           set placed = True();
         }
       }

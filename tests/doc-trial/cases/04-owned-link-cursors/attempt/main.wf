@@ -112,10 +112,10 @@ fn write_all(factory: &HandleFactory, output: &OutputStream, data: &[u8]) -> res
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(cwd: cwd_dir, handles: factory, stdout: output, ..) = move inputs;
-  let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_dir;
-  std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
-  std::fs::close_directory(factory: &factory, directory: move cwd_read);
+  let Inputs(cwd: dir_input, handles: factory, stdout: output, ..) = move inputs;
+  let std::fs::Directory(read: dir_read, write: dir_write) = move dir_input;
+  std::fs::close_directory_write(factory: &factory, directory: move dir_write);
+  std::fs::close_directory(factory: &factory, directory: move dir_read);
 
   let head = None<Box<Link>>();
   let current = head;

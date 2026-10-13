@@ -1,9 +1,5 @@
-alias ExitStatus = std::process::ExitStatus;
-alias Inputs = std::process::Inputs;
-alias exit_status = std::process::exit_status;
-
-fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(
+fn main(inputs: std::process::Inputs) -> status: std::process::ExitStatus pure waits {
+  let std::process::Inputs(
     args: unused_args,
     drivers: unused_drivers,
     cwd: cwd_directory,
@@ -78,7 +74,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
 
   if feq(total_sum, 8.0_f64) {
   } else {
-    return exit_status(code: 1_u8);
+    return std::process::exit_status(code: 1_u8);
   }
 
   let sum_bits = reinterpret::<f64, u64>(total_sum);
@@ -98,13 +94,13 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   match write_result {
     Ok(value: written) => {
       if written == 520_u64 {
-        return exit_status(code: 0_u8);
+        return std::process::exit_status(code: 0_u8);
       } else {
-        return exit_status(code: 250_u8);
+        return std::process::exit_status(code: 250_u8);
       }
     }
     Err(error: io_error) => {
-      return exit_status(code: 250_u8);
+      return std::process::exit_status(code: 250_u8);
     }
   }
 }

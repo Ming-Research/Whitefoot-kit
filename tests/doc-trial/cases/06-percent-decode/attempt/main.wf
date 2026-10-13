@@ -9,22 +9,24 @@ fn hex_value(byte: u8) -> result: Option<u8> pure {
   let digit_high = byte <= 57_u8;
   let is_digit = band(digit_low, digit_high);
   if is_digit {
-    let value = byte - 48_u8;
-    return Some<u8>(value: value);
+    let digit_val = byte - 48_u8;
+    return Some<u8>(value: digit_val);
   }
   let upper_low = byte >= 65_u8;
   let upper_high = byte <= 70_u8;
   let is_upper = band(upper_low, upper_high);
   if is_upper {
-    let value = byte - 65_u8 + 10_u8;
-    return Some<u8>(value: value);
+    let offset = byte - 65_u8;
+    let upper_val = offset + 10_u8;
+    return Some<u8>(value: upper_val);
   }
   let lower_low = byte >= 97_u8;
   let lower_high = byte <= 102_u8;
   let is_lower = band(lower_low, lower_high);
   if is_lower {
-    let value = byte - 97_u8 + 10_u8;
-    return Some<u8>(value: value);
+    let offset = byte - 97_u8;
+    let lower_val = offset + 10_u8;
+    return Some<u8>(value: lower_val);
   }
   return None<u8>();
 }

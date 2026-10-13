@@ -6,8 +6,6 @@ alias ReadStop = std::io::ReadStop;
 alias SocketAddress = std::net::SocketAddress;
 alias TcpListener = std::net::TcpListener;
 alias TcpConnection = std::net::TcpConnection;
-alias TcpReceive = std::net::TcpReceive;
-alias TcpSend = std::net::TcpSend;
 alias Instant = std::time::Instant;
 alias CancelWatch = std::time::CancelWatch;
 alias Args = std::text::Args;
@@ -18,7 +16,6 @@ const OK: Array<u8, 5> = "+OK\r\n";
 const NULL_BULK: Array<u8, 5> = "$-1\r\n";
 const ONE: Array<u8, 4> = ":1\r\n";
 const ZERO: Array<u8, 4> = ":0\r\n";
-const ERR_INT: Array<u8, 48> = "-ERR value is not an integer or out of range\r\n";
 
 fn parse_u64(bytes: &[u8]) -> result: Option<u64> reads(bytes) {
   if bytes^.len == 0_u64 {
@@ -41,34 +38,14 @@ fn parse_u64(bytes: &[u8]) -> result: Option<u64> reads(bytes) {
   return Some<u64>(value: result);
 }
 
-fn parse_i64(bytes: &[u8]) -> result: Option<i64> reads(bytes) {
-  if bytes^.len == 0_u64 {
-    return None<i64>();
+fn hash_bytes(key: &[u8]) -> result: u64 reads(key) {
+  let result = 0_u64;
+  for (i in 0_u64..key^.len) {
+    let b = cvt::<u8, u64>(key^[i]);
+    set result = result *wrap 31_u64;
+    set result = result +wrap b;
   }
-  let negative = bytes^[0_u64] == 45_u8;
-  let start = if negative { give 1_u64; } else { give 0_u64; };
-  if start >= bytes^.len {
-    return None<i64>();
-  }
-  let result = 0_i64;
-  for (i in start..bytes^.len) {
-    let ch = bytes^[i];
-    if ch < 48_u8 {
-      return None<i64>();
-    }
-    if ch > 57_u8 {
-      return None<i64>();
-    }
-    let digit = ch - 48_u8;
-    let d = cvt::<u8, i64>(digit);
-    set result = result *wrap 10_i64;
-    if negative {
-      set result = result -wrap d;
-    } else {
-      set result = result +wrap d;
-    }
-  }
-  return Some<i64>(value: result);
+  return result;
 }
 
 fn bytes_equal(left: &[u8], right: &[u8]) -> result: Bool reads(left), reads(right) {
@@ -81,32 +58,6 @@ fn bytes_equal(left: &[u8], right: &[u8]) -> result: Bool reads(left), reads(rig
     }
   }
   return True();
-}
-
-fn case_equal(left: &[u8], right: &[u8]) -> result: Bool reads(left), reads(right) {
-  if left^.len != right^.len {
-    return False();
-  }
-  for (i in 0_u64..left^.len) {
-    let lc = left^[i];
-    let rc = right^[i];
-    let l_upper = if lc >= 97_u8 { if lc <= 122_u8 { give lc - 32_u8; } else { give lc; } } else { give lc; };
-    let r_upper = if rc >= 97_u8 { if rc <= 122_u8 { give rc - 32_u8; } else { give rc; } } else { give rc; };
-    if l_upper != r_upper {
-      return False();
-    }
-  }
-  return True();
-}
-
-fn hash_bytes(key: &[u8]) -> result: u64 reads(key) {
-  let result = 0_u64;
-  for (i in 0_u64..key^.len) {
-    let b = cvt::<u8, u64>(key^[i]);
-    set result = result *wrap 31_u64;
-    set result = result +wrap b;
-  }
-  return result;
 }
 
 interface KeyOps {
@@ -127,52 +78,7 @@ binding KeyBinding : KeyOps {
   equal_key = equal_impl;
 }
 
-fn copy_array(src: &[u8], dst: &[u8]) -> result: unit reads(src), writes(dst) {
-  let len = if src^.len < dst^.len { give src^.len; } else { give dst^.len; };
-  for (i in 0_u64..len) {
-    set dst^[i] = src^[i];
-  }
-  return unit;
-}
-
-fn i64_to_resp(value: i64, buf: &[u8]) -> result: u64 writes(buf) {
-  let negative = value < 0_i64;
-  let abs_val = if negative { give 0_i64 - value; } else { give value; };
-  let digits = 0_u64;
-  let temp = abs_val;
-  loop {
-    if temp == 0_i64 {
-      break;
-    }
-    set digits = digits + 1_u64;
-    set temp = temp / 10_i64;
-  }
-  if digits == 0_u64 {
-    set digits = 1_u64;
-  }
-  let pos = if negative { give digits + 1_u64; } else { give digits; };
-  if negative {
-    set buf^[0_u64] = 45_u8;
-  }
-  set temp = abs_val;
-  loop {
-    if temp == 0_i64 {
-      break;
-    }
-    let digit = temp %wrap 10_i64;
-    let d = cvt::<i64, u8>(digit);
-    set pos = pos - 1_u64;
-    set buf^[pos] = d + 48_u8;
-    set temp = temp / 10_i64;
-  }
-  if digits == 1_u64 {
-    set buf^[0_u64] = 48_u8;
-  }
-  return if negative { give digits + 1_u64; } else { give digits; };
-}
-
-
-fn send_all(send: &TcpSend, factory: &HandleFactory, data: &[u8]) -> result: unit reads(data), writes(factory), writes(send) waits {
+fn send_all(send: &std::net::TcpSend, factory: &HandleFactory, data: &[u8]) -> result: unit reads(data), writes(factory), writes(send) waits {
   let sent = 0_u64;
   loop {
     if sent >= data^.len {
@@ -198,7 +104,6 @@ fn handle_client(factory: &HandleFactory, conn: TcpConnection, store: &Shared<Ha
   let receive = move conn.receive;
   let send = move conn.send;
   let buffer = box_slots_new::<u8>(capacity: 32768_u64);
-  let send_buf = array_filled::<u8, 16384>(value: 0_u8);
   loop {
     let no_deadline = None<Instant>();
     let cancel = std::time::cancel_never();

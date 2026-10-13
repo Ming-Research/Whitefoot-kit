@@ -1,9 +1,5 @@
 alias ExitStatus = std::process::ExitStatus;
 alias exit_status = std::process::exit_status;
-alias Inputs = std::process::Inputs;
-alias HandleFactory = std::io::HandleFactory;
-alias OutputStream = std::io::OutputStream;
-alias CancelWatch = std::time::CancelWatch;
 
 fn encode_u64(value: u64, bytes: &[u8], offset: u64) -> result: unit writes(bytes) contract {
   requires offset + 8_u64 <= bytes^.len;
@@ -54,7 +50,7 @@ fn validate_tree(parents: &[u32], depths: &[u32]) -> valid: Bool reads(parents),
   return valid;
 }
 
-fn write_all(factory: &HandleFactory, output: &OutputStream, bytes: &[u8], total: u64) -> result: Bool reads(bytes), writes(factory), writes(output) waits contract {
+fn write_all(factory: &std::io::HandleFactory, output: &std::io::OutputStream, bytes: &[u8], total: u64) -> result: Bool reads(bytes), writes(factory), writes(output) waits contract {
   requires total <= bytes^.len;
 } {
   let sent = 0_u64;
@@ -79,7 +75,7 @@ fn write_all(factory: &HandleFactory, output: &OutputStream, bytes: &[u8], total
   return True();
 }
 
-fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+fn main(inputs: std::process::Inputs) -> status: ExitStatus pure waits {
   let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: output, stderr: unused_stderr, handles: factory, ..) = move inputs;
   let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
   std::fs::close_directory_write(factory: &factory, directory: move cwd_write);

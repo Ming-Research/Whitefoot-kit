@@ -1,8 +1,9 @@
 alias ExitStatus = std::process::ExitStatus;
+alias Inputs = std::process::Inputs;
 alias exit_status = std::process::exit_status;
 
-fn main(inputs: std::process::Inputs) -> status: ExitStatus pure waits {
-  let std::process::Inputs(cwd: cwd_directory, stdout: stdout_stream, handles: factory, stdin: stdin_stream, ..) = move inputs;
+fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+  let Inputs(cwd: cwd_directory, stdout: stdout_stream, handles: factory, stdin: stdin_stream, ..) = move inputs;
   let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
   let write_close_result = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
   let read_close_result = std::fs::close_directory(factory: &factory, directory: move cwd_read);
