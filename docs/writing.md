@@ -1,6 +1,6 @@
 # Writing Whitefoot
 
-This guide is for agents that write Whitefoot programs and is 2129 lines long. Read all of it before writing code. If a file reader shows only part, read the rest in numbered ranges until the final section is received. Before writing concurrent code, read all of Part 3, including child completion and its examples.
+This guide is for agents that write Whitefoot programs and is 2171 lines long. Read all of it before writing code. If a file reader shows only part, read the rest in numbered ranges until the final section is received. Before writing concurrent code, read all of Part 3, including child completion and its examples.
 
 - Part 1, syntax, holds the forms every program needs. Most first rejections come from these forms; write them as shown, not as another language would.
 - Parts 2 and 3 say how to design a sequential and a concurrent program: where data lives, who owns it, what the checker must be told, how contexts share state. Rejections cannot teach these.
@@ -1023,6 +1023,48 @@ Effect paths begin at the formal without `^`. Write covers reads/writes below it
 `next`, `last`, `filled` and `free` are effect-only window parts, never readable fields or borrow targets. `last` covers successive rear removals, not just one entry slot [WIN-2].
 
 `entry(window)` denotes entry storage; bare written-reference terms denote exit storage. Requirements permit larger arithmetic than published `ensures`, whose relation sides admit one supported datum displaced by a constant, plus at most one bare integer parameter with coefficient one on one side, as in `ensures after <= base + limit;`. Pass a scalar final total when publishing a relation to a larger sum [FN-9, MSR-3].
+
+A subscript inside an `ensures` must be in bounds wherever the clause applies: at every return it covers, and for a routed clause only at returns of its variant. Bound a formal used as an index with a requirement, such as `requires i < 4_u64;`; without it the clause is rejected. A formal in a postcondition means its entry value, so rebinding it in the body changes nothing, and the caller substitutes the actual: after `width(rows: rows, i: 2_u64)` the caller holds `r <= rows^[2_u64].len`, and facts of calls with different actuals stay apart. An `entry(rows)^[i]` place is bounded by the entry length, so elements the body appends cannot justify it. [FN-9, ENT-2]
+
+```whitefoot
+alias ExitStatus = std::process::ExitStatus;
+alias exit_status = std::process::exit_status;
+
+fn width(rows: &Array<Slots<u8, 8>, 4>, i: u64) -> r: u64 reads(rows) contract {
+  requires i < 4_u64;
+  ensures r <= rows^[i].len;
+} {
+  doc "Returns a bound on the length of element i.";
+  if rows^[i].len > 9_u64 {
+    return 0_u64;
+  }
+  return rows^[i].len;
+}
+
+fn need(rows: &Array<Slots<u8, 8>, 4>, w: u64) -> r: u64 reads(rows) contract {
+  requires w <= rows^[2_u64].len;
+} {
+  doc "Requires a bound on the length of element two.";
+  if rows^[2_u64].len > 9_u64 {
+    return 0_u64;
+  }
+  return w;
+}
+
+fn second(rows: &Array<Slots<u8, 8>, 4>) -> r: u64 reads(rows) contract {
+  ensures r <= rows^[2_u64].len;
+} {
+  doc "The call at offset two publishes its relation over element two.";
+  let w = width(rows: rows, i: 2_u64);
+  let needed = need(rows: rows, w: w);
+  return w;
+}
+
+fn main() -> status: ExitStatus pure {
+  doc "The declarations alone are judged.";
+  return exit_status(code: 0_u8);
+}
+```
 
 A call inside a recursive cycle, to the function itself or to another function of the same call-graph cycle, receives the callee's postconditions, written `ensures` included, as induction hypotheses. A body never assumes its own `ensures` at entry, every exit still proves them, and writes to a reference argument after the call kill its facts as for any call. Split recursion can therefore bound its combination directly instead of using a loop or `+sat`: [DIAG-2, FN-9]
 
