@@ -80,7 +80,10 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let outputs = slots_new::<f64, 65>();
   let coefficient = 0.125_f64;
   let total_sum = 0.0_f64;
-  for (i in 0_u64..64_u64) {
+  for (
+    i in 0_u64..64_u64,
+    invariant outputs_count: outputs.len == i
+  ) {
     let current = if i == 0_u64 {
       give 8.0_f64;
     } else {
@@ -118,9 +121,14 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   if fne(total_sum, expected_sum) {
     return exit_status(code: 1_u8);
   }
-  place_back(window: &outputs, value: total_sum);
+  if outputs.len < outputs.cap {
+    place_back(window: &outputs, value: total_sum);
+  }
   let output_bytes = slots_new::<u8, 520>();
-  for (i in 0_u64..65_u64) {
+  for (
+    i in 0_u64..65_u64,
+    invariant bytes_count: output_bytes.len == i * 8_u64
+  ) {
     let value = outputs[i];
     let bytes = f64_to_bytes(value: value);
     let j = 0_u64;

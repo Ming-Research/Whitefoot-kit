@@ -6,8 +6,8 @@ fn coord_from_pixels(pixels: i32) -> result: Coord pure {
 fn coord_from_f64(value: f64) -> result: Coord pure {
   let scaled = fmul.strict(value, 64.0_f64);
   let rounded = froundeven(scaled);
-  let checked = cvt.checked::<f64, i32>(rounded);
-  let raw = match checked {
+  let conversion = cvt.checked::<f64, i32>(rounded);
+  let raw = match conversion {
     Ok(value: r) => {
       give r;
     }

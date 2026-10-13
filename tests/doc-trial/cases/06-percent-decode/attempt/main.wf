@@ -49,8 +49,8 @@ fn decode_percent(input: &[u8], destination: &[u8]) -> result: u64 reads(input),
     let percent_code = 37_u8;
     let is_percent = current == percent_code;
     if is_percent {
-      let next1 = in_pos + 1_u64;
-      let next2 = in_pos + 2_u64;
+      let next1 = in_pos +wrap 1_u64;
+      let next2 = in_pos +wrap 2_u64;
       let has_room = next2 < in_len;
       if has_room {
         let first_byte = input^[next1];
@@ -64,31 +64,31 @@ fn decode_percent(input: &[u8], destination: &[u8]) -> result: u64 reads(input),
                 let high = fv *wrap 16_u8;
                 let decoded = high +wrap sv;
                 set destination^[out_pos] = decoded;
-                set out_pos = out_pos + 1_u64;
-                set in_pos = next2 + 1_u64;
+                set out_pos = out_pos +wrap 1_u64;
+                set in_pos = next2 +wrap 1_u64;
               }
               None() => {
                 set destination^[out_pos] = current;
-                set out_pos = out_pos + 1_u64;
+                set out_pos = out_pos +wrap 1_u64;
                 set in_pos = next1;
               }
             }
           }
           None() => {
             set destination^[out_pos] = current;
-            set out_pos = out_pos + 1_u64;
+            set out_pos = out_pos +wrap 1_u64;
             set in_pos = next1;
           }
         }
       } else {
         set destination^[out_pos] = current;
-        set out_pos = out_pos + 1_u64;
-        set in_pos = in_pos + 1_u64;
+        set out_pos = out_pos +wrap 1_u64;
+        set in_pos = in_pos +wrap 1_u64;
       }
     } else {
       set destination^[out_pos] = current;
-      set out_pos = out_pos + 1_u64;
-      set in_pos = in_pos + 1_u64;
+      set out_pos = out_pos +wrap 1_u64;
+      set in_pos = in_pos +wrap 1_u64;
     }
   }
   return out_pos;

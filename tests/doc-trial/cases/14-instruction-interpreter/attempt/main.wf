@@ -120,10 +120,14 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   std::fs::close_directory(factory: &factory, directory: move cwd_read);
 
   let instructions = slots_new::<Instruction, 4>();
-  place_back(window: &instructions, value: Instruction::Add(literal: 3_u64));
-  place_back(window: &instructions, value: Instruction::Decrement());
-  place_back(window: &instructions, value: Instruction::JumpIfNonZero(target: 0_u64));
-  place_back(window: &instructions, value: Instruction::Halt());
+  let instr0 = Instruction::Add(literal: 3_u64);
+  place_back(window: &instructions, value: instr0);
+  let instr1 = Instruction::Decrement();
+  place_back(window: &instructions, value: instr1);
+  let instr2 = Instruction::JumpIfNonZero(target: 0_u64);
+  place_back(window: &instructions, value: instr2);
+  let instr3 = Instruction::Halt();
+  place_back(window: &instructions, value: instr3);
 
   let view = &instructions[0_u64..instructions.len];
   let result = run_machine(instructions: view, counter: 1000_u64);

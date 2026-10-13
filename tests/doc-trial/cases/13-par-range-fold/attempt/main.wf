@@ -14,7 +14,7 @@ const seed_count: u64 = 400000_u64;
 fn mixer(state: u64) -> result: u64 pure {
   let rotated = irotl(state, 27_u32);
   let multiplied = state *wrap constant_a;
-  let xored = rotated ixor multiplied;
+  let xored = ixor(rotated, multiplied);
   let result = xored +wrap constant_b;
   return result;
 }

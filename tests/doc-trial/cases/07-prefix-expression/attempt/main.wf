@@ -18,7 +18,8 @@ fn parse_expr(bytes: &[u8], pos: u64) -> result: ParseResult reads(bytes) {
   let byte = bytes^[pos];
   let is_plus = byte == 43_u8;
   if is_plus {
-    let result1 = parse_expr(bytes: bytes, pos: pos + 1_u64);
+    let next_pos1 = pos + 1_u64;
+    let result1 = parse_expr(bytes: bytes, pos: next_pos1);
     if result1.error != 0_u8 {
       return result1;
     }
@@ -36,11 +37,14 @@ fn parse_expr(bytes: &[u8], pos: u64) -> result: ParseResult reads(bytes) {
       }
     }
   } else {
-    let is_digit = band(byte >= 48_u8, byte <= 57_u8);
+    let is_ge_48 = byte >= 48_u8;
+    let is_le_57 = byte <= 57_u8;
+    let is_digit = band(is_ge_48, is_le_57);
     if is_digit {
       let digit = byte - 48_u8;
       let digit_u64 = cvt::<u8, u64>(digit);
-      return ParseResult(value: digit_u64, next_pos: pos + 1_u64, error: 0_u8);
+      let next_pos_digit = pos + 1_u64;
+      return ParseResult(value: digit_u64, next_pos: next_pos_digit, error: 0_u8);
     } else {
       return ParseResult(value: 0_u64, next_pos: pos, error: 2_u8);
     }
@@ -49,21 +53,30 @@ fn parse_expr(bytes: &[u8], pos: u64) -> result: ParseResult reads(bytes) {
 
 fn u64_to_le_bytes(value: u64) -> result: Array<u8, 8> pure {
   let bytes = array_filled::<u8, 8>(value: 0_u8);
-  set bytes[0_u64] = cvt::<u64, u8>(value);
+  let mask = 255_u64;
+  let byte0 = iand(value, mask);
+  set bytes[0_u64] = cvt::<u64, u8>(byte0);
   let shifted1 = ishr(value, 8_u32);
-  set bytes[1_u64] = cvt::<u64, u8>(shifted1);
+  let byte1 = iand(shifted1, mask);
+  set bytes[1_u64] = cvt::<u64, u8>(byte1);
   let shifted2 = ishr(value, 16_u32);
-  set bytes[2_u64] = cvt::<u64, u8>(shifted2);
+  let byte2 = iand(shifted2, mask);
+  set bytes[2_u64] = cvt::<u64, u8>(byte2);
   let shifted3 = ishr(value, 24_u32);
-  set bytes[3_u64] = cvt::<u64, u8>(shifted3);
+  let byte3 = iand(shifted3, mask);
+  set bytes[3_u64] = cvt::<u64, u8>(byte3);
   let shifted4 = ishr(value, 32_u32);
-  set bytes[4_u64] = cvt::<u64, u8>(shifted4);
+  let byte4 = iand(shifted4, mask);
+  set bytes[4_u64] = cvt::<u64, u8>(byte4);
   let shifted5 = ishr(value, 40_u32);
-  set bytes[5_u64] = cvt::<u64, u8>(shifted5);
+  let byte5 = iand(shifted5, mask);
+  set bytes[5_u64] = cvt::<u64, u8>(byte5);
   let shifted6 = ishr(value, 48_u32);
-  set bytes[6_u64] = cvt::<u64, u8>(shifted6);
+  let byte6 = iand(shifted6, mask);
+  set bytes[6_u64] = cvt::<u64, u8>(byte6);
   let shifted7 = ishr(value, 56_u32);
-  set bytes[7_u64] = cvt::<u64, u8>(shifted7);
+  let byte7 = iand(shifted7, mask);
+  set bytes[7_u64] = cvt::<u64, u8>(byte7);
   return move bytes;
 }
 
@@ -109,24 +122,25 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let result2 = parse_expr(bytes: &incomplete_bytes[0_u64..2_u64], pos: 0_u64);
   let output_pos = u64_to_le_bytes(value: result1.next_pos);
   let output_value = u64_to_le_bytes(value: result1.value);
-  let output_error = u64_to_le_bytes(value: cvt::<u8, u64>(result2.error));
+  let error_u64 = cvt::<u8, u64>(result2.error);
+  let output_error = u64_to_le_bytes(value: error_u64);
   let output_buffer = array_filled::<u8, 24>(value: 0_u8);
-  let pos = 0_u64;
   for (i in 0_u64..8_u64) {
-    set output_buffer[pos + i] = output_pos[i];
+    set output_buffer[i] = output_pos[i];
   }
-  let pos2 = pos + 8_u64;
   for (i in 0_u64..8_u64) {
-    set output_buffer[pos2 + i] = output_value[i];
+    let idx = 8_u64 + i;
+    set output_buffer[idx] = output_value[i];
   }
-  let pos3 = pos2 + 8_u64;
   for (i in 0_u64..8_u64) {
-    set output_buffer[pos3 + i] = output_error[i];
+    let idx = 16_u64 + i;
+    set output_buffer[idx] = output_error[i];
   }
   let check_pos = result1.next_pos == 5_u64;
   let check_value = result1.value == 9_u64;
   let check_error = result2.error == 1_u8;
-  let check_success = band(check_pos, band(check_value, check_error));
+  let check_value_and_error = band(check_value, check_error);
+  let check_success = band(check_pos, check_value_and_error);
   if check_success {
   } else {
     return exit_status(code: 1_u8);

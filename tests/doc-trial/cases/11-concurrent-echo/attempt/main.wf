@@ -20,7 +20,9 @@ fn parse_port_bytes(bytes: &[u8]) -> result: Option<u16> reads(bytes) {
   let value = 0_u32;
   for (i in 0_u64..len) {
     let byte = bytes^[i];
-    let is_digit = band(byte >= 48_u8, byte <= 57_u8);
+    let low = byte >= 48_u8;
+    let high = byte <= 57_u8;
+    let is_digit = band(low, high);
     if is_digit {
       let digit = byte - 48_u8;
       let digit_u32 = cvt::<u8, u32>(digit);

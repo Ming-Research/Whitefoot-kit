@@ -85,7 +85,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     }
   }
   let optional = Some<u8>(value: 19_u8);
-  let recovered_byte = match move optional {
+  let recovered_byte = match optional {
     Some(value: v) => {
       give v;
     }

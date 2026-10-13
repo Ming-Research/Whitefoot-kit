@@ -75,7 +75,7 @@ fn u64_to_little_endian(value: u64) -> result: Array<u8, 8> pure {
   let shift7 = ishr(value, 56_u32);
   let byte7 = cvt.wrap::<u64, u8>(shift7);
   set bytes[7_u64] = byte7;
-  return move bytes;
+  return bytes;
 }
 
 fn write_all(factory: &HandleFactory, output: &OutputStream, source: &[u8]) -> result: Result<unit, std::io::IoError> reads(source), writes(factory), writes(output) waits {

@@ -9,23 +9,29 @@ alias CancelWatch = std::time::CancelWatch;
 alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
 
-struct StoreValue {
+struct BulkStringParsed {
   data: Slots<u8>;
+  next_pos: u64;
 }
 
-fn parse_bulk_string(buffer: &[u8], start: u64) -> result: Result<(Slots<u8>, u64), u64> reads(buffer) {
+struct CommandParsed {
+  elements: Slots<Slots<u8>>;
+  consumed: u64;
+}
+
+fn parse_bulk_string(buffer: &[u8], start: u64) -> result: Result<BulkStringParsed, u64> reads(buffer) {
   let buffer_len = buffer^.len;
   if start >= buffer_len {
-    return Err<(Slots<u8>, u64), u64>(error: 0_u64);
+    return Err<BulkStringParsed, u64>(error: 0_u64);
   }
   if buffer^[start] != 36_u8 {
-    return Err<(Slots<u8>, u64), u64>(error: 1_u64);
+    return Err<BulkStringParsed, u64>(error: 1_u64);
   }
   let pos = start +wrap 1_u64;
   let len_end = pos;
   loop @find_len_end {
     if len_end >= buffer_len {
-      return Err<(Slots<u8>, u64), u64>(error: 0_u64);
+      return Err<BulkStringParsed, u64>(error: 0_u64);
     }
     if buffer^[len_end] == 13_u8 {
       break @find_len_end;
@@ -37,10 +43,10 @@ fn parse_bulk_string(buffer: &[u8], start: u64) -> result: Result<(Slots<u8>, u6
   for (i in 0_u64..len_str^.len) {
     let byte = len_str^[i];
     if byte < 48_u8 {
-      return Err<(Slots<u8>, u64), u64>(error: 1_u64);
+      return Err<BulkStringParsed, u64>(error: 1_u64);
     }
     if byte > 57_u8 {
-      return Err<(Slots<u8>, u64), u64>(error: 1_u64);
+      return Err<BulkStringParsed, u64>(error: 1_u64);
     }
     let digit = byte - 48_u8;
     set len_value = len_value *wrap 10_u64;
@@ -49,13 +55,13 @@ fn parse_bulk_string(buffer: &[u8], start: u64) -> result: Result<(Slots<u8>, u6
   let data_start = len_end +wrap 2_u64;
   let data_end = data_start +wrap len_value;
   if data_end +wrap 2_u64 > buffer_len {
-    return Err<(Slots<u8>, u64), u64>(error: 0_u64);
+    return Err<BulkStringParsed, u64>(error: 0_u64);
   }
   if buffer^[data_end] != 13_u8 {
-    return Err<(Slots<u8>, u64), u64>(error: 1_u64);
+    return Err<BulkStringParsed, u64>(error: 1_u64);
   }
   if buffer^[data_end +wrap 1_u64] != 10_u8 {
-    return Err<(Slots<u8>, u64), u64>(error: 1_u64);
+    return Err<BulkStringParsed, u64>(error: 1_u64);
   }
   let data = slots_new::<u8, 4096>();
   for (i in 0_u64..len_value) {
@@ -63,22 +69,23 @@ fn parse_bulk_string(buffer: &[u8], start: u64) -> result: Result<(Slots<u8>, u6
     place_back(window: &data, value: byte);
   }
   let next_pos = data_end +wrap 2_u64;
-  return Ok<(Slots<u8>, u64), u64>(value: (move data, next_pos));
+  let parsed = BulkStringParsed(data: move data, next_pos: next_pos);
+  return Ok<BulkStringParsed, u64>(value: move parsed);
 }
 
-fn parse_command(buffer: &[u8]) -> result: Result<(Slots<Slots<u8>>, u64), u64> reads(buffer) {
+fn parse_command(buffer: &[u8]) -> result: Result<CommandParsed, u64> reads(buffer) {
   let buffer_len = buffer^.len;
   if buffer_len == 0_u64 {
-    return Err<(Slots<Slots<u8>>, u64), u64>(error: 0_u64);
+    return Err<CommandParsed, u64>(error: 0_u64);
   }
   if buffer^[0_u64] != 42_u8 {
-    return Err<(Slots<Slots<u8>>, u64), u64>(error: 1_u64);
+    return Err<CommandParsed, u64>(error: 1_u64);
   }
   let pos = 1_u64;
   let count_end = pos;
   loop @find_count_end {
     if count_end >= buffer_len {
-      return Err<(Slots<Slots<u8>>, u64), u64>(error: 0_u64);
+      return Err<CommandParsed, u64>(error: 0_u64);
     }
     if buffer^[count_end] == 13_u8 {
       break @find_count_end;
@@ -90,10 +97,10 @@ fn parse_command(buffer: &[u8]) -> result: Result<(Slots<Slots<u8>>, u64), u64> 
   for (i in 0_u64..count_str^.len) {
     let byte = count_str^[i];
     if byte < 48_u8 {
-      return Err<(Slots<Slots<u8>>, u64), u64>(error: 1_u64);
+      return Err<CommandParsed, u64>(error: 1_u64);
     }
     if byte > 57_u8 {
-      return Err<(Slots<Slots<u8>>, u64), u64>(error: 1_u64);
+      return Err<CommandParsed, u64>(error: 1_u64);
     }
     let digit = byte - 48_u8;
     set count = count *wrap 10_u64;
@@ -108,20 +115,21 @@ fn parse_command(buffer: &[u8]) -> result: Result<(Slots<Slots<u8>>, u64), u64> 
     }
     let parse_result = parse_bulk_string(buffer, pos);
     match parse_result {
-      Ok(value: pair) => {
-        let data = pair.0;
-        let next_pos = pair.1;
+      Ok(value: parsed) => {
+        let data = parsed.data;
+        let next_pos = parsed.next_pos;
         place_back(window: &elements, value: move data);
         set pos = next_pos;
         set elem_idx = elem_idx +wrap 1_u64;
         continue @parse_elements;
       }
       Err(error: err) => {
-        return Err<(Slots<Slots<u8>>, u64), u64>(error: err);
+        return Err<CommandParsed, u64>(error: err);
       }
     }
   }
-  return Ok<(Slots<Slots<u8>>, u64), u64>(value: (move elements, pos));
+  let cmd_parsed = CommandParsed(elements: move elements, consumed: pos);
+  return Ok<CommandParsed, u64>(value: move cmd_parsed);
 }
 
 fn bytes_to_i64(bytes: &Slots<u8>) -> result: Result<i64, unit> reads(bytes) {
@@ -196,9 +204,9 @@ fn handle_connection(store: Shared<unit>, send: TcpSend, receive: TcpReceive, fa
   loop @request_loop {
     let parse_result = parse_command(&buffer[0_u64..buffer_len]);
     match parse_result {
-      Ok(value: pair) => {
-        let cmd_args = pair.0;
-        let consumed = pair.1;
+      Ok(value: parsed) => {
+        let cmd_args = parsed.elements;
+        let consumed = parsed.consumed;
         if cmd_args.len > 0_u64 {
           let cmd = &cmd_args[0_u64];
           let pong_msg = "+PONG\r\n";

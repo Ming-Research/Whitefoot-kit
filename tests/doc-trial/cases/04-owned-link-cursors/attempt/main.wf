@@ -46,7 +46,8 @@ fn sum_list(node: &LinkNode) -> result: u64 reads(node) {
 }
 
 fn filter_list(node: &LinkNode) -> result: Option<Box<LinkNode>> reads(node) {
-  if node^.value % 2_u64 == 0_u64 {
+  let remainder = node^.value % 2_u64;
+  if remainder == 0_u64 {
     match &node^.next {
       Some(value: next_box) => {
         return filter_list(node: &next_box^.inner);

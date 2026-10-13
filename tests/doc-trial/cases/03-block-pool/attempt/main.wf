@@ -44,7 +44,8 @@ fn u64_to_le_bytes(value: u64) -> result: Array<u8, 8> pure {
 fn take_lease(pool: &BlockPool) -> result: Option<BlockLease> writes(pool.free_count) {
   if pool^.free_count > 0_u64 {
     set pool^.free_count = pool^.free_count - 1_u64;
-    return Some<BlockLease>(value: BlockLease());
+    let lease = BlockLease();
+    return Some<BlockLease>(value: lease);
   }
   return None<BlockLease>();
 }

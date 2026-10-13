@@ -1,4 +1,5 @@
 alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
 
-public fn main(inputs: Inputs) -> status: ExitStatus pure waits doc "Parses prefix expressions and writes test output to stdout.";
+public fn main(inputs: Inputs) -> status: ExitStatus pure waits doc "Parses prefix expressions and writes test output.";
+
