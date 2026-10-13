@@ -164,11 +164,11 @@ fn write_bytes(output: &OutputStream, source: &[u8], factory: &HandleFactory) ->
   }
 }
 
-fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(args: unused_args, drivers: unused_drivers, cwd: directory, stdout: output, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
-  let std::fs::Directory(read: directory_read, write: directory_write) = move directory;
-  std::fs::close_directory_write(factory: &factory, directory: move directory_write);
-  std::fs::close_directory(factory: &factory, directory: move directory_read);
+fn main(inputs: Inputs) -> exit_code: ExitStatus pure waits {
+  let Inputs(args: arg_list, drivers: num_drivers, cwd: working_dir, stdout: out_stream, stderr: err_stream, handles: handle_factory, stdin: in_stream, clock: sys_clock, wall_clock: wall_time, stops: stop_signals, memory_meter: mem_meter) = move inputs;
+  let std::fs::Directory(read: directory_read, write: directory_write) = move working_dir;
+  std::fs::close_directory_write(factory: &handle_factory, directory: move directory_write);
+  std::fs::close_directory(factory: &handle_factory, directory: move directory_read);
   let input = array_filled::<u8, 11>(value: 0_u8);
   set input[0_u64] = 65_u8;
   set input[1_u64] = 37_u8;
@@ -216,15 +216,15 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
             set output_len[5_u64] = destination[5_u64];
             set output_len[6_u64] = destination[6_u64];
             let output_ref = &output_len[0_u64..7_u64];
-            let write_result = write_bytes(output: output, source: output_ref, factory: &factory);
+            let write_result = write_bytes(output: out_stream, source: output_ref, factory: &handle_factory);
             match write_result {
               Ok(value: write_bytes_ok) => {
-                let len_write = write_u64_le(output: output, value: expected_len, factory: &factory);
+                let len_write = write_u64_le(output: out_stream, value: expected_len, factory: &handle_factory);
                 match len_write {
                   Ok(value: write_len_ok) => {
                     let sentinel = array_filled::<u8, 1>(value: 204_u8);
                     let sentinel_ref = &sentinel[0_u64..1_u64];
-                    let sentinel_write = write_bytes(output: output, source: sentinel_ref, factory: &factory);
+                    let sentinel_write = write_bytes(output: out_stream, source: sentinel_ref, factory: &handle_factory);
                     match sentinel_write {
                       Ok(value: write_sentinel_ok) => {
                         return exit_status(code: 0_u8);
@@ -253,8 +253,9 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
         return exit_status(code: 1_u8);
       }
     }
-    Err(error: decode_code) => {
-      return exit_status(code: decode_code);
+    Err(error: error_code) => {
+      return exit_status(code: error_code);
     }
   }
 }
+

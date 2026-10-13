@@ -2,86 +2,86 @@ alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
 alias exit_status = std::process::exit_status;
 
-enum Operation {
-  Add(value: u64);
-  Decrement();
-  JumpIfNonzero(target: u64);
-  Halt();
+enum Op {
+  AddVal(v: u64);
+  Dec();
+  Jnz(t: u64);
+  Hlt();
 }
 
-fn run_machine(program: &[Operation], initial_counter: u64) -> result: u64 pure {
-  let accumulator = 0_u64;
-  let counter = initial_counter;
-  let pc = 0_u64;
+fn exec(prog: &[Op], ctr: u64) -> acc: u64 pure {
+  let a = 0_u64;
+  let c = ctr;
+  let p = 0_u64;
   loop {
-    if pc >= program^.len {
+    if p >= prog^.len {
       return 0_u64;
     }
-    match program^[pc] {
-      Add(value: v) => {
-        set accumulator = accumulator +wrap v^;
-        set pc = pc + 1_u64;
+    match prog^[p] {
+      AddVal(v: x) => {
+        set a = a +wrap x^;
+        set p = p + 1_u64;
       }
-      Decrement() => {
-        set counter = counter +wrap 18446744073709551615_u64;
-        set pc = pc + 1_u64;
+      Dec() => {
+        set c = c +wrap 18446744073709551615_u64;
+        set p = p + 1_u64;
       }
-      JumpIfNonzero(target: t) => {
-        if counter == 0_u64 {
-          set pc = pc + 1_u64;
+      Jnz(t: pos) => {
+        if c == 0_u64 {
+          set p = p + 1_u64;
         } else {
-          set pc = t^;
+          set p = pos^;
         }
       }
-      Halt() => {
-        return accumulator;
+      Hlt() => {
+        return a;
       }
     }
   }
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus waits {
-  let Inputs(cwd: directory, handles: factory, stdout: output, ..) = move inputs;
-  let std::fs::Directory(read: directory_read, write: directory_write) = move directory;
-  std::fs::close_directory_write(factory: &factory, directory: move directory_write);
-  std::fs::close_directory(factory: &factory, directory: move directory_read);
-  let program = array_filled::<Operation, 4>(value: Operation::Halt());
-  set program[0_u64] = Operation::Add(value: 3_u64);
-  set program[1_u64] = Operation::Decrement();
-  set program[2_u64] = Operation::JumpIfNonzero(target: 0_u64);
-  set program[3_u64] = Operation::Halt();
-  let view = &program[0_u64..4_u64];
-  let result = run_machine(program: view, initial_counter: 1000_u64);
-  let bytes = array_filled::<u8, 8>(value: 0_u8);
-  set bytes[0_u64] = cvt.wrap::<u64, u8>(result);
-  set bytes[1_u64] = cvt.wrap::<u64, u8>(ishr(result, 8_u32));
-  set bytes[2_u64] = cvt.wrap::<u64, u8>(ishr(result, 16_u32));
-  set bytes[3_u64] = cvt.wrap::<u64, u8>(ishr(result, 24_u32));
-  set bytes[4_u64] = cvt.wrap::<u64, u8>(ishr(result, 32_u32));
-  set bytes[5_u64] = cvt.wrap::<u64, u8>(ishr(result, 40_u32));
-  set bytes[6_u64] = cvt.wrap::<u64, u8>(ishr(result, 48_u32));
-  set bytes[7_u64] = cvt.wrap::<u64, u8>(ishr(result, 56_u32));
-  let sent = 0_u64;
-  let output_view = &bytes[0_u64..8_u64];
-  loop @write {
-    if sent < 8_u64 {
-      let no_deadline = None<std::time::Instant>();
-      let cancel = std::time::cancel_never();
-      let write_result = std::io::write_once(factory: &factory, output: &output, source: output_view, start: sent, end: 8_u64, deadline: no_deadline, cancel: &cancel);
-      std::time::close_cancel_watch(watch: move cancel);
-      match write_result {
-        Ok(value: next) => {
-          set sent = next;
+  let Inputs(cwd: dir, handles: fac, stdout: out, ..) = move inputs;
+  let std::fs::Directory(read: dr, write: dw) = move dir;
+  std::fs::close_directory_write(factory: &fac, directory: move dw);
+  std::fs::close_directory(factory: &fac, directory: move dr);
+  let ops = array_filled::<Op, 4>(value: Op::Hlt());
+  set ops[0_u64] = Op::AddVal(v: 3_u64);
+  set ops[1_u64] = Op::Dec();
+  set ops[2_u64] = Op::Jnz(t: 0_u64);
+  set ops[3_u64] = Op::Hlt();
+  let v = &ops[0_u64..4_u64];
+  let r = exec(prog: v, ctr: 1000_u64);
+  let b = array_filled::<u8, 8>(value: 0_u8);
+  set b[0_u64] = cvt.wrap::<u64, u8>(r);
+  set b[1_u64] = cvt.wrap::<u64, u8>(ishr(r, 8_u32));
+  set b[2_u64] = cvt.wrap::<u64, u8>(ishr(r, 16_u32));
+  set b[3_u64] = cvt.wrap::<u64, u8>(ishr(r, 24_u32));
+  set b[4_u64] = cvt.wrap::<u64, u8>(ishr(r, 32_u32));
+  set b[5_u64] = cvt.wrap::<u64, u8>(ishr(r, 40_u32));
+  set b[6_u64] = cvt.wrap::<u64, u8>(ishr(r, 48_u32));
+  set b[7_u64] = cvt.wrap::<u64, u8>(ishr(r, 56_u32));
+  let s = 0_u64;
+  let ov = &b[0_u64..8_u64];
+  loop @w {
+    if s < 8_u64 {
+      let nd = None<std::time::Instant>();
+      let cn = std::time::cancel_never();
+      let wr = std::io::write_once(factory: &fac, output: &out, source: ov, start: s, end: 8_u64, deadline: nd, cancel: &cn);
+      std::time::close_cancel_watch(watch: move cn);
+      match wr {
+        Ok(value: nx) => {
+          set s = nx;
         }
-        Err(error: unused_error) => {
+        Err(error: e) => {
           return exit_status(code: 2_u8);
         }
       }
     } else {
-      break @write;
+      break @w;
     }
   }
-  if result == 3000_u64 {
+  if r == 3000_u64 {
     return exit_status(code: 0_u8);
   } else {
     return exit_status(code: 1_u8);

@@ -16,9 +16,9 @@ fn sum_list(head: &Option<Box<Link>>) -> result: u64 reads(head) {
   let total = 0_u64;
   loop {
     match cursor^ {
-      Some(value: node) => {
-        set total = total +wrap node^.inner.value;
-        set cursor = &node^.inner.next;
+      Some(value: n) => {
+        set total = total +wrap n^.inner.value;
+        set cursor = &n^.inner.next;
       }
       None() => {
         return total;

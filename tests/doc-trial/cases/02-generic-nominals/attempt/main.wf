@@ -29,20 +29,21 @@ fn write_output(fac: &std::io::HandleFactory, out: &std::io::OutputStream, src: 
   let len = src^.len;
   loop @send {
     if pos < len {
+      let no_dl = None<std::time::Instant>();
+      let cancel = std::time::cancel_never();
+      let outcome = std::io::write_once(factory: fac, output: out, source: src, start: pos, end: len, deadline: no_dl, cancel: &cancel);
+      std::time::close_cancel_watch(watch: move cancel);
+      match outcome {
+        Ok(value: nxt) => {
+          set pos = nxt;
+          continue @send;
+        }
+        Err(error: err) => {
+          return Err<unit, std::io::IoError>(error: err);
+        }
+      }
     } else {
       break @send;
-    }
-    let no_dl = None<std::time::Instant>();
-    let cancel = std::time::cancel_never();
-    let outcome = std::io::write_once(factory: fac, output: out, source: src, start: pos, end: len, deadline: no_dl, cancel: &cancel);
-    std::time::close_cancel_watch(watch: move cancel);
-    match outcome {
-      Ok(value: nxt) => {
-        set pos = nxt;
-      }
-      Err(error: err) => {
-        return Err<unit, std::io::IoError>(error: err);
-      }
     }
   }
   return Ok<unit, std::io::IoError>(value: unit);
