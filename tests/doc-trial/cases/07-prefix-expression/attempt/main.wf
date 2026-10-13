@@ -1,0 +1,233 @@
+enum ParseError {
+  Truncated();
+  InvalidToken();
+}
+
+enum EvalError {
+  Overflow();
+}
+
+enum Expression {
+  Digit(value: u8);
+  Plus(left: Box<Expression>, right: Box<Expression>);
+}
+
+fn parse_digit_or_plus(bytes: &Array<u8, 5>, pos: u64) -> result: Result<(Expression, u64), ParseError> pure;
+fn parse_plus_args(bytes: &Array<u8, 5>, pos: u64) -> result: Result<(Expression, u64), ParseError> pure;
+
+fn parse_digit_or_plus(bytes: &Array<u8, 5>, pos: u64) -> result: Result<(Expression, u64), ParseError> pure {
+  if pos >= 5_u64 {
+    return Err<(Expression, u64), ParseError>(ParseError::Truncated());
+  }
+
+  let byte = bytes^[pos];
+
+  if byte == '+' {
+    return parse_plus_args(bytes: bytes, pos: pos + 1_u64);
+  } else if byte >= '0' && byte <= '9' {
+    let digit_val = byte - '0';
+    let expr = Expression::Digit(value: digit_val);
+    return Ok<(Expression, u64), ParseError>((expr, pos + 1_u64));
+  } else {
+    return Err<(Expression, u64), ParseError>(ParseError::InvalidToken());
+  }
+}
+
+fn parse_plus_args(bytes: &Array<u8, 5>, pos: u64) -> result: Result<(Expression, u64), ParseError> pure {
+  let left_result = parse_digit_or_plus(bytes: bytes, pos: pos);
+  match left_result {
+    Ok(left_pair) => {
+      let left_expr = left_pair.0;
+      let next_pos = left_pair.1;
+      let right_result = parse_digit_or_plus(bytes: bytes, pos: next_pos);
+      match right_result {
+        Ok(right_pair) => {
+          let right_expr = right_pair.0;
+          let final_pos = right_pair.1;
+          let left_box = box_new::<Expression>(value: move left_expr);
+          let right_box = box_new::<Expression>(value: move right_expr);
+          let expr = Expression::Plus(left: move left_box, right: move right_box);
+          return Ok<(Expression, u64), ParseError>((expr, final_pos));
+        }
+        Err(e) => {
+          return Err<(Expression, u64), ParseError>(move e);
+        }
+      }
+    }
+    Err(e) => {
+      return Err<(Expression, u64), ParseError>(move e);
+    }
+  }
+}
+
+fn evaluate(expr: Expression) -> result: Result<u64, EvalError> pure {
+  match move expr {
+    Expression::Digit(value: v) => {
+      return Ok<u64, EvalError>(cvt::<u8, u64>(v));
+    }
+    Expression::Plus(left: left_box, right: right_box) => {
+      let left_expr = move left_box.inner;
+      let right_expr = move right_box.inner;
+      let left_result = evaluate(expr: move left_expr);
+      match left_result {
+        Ok(left_val) => {
+          let right_result = evaluate(expr: move right_expr);
+          match right_result {
+            Ok(right_val) => {
+              let max_left = 18446744073709551615_u64;
+              if left_val > max_left - right_val {
+                return Err<u64, EvalError>(EvalError::Overflow());
+              }
+              let sum = left_val + right_val;
+              return Ok<u64, EvalError>(sum);
+            }
+            Err(e) => {
+              return Err<u64, EvalError>(move e);
+            }
+          }
+        }
+        Err(e) => {
+          return Err<u64, EvalError>(move e);
+        }
+      }
+    }
+  }
+}
+
+fn parse_digit_or_plus_2(bytes: &Array<u8, 2>, pos: u64) -> result: Result<(Expression, u64), ParseError> pure;
+fn parse_plus_args_2(bytes: &Array<u8, 2>, pos: u64) -> result: Result<(Expression, u64), ParseError> pure;
+
+fn parse_digit_or_plus_2(bytes: &Array<u8, 2>, pos: u64) -> result: Result<(Expression, u64), ParseError> pure {
+  if pos >= 2_u64 {
+    return Err<(Expression, u64), ParseError>(ParseError::Truncated());
+  }
+
+  let byte = bytes^[pos];
+
+  if byte == '+' {
+    return parse_plus_args_2(bytes: bytes, pos: pos + 1_u64);
+  } else if byte >= '0' && byte <= '9' {
+    let digit_val = byte - '0';
+    let expr = Expression::Digit(value: digit_val);
+    return Ok<(Expression, u64), ParseError>((expr, pos + 1_u64));
+  } else {
+    return Err<(Expression, u64), ParseError>(ParseError::InvalidToken());
+  }
+}
+
+fn parse_plus_args_2(bytes: &Array<u8, 2>, pos: u64) -> result: Result<(Expression, u64), ParseError> pure {
+  let left_result = parse_digit_or_plus_2(bytes: bytes, pos: pos);
+  match left_result {
+    Ok(left_pair) => {
+      let left_expr = left_pair.0;
+      let next_pos = left_pair.1;
+      let right_result = parse_digit_or_plus_2(bytes: bytes, pos: next_pos);
+      match right_result {
+        Ok(right_pair) => {
+          let right_expr = right_pair.0;
+          let final_pos = right_pair.1;
+          let left_box = box_new::<Expression>(value: move left_expr);
+          let right_box = box_new::<Expression>(value: move right_expr);
+          let expr = Expression::Plus(left: move left_box, right: move right_box);
+          return Ok<(Expression, u64), ParseError>((expr, final_pos));
+        }
+        Err(e) => {
+          return Err<(Expression, u64), ParseError>(move e);
+        }
+      }
+    }
+    Err(e) => {
+      return Err<(Expression, u64), ParseError>(move e);
+    }
+  }
+}
+
+fn place_u64_le(window: &Slots<u8, 24>, index: u64, value: u64) -> result: unit writes(window) {
+  let b0 = cvt::<u64, u8>(value);
+  let b1 = cvt::<u64, u8>(ishr(value, 8_u32));
+  let b2 = cvt::<u64, u8>(ishr(value, 16_u32));
+  let b3 = cvt::<u64, u8>(ishr(value, 24_u32));
+  let b4 = cvt::<u64, u8>(ishr(value, 32_u32));
+  let b5 = cvt::<u64, u8>(ishr(value, 40_u32));
+  let b6 = cvt::<u64, u8>(ishr(value, 48_u32));
+  let b7 = cvt::<u64, u8>(ishr(value, 56_u32));
+
+  set window^[index] = b0;
+  set window^[index + 1_u64] = b1;
+  set window^[index + 2_u64] = b2;
+  set window^[index + 3_u64] = b3;
+  set window^[index + 4_u64] = b4;
+  set window^[index + 5_u64] = b5;
+  set window^[index + 6_u64] = b6;
+  set window^[index + 7_u64] = b7;
+
+  return unit;
+}
+
+const INPUT1: Array<u8, 5> = "+2+34";
+const INPUT2: Array<u8, 2> = "+2";
+
+fn main(inputs: std::process::Inputs) -> result: std::process::ExitCode waits {
+  let std::process::Inputs(args: unused_args, drivers: unused_drivers, cwd: unused_cwd, stdout: out, stderr: unused_err, handles: factory, stdin: unused_input, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+
+  let parse_result1 = parse_digit_or_plus(bytes: &INPUT1, pos: 0_u64);
+
+  let pos1: u64;
+  let val1: u64;
+
+  match move parse_result1 {
+    Ok(result) => {
+      let expr = result.0;
+      let next_pos = result.1;
+
+      if next_pos != 5_u64 {
+        return std::process::exit(code: 1_u8);
+      }
+
+      match move evaluate(expr: move expr) {
+        Ok(evaluated_val) => {
+          if evaluated_val != 9_u64 {
+            return std::process::exit(code: 1_u8);
+          }
+          pos1 = next_pos;
+          val1 = evaluated_val;
+        }
+        Err(_) => {
+          return std::process::exit(code: 1_u8);
+        }
+      }
+    }
+    Err(_) => {
+      return std::process::exit(code: 1_u8);
+    }
+  }
+
+  let parse_result2 = parse_digit_or_plus_2(bytes: &INPUT2, pos: 0_u64);
+
+  let error_marker: u64;
+  match move parse_result2 {
+    Ok(_) => {
+      return std::process::exit(code: 1_u8);
+    }
+    Err(err) => {
+      match move err {
+        ParseError::Truncated() => {
+          error_marker = 1_u64;
+        }
+        ParseError::InvalidToken() => {
+          error_marker = 2_u64;
+        }
+      }
+    }
+  }
+
+  let buffer = slots_new::<u8, 24>();
+  place_u64_le(window: &buffer, index: 0_u64, value: pos1);
+  place_u64_le(window: &buffer, index: 8_u64, value: val1);
+  place_u64_le(window: &buffer, index: 16_u64, value: error_marker);
+
+  let buffer_slice = &buffer[0_u64..24_u64];
+  std::io::write_once(handle: &out, data: buffer_slice);
+
+  return std::process::exit(code: 0_u8);
+}

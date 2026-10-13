@@ -1,0 +1,118 @@
+fn parse_port(buffer: &[u8], len: u64) -> port: u16 pure {
+  let result = 0_u64;
+  let i = 0_u64;
+  loop (invariant i <= len) {
+    if i >= len {
+      break;
+    }
+    let byte = buffer^[i];
+    let digit = byte - 48_u8;
+    let result_new = result * 10_u64 + cvt::<u8, u64>(digit);
+    set result = result_new;
+    set i = i + 1_u64;
+    continue;
+  }
+  return cvt::<u64, u16>(result);
+}
+
+fn echo_peer(factory: &std::io::HandleFactory, recv: &std::net::TcpReceive, send: &std::net::TcpSend, cancel: &std::time::CancelWatch) -> result: unit waits {
+  let buffer: Slots<u8, 1024> = slots_new::<u8, 1024>();
+
+  loop {
+    let read_result = std::net::receive_next(receive: recv, destination: &buffer, start: 0_u64, end: 1024_u64, deadline: None<std::time::Instant>(), cancel: cancel);
+    match move read_result {
+      Ok(value: bytes_read) => {
+        let write_result = std::net::send_once(send: send, source: &buffer, start: 0_u64, end: bytes_read, deadline: None<std::time::Instant>(), cancel: cancel);
+        match move write_result {
+          Ok(value: _) => {
+            continue;
+          }
+          Err(value: _) => {
+            break;
+          }
+        }
+      }
+      Err(value: read_stop) => {
+        match move read_stop {
+          std::io::ReadEnd() => {
+            break;
+          }
+          std::io::ReadFailed(error: _) => {
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  return unit;
+}
+
+fn main(inputs: std::process::Inputs) -> result: std::process::ExitStatus {
+  let std::process::Inputs(args: args, drivers: _, cwd: cwd, stdout: _, stderr: _, handles: handles, stdin: _, clock: _, wall_clock: _, stops: _, memory_meter: _) = move inputs;
+
+  let count = std::text::args_count(args: &args);
+  if count != 2_u64 {
+    return std::process::exit_status(code: 1_u8);
+  }
+
+  let port_arg_result = std::text::arg_get(args: &args, position: 1_u64);
+  let port_str = propagate port_arg_result;
+
+  let port_bytes_len = std::text::host_bytes_len(value: &port_str);
+  let port_buffer: Array<u8, 6> = [0_u8, 0_u8, 0_u8, 0_u8, 0_u8, 0_u8];
+  let bytes_result = std::text::host_copy_bytes(value: &port_str, destination: &port_buffer, start: 0_u64, end: 6_u64);
+  let port_bytes = propagate bytes_result;
+
+  let port = parse_port(buffer: &port_buffer, len: port_bytes);
+
+  let address = std::net::socket_address_v4(a: 127_u8, b: 0_u8, c: 0_u8, d: 1_u8, port: port);
+
+  let cancel = std::time::cancel_never();
+
+  let listen_result = std::net::tcp_listen(factory: &handles, address: &address);
+  let listener = propagate listen_result;
+
+  let connections: Slots<std::net::TcpConnection, 12> = slots_new::<std::net::TcpConnection, 12>();
+
+  let i = 0_u64;
+  loop (invariant i <= 12_u64) {
+    if i >= 12_u64 {
+      break;
+    }
+    let accept_result = std::net::tcp_accept(factory: &handles, listener: &listener, deadline: None<std::time::Instant>(), cancel: &cancel);
+    let accepted = propagate accept_result;
+    let std::net::AcceptedConnection(connection: conn, peer: _) = move accepted;
+    place_back(window: &connections, value: move conn);
+    set i = i + 1_u64;
+    continue;
+  }
+
+  let close_listener_result = std::net::close_listener(factory: &handles, listener: move listener);
+  let _ = move close_listener_result;
+
+  let j = 11_u64;
+  loop {
+    let current_conn = connections^[j];
+    let std::net::TcpConnection(receive: recv, send: snd) = move current_conn;
+    let _ = echo_peer(factory: &handles, recv: &recv, send: &snd, cancel: &cancel);
+    let close_recv_result = std::net::close_receive(factory: &handles, receive: move recv);
+    let close_send_result = std::net::close_send(factory: &handles, send: move snd);
+    let _ = move close_recv_result;
+    let _ = move close_send_result;
+
+    if j == 0_u64 {
+      break;
+    }
+    set j = j - 1_u64;
+    continue;
+  }
+
+  let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd;
+  let close_dir_read_result = std::fs::close_directory(factory: &handles, directory: move cwd_read);
+  let close_dir_write_result = std::fs::close_directory_write(factory: &handles, directory: move cwd_write);
+  let _ = move close_dir_read_result;
+  let _ = move close_dir_write_result;
+
+  return std::process::exit_status(code: 0_u8);
+}

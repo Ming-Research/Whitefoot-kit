@@ -1,0 +1,120 @@
+use std::process;
+use std::io;
+use std::fs;
+use std::time;
+
+enum Instruction {
+  Add(public value: u64);
+  Decrement();
+  JumpIfNonzero(public position: u64);
+  Halt();
+}
+
+fn execute(instructions: &[Instruction], initial_counter: u64) -> result: u64 reads(instructions) {
+  let accumulator = 0_u64;
+  let counter = initial_counter;
+  let pc = 0_u64;
+  let length = instructions^.len;
+
+  loop (
+    invariant bounds: pc <= length
+  ) {
+    if pc >= length {
+      return 0_u64;
+    }
+
+    let instruction = instructions^[pc];
+    match move instruction {
+      Add(value: v) => {
+        let next_pc = pc +wrap 1_u64;
+        if next_pc > length {
+          return 0_u64;
+        }
+        set accumulator = accumulator +wrap v;
+        set pc = next_pc;
+        continue;
+      }
+      Decrement() => {
+        let next_pc = pc +wrap 1_u64;
+        if next_pc > length {
+          return 0_u64;
+        }
+        set counter = counter -wrap 1_u64;
+        set pc = next_pc;
+        continue;
+      }
+      JumpIfNonzero(position: pos) => {
+        if counter > 0_u64 {
+          if pos >= length {
+            return 0_u64;
+          }
+          set pc = pos;
+        } else {
+          let next_pc = pc +wrap 1_u64;
+          if next_pc > length {
+            return 0_u64;
+          }
+          set pc = next_pc;
+        }
+        continue;
+      }
+      Halt() => {
+        return accumulator;
+      }
+    }
+  }
+}
+
+fn main(inputs: move process::Inputs) -> result: process::ExitStatus {
+  let process::Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: output, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+
+  fs::close_directory_write(factory: &factory, directory: move cwd_directory);
+
+  let instructions = [Instruction::Add(value: 3_u64), Instruction::Decrement(), Instruction::JumpIfNonzero(position: 0_u64), Instruction::Halt()];
+  let result = execute(instructions: &instructions, initial_counter: 1000_u64);
+
+  let expected = 3000_u64;
+
+  let cancel_watch = time::cancel_never();
+
+  let byte0 = cvt::<u64, u8>(result);
+  let byte1 = cvt::<u64, u8>(ishr(result, 8_u32));
+  let byte2 = cvt::<u64, u8>(ishr(result, 16_u32));
+  let byte3 = cvt::<u64, u8>(ishr(result, 24_u32));
+  let byte4 = cvt::<u64, u8>(ishr(result, 32_u32));
+  let byte5 = cvt::<u64, u8>(ishr(result, 40_u32));
+  let byte6 = cvt::<u64, u8>(ishr(result, 48_u32));
+  let byte7 = cvt::<u64, u8>(ishr(result, 56_u32));
+
+  let buffer = [byte0, byte1, byte2, byte3, byte4, byte5, byte6, byte7];
+
+  let write_pos = 0_u64;
+  loop (
+    invariant written: write_pos <= 8_u64
+  ) {
+    if write_pos >= 8_u64 {
+      break;
+    }
+
+    let none_deadline = None::<time::Instant>();
+    let write_result = io::write_once(factory: &factory, output: &output, source: &buffer, start: write_pos, end: 8_u64, deadline: none_deadline, cancel: &cancel_watch);
+    match move write_result {
+      Ok(value: next) => {
+        set write_pos = next;
+      }
+      Err(error: e) => {
+        release::<io::IoError>(value: move e);
+        time::close_cancel_watch(watch: move cancel_watch);
+        return process::exit_status(code: 2_u8);
+      }
+    }
+  }
+
+  time::close_cancel_watch(watch: move cancel_watch);
+
+  if result == expected {
+    return process::exit_status(code: 0_u8);
+  } else {
+    return process::exit_status(code: 1_u8);
+  }
+}

@@ -1,0 +1,90 @@
+fn main(inputs: std::process::Inputs) -> result: u32 waits {
+  let std::process::Inputs(args: unused_args, drivers: unused_drivers, cwd: unused_cwd, stdout: stdout_write, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+
+  let history: Array<f64, 8> = [0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64];
+  let coefficients = 0.125_f64;
+  let total_sum = 0.0_f64;
+  let write_head = 0_u64;
+
+  for (sample_index in 0_u64..64_u64) {
+    let input_sample = if sample_index == 0_u64 {
+      give 8.0_f64;
+    } else {
+      give 0.0_f64;
+    };
+
+    set history[write_head] = input_sample;
+    let next_head = write_head + 1_u64;
+    set write_head = if next_head < 8_u64 {
+      give next_head;
+    } else {
+      give 0_u64;
+    };
+
+    let output_value = 0.0_f64;
+    for (tap_index in 0_u64..8_u64) {
+      let h_val = history[tap_index];
+      set output_value = output_value + h_val * coefficients;
+    }
+
+    set total_sum = total_sum + output_value;
+
+    let bytes = encode_f64_le(value: output_value);
+    let write_result = std::io::write_once(writer: &stdout_write, window: &bytes[0_u64..8_u64]);
+    match write_result {
+      Ok(value: unit) => {
+      }
+      Err(value: error) => {
+        std::io::close_output(factory: &factory, writer: move stdout_write);
+        return 250_u32;
+      }
+    }
+  }
+
+  let expected_sum = 8.0_f64;
+  if total_sum != expected_sum {
+    std::io::close_output(factory: &factory, writer: move stdout_write);
+    return 1_u32;
+  }
+
+  let sum_bytes = encode_f64_le(value: total_sum);
+  let sum_write_result = std::io::write_once(writer: &stdout_write, window: &sum_bytes[0_u64..8_u64]);
+  match sum_write_result {
+    Ok(value: unit) => {
+    }
+    Err(value: error) => {
+      std::io::close_output(factory: &factory, writer: move stdout_write);
+      return 250_u32;
+    }
+  }
+
+  let close_result = std::io::close_output(factory: &factory, writer: move stdout_write);
+  match close_result {
+    Ok(value: unit) => {
+      return 0_u32;
+    }
+    Err(value: error) => {
+      return 250_u32;
+    }
+  }
+}
+
+fn encode_f64_le(value: f64) -> result: Array<u8, 8> pure {
+  let bits = value_bits(value: value);
+
+  let byte0 = cvt::<u64, u8>(bits bitand 0xFF_u64);
+  let byte1 = cvt::<u64, u8>(ishr(bits, 8_u32) bitand 0xFF_u64);
+  let byte2 = cvt::<u64, u8>(ishr(bits, 16_u32) bitand 0xFF_u64);
+  let byte3 = cvt::<u64, u8>(ishr(bits, 24_u32) bitand 0xFF_u64);
+  let byte4 = cvt::<u64, u8>(ishr(bits, 32_u32) bitand 0xFF_u64);
+  let byte5 = cvt::<u64, u8>(ishr(bits, 40_u32) bitand 0xFF_u64);
+  let byte6 = cvt::<u64, u8>(ishr(bits, 48_u32) bitand 0xFF_u64);
+  let byte7 = cvt::<u64, u8>(ishr(bits, 56_u32) bitand 0xFF_u64);
+
+  return [byte0, byte1, byte2, byte3, byte4, byte5, byte6, byte7];
+}
+
+fn value_bits(value: f64) -> result: u64 pure {
+  let bits: u64 = bitcast::<f64, u64>(value);
+  return bits;
+}

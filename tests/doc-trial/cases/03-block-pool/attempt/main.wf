@@ -1,0 +1,140 @@
+nodrop struct Lease {
+  block_index: u64;
+}
+
+struct BlockPool {
+  free_map: Array<Bool, 8>;
+}
+
+fn count_free_blocks(pool: &BlockPool) -> result: u64 reads(pool.free_map) {
+  let count = 0_u64;
+  for (i in 0_u64..8_u64) {
+    if pool.free_map[i] {
+      set count = count + 1_u64;
+    }
+  }
+  return count;
+}
+
+fn take_block(pool: &BlockPool) -> result: Option<Lease> writes(pool.free_map) {
+  for (i in 0_u64..8_u64) {
+    if pool.free_map[i] {
+      set pool.free_map[i] = false;
+      return Some<Lease>(value: Lease(block_index: i));
+    }
+  }
+  return None<Lease>();
+}
+
+fn return_block(pool: &BlockPool, lease: Lease) -> result: Result<unit, unit> writes(pool.free_map) {
+  let Lease(block_index: index) = move lease;
+  if index < 8_u64 {
+    if pool.free_map[index] {
+      return Err<unit, unit>(value: unit);
+    }
+    set pool.free_map[index] = true;
+    return Ok<unit, unit>(value: unit);
+  }
+  return Err<unit, unit>(value: unit);
+}
+
+fn u64_to_le_bytes(value: u64, buffer: &[u8], offset: u64) -> result: unit writes(buffer) contract {
+  requires offset + 8_u64 <= buffer^.len;
+} {
+  let b0 = cvt::<u64, u8>(value);
+  set buffer^[offset] = b0;
+
+  let v1 = ishr(value, 8_u32);
+  let b1 = cvt::<u64, u8>(v1);
+  set buffer^[offset + 1_u64] = b1;
+
+  let v2 = ishr(value, 16_u32);
+  let b2 = cvt::<u64, u8>(v2);
+  set buffer^[offset + 2_u64] = b2;
+
+  let v3 = ishr(value, 24_u32);
+  let b3 = cvt::<u64, u8>(v3);
+  set buffer^[offset + 3_u64] = b3;
+
+  let v4 = ishr(value, 32_u32);
+  let b4 = cvt::<u64, u8>(v4);
+  set buffer^[offset + 4_u64] = b4;
+
+  let v5 = ishr(value, 40_u32);
+  let b5 = cvt::<u64, u8>(v5);
+  set buffer^[offset + 5_u64] = b5;
+
+  let v6 = ishr(value, 48_u32);
+  let b6 = cvt::<u64, u8>(v6);
+  set buffer^[offset + 6_u64] = b6;
+
+  let v7 = ishr(value, 56_u32);
+  let b7 = cvt::<u64, u8>(v7);
+  set buffer^[offset + 7_u64] = b7;
+
+  return unit;
+}
+
+fn main(inputs: std::process::Inputs) -> result: std::process::ExitStatus {
+  let pool = BlockPool(free_map: [true, true, true, true, true, true, true, true]);
+
+  let count1 = count_free_blocks(pool: &pool);
+  if count1 != 8_u64 {
+    return std::process::exit_status(code: 2_u8);
+  }
+
+  let lease_opt = take_block(pool: &pool);
+  let lease = match move lease_opt {
+    Some(value: l) => {
+      give move l;
+    }
+    None() => {
+      return std::process::exit_status(code: 3_u8);
+    }
+  };
+
+  let count2 = count_free_blocks(pool: &pool);
+  if count2 != 7_u64 {
+    return std::process::exit_status(code: 4_u8);
+  }
+
+  let return_result = return_block(pool: &pool, lease: move lease);
+  match move return_result {
+    Ok(value: _) => {
+    }
+    Err(value: _) => {
+      return std::process::exit_status(code: 5_u8);
+    }
+  };
+
+  let count3 = count_free_blocks(pool: &pool);
+  if count3 != 8_u64 {
+    return std::process::exit_status(code: 4_u8);
+  }
+
+  let cancel = std::time::cancel_never();
+
+  let buffer = [0_u8; 24];
+  u64_to_le_bytes(value: count1, buffer: &buffer, offset: 0_u64);
+  u64_to_le_bytes(value: count2, buffer: &buffer, offset: 8_u64);
+  u64_to_le_bytes(value: count3, buffer: &buffer, offset: 16_u64);
+
+  let write_result = std::io::write_once(
+    factory: &inputs.handles,
+    output: &inputs.stdout,
+    source: &buffer,
+    start: 0_u64,
+    end: 24_u64,
+    deadline: None<std::time::Instant>(),
+    cancel: &cancel
+  );
+
+  match move write_result {
+    Ok(value: _) => {
+      return std::process::exit_status(code: 0_u8);
+    }
+    Err(value: _) => {
+      return std::process::exit_status(code: 250_u8);
+    }
+  };
+}

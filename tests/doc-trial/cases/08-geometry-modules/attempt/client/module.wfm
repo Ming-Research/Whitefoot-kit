@@ -1,0 +1,1 @@
+public fn main(inputs: std::process::Inputs) -> result: std::process::ExitStatus;

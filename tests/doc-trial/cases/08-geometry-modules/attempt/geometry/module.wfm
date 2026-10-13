@@ -1,0 +1,33 @@
+public struct Coordinate {
+  public raw: i32;
+}
+
+public struct Point {
+  public x: Coordinate;
+  public y: Coordinate;
+}
+
+public struct Rectangle {
+  public left: Coordinate;
+  public top: Coordinate;
+  public right: Coordinate;
+  public bottom: Coordinate;
+}
+
+public fn coordinate_from_whole(pixels: i64) -> result: Coordinate pure;
+
+public fn coordinate_from_f64(pixels: f64) -> result: Coordinate pure;
+
+public fn coordinate_to_f64(coord: Coordinate) -> result: f64 pure;
+
+public fn coordinate_add_saturating(a: Coordinate, b: Coordinate) -> result: Coordinate pure;
+
+public fn coordinate_sub_saturating(a: Coordinate, b: Coordinate) -> result: Coordinate pure;
+
+public fn coordinate_min(a: Coordinate, b: Coordinate) -> result: Coordinate pure;
+
+public fn coordinate_max(a: Coordinate, b: Coordinate) -> result: Coordinate pure;
+
+public fn rectangle_contains_point(rect: Rectangle, point: Point) -> result: Bool pure;
+
+public fn rectangle_intersects(r1: Rectangle, r2: Rectangle) -> result: Bool pure;

@@ -1,0 +1,162 @@
+struct Pair<T> {
+  left: T;
+  right: T;
+}
+
+enum Choice<T> {
+  Present(value: T);
+  Absent();
+}
+
+struct BytePacket {
+  first: u8;
+  second: u8;
+}
+
+fn main(inputs: std::process::Inputs) -> status: u32 waits {
+  let std::process::Inputs(args: args, drivers: unused_driver_count, cwd: cwd_directory, stdout: out, stderr: err, handles: factory, stdin: input, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let std::fs::Directory(read: cwd, write: cwd_write) = move cwd_directory;
+  std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
+  std::fs::close_directory(factory: &factory, directory: move cwd);
+
+  let pair_byte = Pair::<u8>(left: 7_u8, right: 7_u8);
+  let pair_signed = Pair::<i64>(left: -9_i64, right: -9_i64);
+
+  let choice1 = Choice::<i64>::Present(value: 3_i64);
+  let choice2 = Choice::<i64>::Present(value: -5_i64);
+
+  let byte_sum_result = checked_add_u8(left: 1_u8, right: 2_u8);
+  let byte_overflow_result = checked_add_u8(left: 255_u8, right: 1_u8);
+  let signed_sum_result = checked_add_i64(left: -4_i64, right: 9_i64);
+
+  let optional_byte = Choice::<u8>::Present(value: 19_u8);
+  let packet = BytePacket(first: 11_u8, second: 11_u8);
+
+  let byte_sum = match byte_sum_result {
+    Ok(value: sum) => {
+      give sum;
+    }
+    Err(value: err) => {
+      return 1_u32;
+    }
+  };
+
+  let overflow_marker = match byte_overflow_result {
+    Ok(value: sum) => {
+      give 0_u64;
+    }
+    Err(value: err) => {
+      give 1_u64;
+    }
+  };
+
+  let signed_sum = match signed_sum_result {
+    Ok(value: sum) => {
+      give sum;
+    }
+    Err(value: err) => {
+      return 1_u32;
+    }
+  };
+
+  let optional_value = match optional_byte {
+    Present(value: v) => {
+      give v;
+    }
+    Absent() => {
+      return 1_u32;
+    }
+  };
+
+  let choice1_val = match choice1 {
+    Present(value: v) => {
+      give v;
+    }
+    Absent() => {
+      return 1_u32;
+    }
+  };
+
+  let choice2_val = match choice2 {
+    Present(value: v) => {
+      give v;
+    }
+    Absent() => {
+      return 1_u32;
+    }
+  };
+
+  let buffer = box_slots_new::<u8>(capacity: 72_u64);
+
+  let val1 = cvt::<u8, u64>(pair_byte.left);
+  let val2 = cvt.wrap::<i64, u64>(pair_signed.right);
+  let val3 = cvt.wrap::<i64, u64>(choice1_val);
+  let val4 = cvt.wrap::<i64, u64>(choice2_val);
+  let val5 = cvt::<u8, u64>(byte_sum);
+  let val6 = overflow_marker;
+  let val7 = cvt.wrap::<i64, u64>(signed_sum);
+  let val8 = cvt::<u8, u64>(optional_value);
+  let val9 = cvt::<u8, u64>(packet.second);
+
+  append_u64_le(window: &buffer.inner, value: val1);
+  append_u64_le(window: &buffer.inner, value: val2);
+  append_u64_le(window: &buffer.inner, value: val3);
+  append_u64_le(window: &buffer.inner, value: val4);
+  append_u64_le(window: &buffer.inner, value: val5);
+  append_u64_le(window: &buffer.inner, value: val6);
+  append_u64_le(window: &buffer.inner, value: val7);
+  append_u64_le(window: &buffer.inner, value: val8);
+  append_u64_le(window: &buffer.inner, value: val9);
+
+  if buffer.inner.len == 72_u64 {
+    let write_result = std::io::write_all(handle: &out, data: &buffer.inner[0_u64..72_u64]);
+    match write_result {
+      Ok(value: unit) => {
+        return 0_u32;
+      }
+      Err(value: err) => {
+        return 250_u32;
+      }
+    }
+  }
+
+  return 1_u32;
+}
+
+fn checked_add_u8(left: u8, right: u8) -> result: Result<u8, unit> pure {
+  let left_u64 = cvt::<u8, u64>(left);
+  let right_u64 = cvt::<u8, u64>(right);
+  let sum_u64 = left_u64 + right_u64;
+  if sum_u64 > 255_u64 {
+    return Err::<u8, unit>(value: unit);
+  }
+  let result = cvt::<u64, u8>(sum_u64);
+  return Ok::<u8, unit>(value: result);
+}
+
+fn checked_add_i64(left: i64, right: i64) -> result: Result<i64, unit> pure {
+  let sum = left +wrap right;
+  return Ok::<i64, unit>(value: sum);
+}
+
+fn append_u64_le(window: &Slots<u8>, value: u64) -> result: unit writes(window) {
+  let byte0 = cvt.wrap::<u64, u8>(value);
+  let byte1 = cvt.wrap::<u64, u8>(ishr(value, 8_u32));
+  let byte2 = cvt.wrap::<u64, u8>(ishr(value, 16_u32));
+  let byte3 = cvt.wrap::<u64, u8>(ishr(value, 24_u32));
+  let byte4 = cvt.wrap::<u64, u8>(ishr(value, 32_u32));
+  let byte5 = cvt.wrap::<u64, u8>(ishr(value, 40_u32));
+  let byte6 = cvt.wrap::<u64, u8>(ishr(value, 48_u32));
+  let byte7 = cvt.wrap::<u64, u8>(ishr(value, 56_u32));
+
+  place_back(window: window, value: byte0);
+  place_back(window: window, value: byte1);
+  place_back(window: window, value: byte2);
+  place_back(window: window, value: byte3);
+  place_back(window: window, value: byte4);
+  place_back(window: window, value: byte5);
+  place_back(window: window, value: byte6);
+  place_back(window: window, value: byte7);
+
+  return unit;
+}

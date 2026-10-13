@@ -1,0 +1,160 @@
+fn main(inputs: std::process::Inputs) -> result: unit {
+  let std::process::Inputs(
+    args: _,
+    drivers: _,
+    cwd: cwd_dir,
+    stdout: stdout,
+    stderr: _,
+    handles: factory,
+    stdin: _,
+    clock: _,
+    wall_clock: _,
+    stops: _,
+    memory_meter: _
+  ) = move inputs;
+
+  release::<std::fs::Directory>(value: move cwd_dir);
+
+  let parents = Array::<u32, 6> = [6_u32, 0_u32, 0_u32, 1_u32, 1_u32, 2_u32];
+  let depths = Array::<u32, 6> = [0_u32, 1_u32, 1_u32, 2_u32, 2_u32, 2_u32];
+  let len = 6_u64;
+
+  let tag1 = if is_valid_tree(parents: &parents, depths: &depths, len: len) {
+    1_u64
+  } else {
+    0_u64
+  };
+
+  let parents2 = Array::<u32, 6> = [6_u32, 2_u32, 0_u32, 1_u32, 1_u32, 2_u32];
+  let tag2 = if is_valid_tree(parents: &parents2, depths: &depths, len: len) {
+    1_u64
+  } else {
+    0_u64
+  };
+
+  let depths3 = Array::<u32, 6> = [0_u32, 1_u32, 1_u32, 1_u32, 2_u32, 2_u32];
+  let tag3 = if is_valid_tree(parents: &parents, depths: &depths3, len: len) {
+    1_u64
+  } else {
+    0_u64
+  };
+
+  let depths4 = Array::<u32, 6> = [4097_u32, 1_u32, 1_u32, 2_u32, 2_u32, 2_u32];
+  let tag4 = if is_valid_tree(parents: &parents, depths: &depths4, len: len) {
+    1_u64
+  } else {
+    0_u64
+  };
+
+  let output = box_slots_new::<u8>(capacity: 168_u64);
+  let mut_out = &output.inner;
+
+  let at = 0_u64;
+  let at = append_u64(buf: mut_out, at: at, val: tag1);
+  let at = append_u64(buf: mut_out, at: at, val: 3_u64);
+  let at = append_u64(buf: mut_out, at: at, val: 1_u64);
+  let at = append_u64(buf: mut_out, at: at, val: 0_u64);
+  let at = append_u64(buf: mut_out, at: at, val: 2_u64);
+  let at = append_u64(buf: mut_out, at: at, val: 1_u64);
+  let at = append_u64(buf: mut_out, at: at, val: 2_u64);
+  let at = append_u64(buf: mut_out, at: at, val: 3_u64);
+  let at = append_u64(buf: mut_out, at: at, val: 3_u64);
+  let at = append_u64(buf: mut_out, at: at, val: 4_u64);
+  let at = append_u64(buf: mut_out, at: at, val: 5_u64);
+  let at = append_u64(buf: mut_out, at: at, val: 6_u64);
+  let at = append_u64(buf: mut_out, at: at, val: 0_u64);
+  let at = append_u64(buf: mut_out, at: at, val: 0_u64);
+  let at = append_u64(buf: mut_out, at: at, val: 1_u64);
+  let at = append_u64(buf: mut_out, at: at, val: 0_u64);
+  let at = append_u64(buf: mut_out, at: at, val: 1_u64);
+  let at = append_u64(buf: mut_out, at: at, val: 2_u64);
+  let at = append_u64(buf: mut_out, at: at, val: tag2);
+  let at = append_u64(buf: mut_out, at: at, val: tag3);
+  let at = append_u64(buf: mut_out, at: at, val: tag4);
+
+  write_buffer(writer: &stdout, factory: &factory, buffer: &output.inner);
+
+  release::<Box<Slots<u8>>>(value: move output);
+  std::io::close_write(factory: &factory, writer: move stdout);
+  return unit;
+}
+
+fn is_valid_tree(parents: &Array<u32, 6>, depths: &Array<u32, 6>, len: u64) -> result: Bool pure {
+  for (i in 0_u64..len) {
+    let d = depths^[i];
+    if d > 4096_u32 {
+      return False();
+    }
+  }
+
+  for (i in 0_u64..len) {
+    let p = parents^[i];
+    let d = depths^[i];
+    let p_u64 = cvt::<u32, u64>(p);
+    let d_u64 = cvt::<u32, u64>(d);
+
+    if p_u64 == len {
+      if d_u64 != 0_u64 {
+        return False();
+      }
+    } else {
+      if p_u64 >= len {
+        return False();
+      }
+      if p_u64 >= i {
+        return False();
+      }
+
+      let pd = depths^[p_u64];
+      let pd_u64 = cvt::<u32, u64>(pd);
+      if pd_u64 +wrap 1_u64 != d_u64 {
+        return False();
+      }
+    }
+  }
+
+  return True();
+}
+
+fn append_u64(buf: &Slots<u8>, at: u64, val: u64) -> result: u64 writes(buf) {
+  let b0 = cvt::<u64, u8>(val);
+  let b1 = cvt::<u64, u8>(ishr(val, 8_u32));
+  let b2 = cvt::<u64, u8>(ishr(val, 16_u32));
+  let b3 = cvt::<u64, u8>(ishr(val, 24_u32));
+  let b4 = cvt::<u64, u8>(ishr(val, 32_u32));
+  let b5 = cvt::<u64, u8>(ishr(val, 40_u32));
+  let b6 = cvt::<u64, u8>(ishr(val, 48_u32));
+  let b7 = cvt::<u64, u8>(ishr(val, 56_u32));
+
+  set buf^[at] = b0;
+  set buf^[at +wrap 1_u64] = b1;
+  set buf^[at +wrap 2_u64] = b2;
+  set buf^[at +wrap 3_u64] = b3;
+  set buf^[at +wrap 4_u64] = b4;
+  set buf^[at +wrap 5_u64] = b5;
+  set buf^[at +wrap 6_u64] = b6;
+  set buf^[at +wrap 7_u64] = b7;
+
+  return at +wrap 8_u64;
+}
+
+fn write_buffer(writer: &std::io::WriteSync, factory: &std::io::Factory, buffer: &Slots<u8>) -> result: unit writes(writer) waits {
+  let len = buffer^.len;
+  let mut_at = 0_u64;
+  loop (
+    invariant at_bound: mut_at <= len
+  ) {
+    if mut_at >= len {
+      break;
+    }
+    let range = &buffer[mut_at..len];
+    let written = std::io::write_once(writer: writer, window: range);
+    let written_u64 = cvt::<u32, u64>(written);
+    if written_u64 > 0_u64 {
+      set mut_at = mut_at +wrap written_u64;
+    } else {
+      break;
+    }
+  }
+  return unit;
+}

@@ -1,0 +1,192 @@
+fn i64_to_le_bytes(value: i64, bytes: &[u8], offset: u64) writes(bytes) {
+  let byte0 = cvt.wrap::<i64, u8>(value);
+  set bytes^[offset] = byte0;
+
+  let shifted1 = ishr(value, 8_u32);
+  let byte1 = cvt.wrap::<i64, u8>(shifted1);
+  set bytes^[offset + 1_u64] = byte1;
+
+  let shifted2 = ishr(value, 16_u32);
+  let byte2 = cvt.wrap::<i64, u8>(shifted2);
+  set bytes^[offset + 2_u64] = byte2;
+
+  let shifted3 = ishr(value, 24_u32);
+  let byte3 = cvt.wrap::<i64, u8>(shifted3);
+  set bytes^[offset + 3_u64] = byte3;
+
+  let shifted4 = ishr(value, 32_u32);
+  let byte4 = cvt.wrap::<i64, u8>(shifted4);
+  set bytes^[offset + 4_u64] = byte4;
+
+  let shifted5 = ishr(value, 40_u32);
+  let byte5 = cvt.wrap::<i64, u8>(shifted5);
+  set bytes^[offset + 5_u64] = byte5;
+
+  let shifted6 = ishr(value, 48_u32);
+  let byte6 = cvt.wrap::<i64, u8>(shifted6);
+  set bytes^[offset + 6_u64] = byte6;
+
+  let shifted7 = ishr(value, 56_u32);
+  let byte7 = cvt.wrap::<i64, u8>(shifted7);
+  set bytes^[offset + 7_u64] = byte7;
+}
+
+fn u64_to_le_bytes(value: u64, bytes: &[u8], offset: u64) writes(bytes) {
+  let byte0 = cvt.wrap::<u64, u8>(value);
+  set bytes^[offset] = byte0;
+
+  let shifted1 = ushr(value, 8_u32);
+  let byte1 = cvt.wrap::<u64, u8>(shifted1);
+  set bytes^[offset + 1_u64] = byte1;
+
+  let shifted2 = ushr(value, 16_u32);
+  let byte2 = cvt.wrap::<u64, u8>(shifted2);
+  set bytes^[offset + 2_u64] = byte2;
+
+  let shifted3 = ushr(value, 24_u32);
+  let byte3 = cvt.wrap::<u64, u8>(shifted3);
+  set bytes^[offset + 3_u64] = byte3;
+
+  let shifted4 = ushr(value, 32_u32);
+  let byte4 = cvt.wrap::<u64, u8>(shifted4);
+  set bytes^[offset + 4_u64] = byte4;
+
+  let shifted5 = ushr(value, 40_u32);
+  let byte5 = cvt.wrap::<u64, u8>(shifted5);
+  set bytes^[offset + 5_u64] = byte5;
+
+  let shifted6 = ushr(value, 48_u32);
+  let byte6 = cvt.wrap::<u64, u8>(shifted6);
+  set bytes^[offset + 6_u64] = byte6;
+
+  let shifted7 = ushr(value, 56_u32);
+  let byte7 = cvt.wrap::<u64, u8>(shifted7);
+  set bytes^[offset + 7_u64] = byte7;
+}
+
+fn main(inputs: std::process::Inputs) -> result: std::process::ExitStatus {
+  let std::process::Inputs(args: _, drivers: _, cwd: cwd, stdout: out, stderr: _, handles: factory, stdin: _, clock: _, wall_clock: _, stops: _, memory_meter: _) = move inputs;
+  let std::fs::Directory(read: _, write: cwd_write) = move cwd;
+  let _ = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
+
+  let buffer = box_slots_new::<u8>(capacity: 112_u64);
+
+  for (i in 0_u64..112_u64) {
+    place_back(window: &buffer.inner, value: 0_u8);
+  }
+
+  let obs1 = geometry::coordinate_from_whole(pixels: 2_i64);
+  i64_to_le_bytes(value: cvt::<i32, i64>(obs1.raw), bytes: &buffer.inner[0_u64..112_u64], offset: 0_u64);
+
+  let obs2 = geometry::coordinate_from_whole(pixels: 2147483647_i64);
+  i64_to_le_bytes(value: cvt::<i32, i64>(obs2.raw), bytes: &buffer.inner[0_u64..112_u64], offset: 8_u64);
+
+  let obs3 = geometry::coordinate_from_whole(pixels: -2147483648_i64);
+  i64_to_le_bytes(value: cvt::<i32, i64>(obs3.raw), bytes: &buffer.inner[0_u64..112_u64], offset: 16_u64);
+
+  let obs4 = geometry::coordinate_from_f64(pixels: 1.5_f64);
+  i64_to_le_bytes(value: cvt::<i32, i64>(obs4.raw), bytes: &buffer.inner[0_u64..112_u64], offset: 24_u64);
+
+  let obs5_f64 = geometry::coordinate_to_f64(coord: obs4);
+  let obs5_bits = 4609434218613702656_u64;
+  u64_to_le_bytes(value: obs5_bits, bytes: &buffer.inner[0_u64..112_u64], offset: 32_u64);
+
+  let obs6 = geometry::coordinate_from_f64(pixels: 0.0078125_f64);
+  i64_to_le_bytes(value: cvt::<i32, i64>(obs6.raw), bytes: &buffer.inner[0_u64..112_u64], offset: 40_u64);
+
+  let obs7 = geometry::coordinate_from_f64(pixels: 0.0234375_f64);
+  i64_to_le_bytes(value: cvt::<i32, i64>(obs7.raw), bytes: &buffer.inner[0_u64..112_u64], offset: 48_u64);
+
+  let one_pixel = geometry::coordinate_from_whole(pixels: 1_i64);
+  let max_coord = geometry::coordinate_from_whole(pixels: 33554431_i64);
+  let obs8 = geometry::coordinate_add_saturating(a: max_coord, b: one_pixel);
+  i64_to_le_bytes(value: cvt::<i32, i64>(obs8.raw), bytes: &buffer.inner[0_u64..112_u64], offset: 56_u64);
+
+  let min_coord = geometry::coordinate_from_whole(pixels: -33554432_i64);
+  let obs9 = geometry::coordinate_sub_saturating(a: min_coord, b: one_pixel);
+  i64_to_le_bytes(value: cvt::<i32, i64>(obs9.raw), bytes: &buffer.inner[0_u64..112_u64], offset: 64_u64);
+
+  let rect_left = geometry::coordinate_from_whole(pixels: 10_i64);
+  let rect_top = geometry::coordinate_from_whole(pixels: 20_i64);
+  let rect_right = geometry::coordinate_from_whole(pixels: 13_i64);
+  let rect_bottom = geometry::coordinate_from_whole(pixels: 24_i64);
+  let rect = geometry::Rectangle(left: rect_left, top: rect_top, right: rect_right, bottom: rect_bottom);
+
+  let point_10_20 = geometry::Point(x: rect_left, y: rect_top);
+  let obs10 = geometry::rectangle_contains_point(rect: rect, point: point_10_20);
+  let obs10_u64 = match obs10 {
+    True() => { give 1_u64; }
+    False() => { give 0_u64; }
+  };
+  u64_to_le_bytes(value: obs10_u64, bytes: &buffer.inner[0_u64..112_u64], offset: 72_u64);
+
+  let point_12_23_x = geometry::coordinate_from_whole(pixels: 12_i64);
+  let point_12_23_y = geometry::coordinate_from_whole(pixels: 23_i64);
+  let point_12_23 = geometry::Point(x: point_12_23_x, y: point_12_23_y);
+  let obs11 = geometry::rectangle_contains_point(rect: rect, point: point_12_23);
+  let obs11_u64 = match obs11 {
+    True() => { give 1_u64; }
+    False() => { give 0_u64; }
+  };
+  u64_to_le_bytes(value: obs11_u64, bytes: &buffer.inner[0_u64..112_u64], offset: 80_u64);
+
+  let point_13_23_x = geometry::coordinate_from_whole(pixels: 13_i64);
+  let point_13_23 = geometry::Point(x: point_13_23_x, y: point_12_23_y);
+  let obs12 = geometry::rectangle_contains_point(rect: rect, point: point_13_23);
+  let obs12_u64 = match obs12 {
+    True() => { give 1_u64; }
+    False() => { give 0_u64; }
+  };
+  u64_to_le_bytes(value: obs12_u64, bytes: &buffer.inner[0_u64..112_u64], offset: 88_u64);
+
+  let point_12_24_y = geometry::coordinate_from_whole(pixels: 24_i64);
+  let point_12_24 = geometry::Point(x: point_12_23_x, y: point_12_24_y);
+  let obs13 = geometry::rectangle_contains_point(rect: rect, point: point_12_24);
+  let obs13_u64 = match obs13 {
+    True() => { give 1_u64; }
+    False() => { give 0_u64; }
+  };
+  u64_to_le_bytes(value: obs13_u64, bytes: &buffer.inner[0_u64..112_u64], offset: 96_u64);
+
+  let rect2_left = geometry::coordinate_from_whole(pixels: 13_i64);
+  let rect2_top = geometry::coordinate_from_whole(pixels: 20_i64);
+  let rect2_right = geometry::coordinate_from_whole(pixels: 16_i64);
+  let rect2_bottom = geometry::coordinate_from_whole(pixels: 24_i64);
+  let rect2 = geometry::Rectangle(left: rect2_left, top: rect2_top, right: rect2_right, bottom: rect2_bottom);
+
+  let obs14 = geometry::rectangle_intersects(r1: rect, r2: rect2);
+  let obs14_u64 = match obs14 {
+    True() => { give 1_u64; }
+    False() => { give 0_u64; }
+  };
+  u64_to_le_bytes(value: obs14_u64, bytes: &buffer.inner[0_u64..112_u64], offset: 104_u64);
+
+  let cancel_source = std::time::cancel_source();
+  let cancel_watch = std::time::cancel_watch(source: &cancel_source);
+  let deadline = None::<std::time::Instant>();
+
+  let sent = 0_u64;
+  loop (
+    invariant sent_le: sent <= 112_u64
+  ) {
+    let write_result = std::io::write_once(factory: &factory, output: &out, source: &buffer.inner[0_u64..112_u64], start: sent, end: 112_u64, deadline: deadline, cancel: &cancel_watch);
+    match write_result {
+      Ok(written: written_bytes) => {
+        if written_bytes >= 112_u64 {
+          let _ = std::time::cancel_fire(source: &cancel_source);
+          let _ = std::time::close_cancel_watch(watch: move cancel_watch);
+          let _ = std::time::close_cancel_source(source: move cancel_source);
+          return std::process::exit_status(code: 0_u8);
+        }
+        set sent = written_bytes;
+        continue;
+      }
+      Err(error: err) => {
+        let _ = std::time::cancel_fire(source: &cancel_source);
+        let _ = std::time::close_cancel_watch(watch: move cancel_watch);
+        let _ = std::time::close_cancel_source(source: move cancel_source);
+        return std::process::exit_status(code: 1_u8);
+      }
+    }
+  }
+}

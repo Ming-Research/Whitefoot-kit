@@ -1,0 +1,9 @@
+module geometry {
+  path = "geometry";
+}
+
+module client {
+  path = "client";
+  depends = [geometry];
+  entry = main;
+}

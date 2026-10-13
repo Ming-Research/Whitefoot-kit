@@ -1,0 +1,141 @@
+fn hex_digit_value(byte: u8) -> result: Option<u8> pure {
+  let is_digit = band(byte >= '0'_u8, byte <= '9'_u8);
+  if is_digit {
+    let value = byte - '0'_u8;
+    return Some<u8>(value: value);
+  }
+  let is_upper = band(byte >= 'A'_u8, byte <= 'F'_u8);
+  if is_upper {
+    let value = byte - 'A'_u8 + 10_u8;
+    return Some<u8>(value: value);
+  }
+  let is_lower = band(byte >= 'a'_u8, byte <= 'f'_u8);
+  if is_lower {
+    let value = byte - 'a'_u8 + 10_u8;
+    return Some<u8>(value: value);
+  }
+  return None<u8>();
+}
+
+fn percent_decode(input: &[u8], output: &Slots<u8, 11>) -> result: u64 pure {
+  let len = 0_u64;
+  let i = 0_u64;
+  loop (
+    invariant pos: i <= input.len,
+    invariant written: len <= output.cap
+  ) {
+    if i >= input.len {
+      return len;
+    }
+    let byte = input^[i];
+    if byte == '%'_u8 {
+      let next_i = i + 1_u64;
+      let next_next_i = i + 2_u64;
+      if next_next_i <= input.len {
+        let first_hex = input^[next_i];
+        let second_hex = input^[next_next_i];
+        let first_val = hex_digit_value(byte: first_hex);
+        let second_val = hex_digit_value(byte: second_hex);
+        let both_valid = match move first_val {
+          Some(value: fv) => {
+            match move second_val {
+              Some(value: sv) => {
+                let decoded = fv * 16_u8 + sv;
+                if len < output.cap {
+                  set output^[len] = decoded;
+                  set len = len + 1_u64;
+                }
+                give True();
+              }
+              None() => {
+                give False();
+              }
+            }
+          }
+          None() => {
+            give False();
+          }
+        };
+        if both_valid {
+          set i = next_next_i + 1_u64;
+        } else {
+          if len < output.cap {
+            set output^[len] = byte;
+            set len = len + 1_u64;
+          }
+          set i = next_i;
+        }
+        continue;
+      } else {
+        if len < output.cap {
+          set output^[len] = byte;
+          set len = len + 1_u64;
+        }
+        set i = next_i;
+        continue;
+      }
+    } else {
+      if len < output.cap {
+        set output^[len] = byte;
+        set len = len + 1_u64;
+      }
+      set i = i + 1_u64;
+      continue;
+    }
+  }
+}
+
+fn main(inputs: std::process::Inputs) -> result: unit waits {
+  let std::process::Inputs(args: args, drivers: _drivers, cwd: _cwd, stdout: out, stderr: _err, handles: factory, stdin: _input, clock: _clock, wall_clock: _wall_clock, stops: _stops, memory_meter: _memory_meter) = move inputs;
+  release::<std::text::Rope>(value: move args);
+
+  let test_input: Array<u8, 11> = ['A'_u8, '%'_u8, '4'_u8, '2'_u8, '%'_u8, '4'_u8, 'a'_u8, '%'_u8, 'z'_u8, 'z'_u8, '%'_u8];
+  let destination = slots_new::<u8, 11>();
+
+  for (i in 0_u64..11_u64) {
+    place_back(window: &destination, value: 204_u8);
+  }
+
+  let decoded_len = percent_decode(input: &test_input[0_u64..11_u64], output: &destination);
+
+  if decoded_len > 11_u64 {
+    std::process::exit(status: 2_u32);
+  }
+
+  if decoded_len != 7_u64 {
+    std::process::exit(status: 1_u32);
+  }
+
+  let next_byte = destination^[7_u64];
+  if next_byte != 204_u8 {
+    std::process::exit(status: 1_u32);
+  }
+
+  let output_buffer = slots_new::<u8, 16>();
+
+  for (i in 0_u64..7_u64) {
+    place_back(window: &output_buffer, value: destination^[i]);
+  }
+
+  place_back(window: &output_buffer, value: cvt::<u64, u8>(decoded_len));
+  place_back(window: &output_buffer, value: cvt::<u64, u8>(ishr(decoded_len, 8_u32)));
+  place_back(window: &output_buffer, value: cvt::<u64, u8>(ishr(decoded_len, 16_u32)));
+  place_back(window: &output_buffer, value: cvt::<u64, u8>(ishr(decoded_len, 24_u32)));
+  place_back(window: &output_buffer, value: cvt::<u64, u8>(ishr(decoded_len, 32_u32)));
+  place_back(window: &output_buffer, value: cvt::<u64, u8>(ishr(decoded_len, 40_u32)));
+  place_back(window: &output_buffer, value: cvt::<u64, u8>(ishr(decoded_len, 48_u32)));
+  place_back(window: &output_buffer, value: cvt::<u64, u8>(ishr(decoded_len, 56_u32)));
+
+  place_back(window: &output_buffer, value: next_byte);
+
+  let output_window = &output_buffer[0_u64..16_u64];
+  let write_result = std::io::write_once(factory: &factory, writer: move out, window: output_window);
+  match move write_result {
+    Ok(value: _) => {
+      return unit;
+    }
+    Err(value: _) => {
+      std::process::exit(status: 250_u32);
+    }
+  }
+}
