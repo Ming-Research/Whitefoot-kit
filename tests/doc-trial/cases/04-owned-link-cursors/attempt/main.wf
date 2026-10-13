@@ -48,7 +48,8 @@ fn sum_list(node: &LinkNode) -> result: u64 reads(node) {
 fn filter_list(node: &LinkNode) -> result: Option<Box<LinkNode>> reads(node) {
   let remainder = node^.value % 2_u64;
   if remainder == 0_u64 {
-    match &node^.next {
+    let next_opt = &node^.next;
+    match next_opt {
       Some(value: next_box) => {
         return filter_list(node: &next_box^.inner);
       }
@@ -56,9 +57,10 @@ fn filter_list(node: &LinkNode) -> result: Option<Box<LinkNode>> reads(node) {
         let empty = None<Box<LinkNode>>();
         return empty;
       }
-    };
+    }
   } else {
-    let next_list = match &node^.next {
+    let next_opt = &node^.next;
+    let next_list = match next_opt {
       Some(value: next_box) => {
         let filtered = filter_list(node: &next_box^.inner);
         give move filtered;
@@ -77,7 +79,8 @@ fn filter_list(node: &LinkNode) -> result: Option<Box<LinkNode>> reads(node) {
 
 fn increment_list(node: &LinkNode) -> result: Option<Box<LinkNode>> reads(node) {
   let incremented = node^.value + 1_u64;
-  let next_list = match &node^.next {
+  let next_opt = &node^.next;
+  let next_list = match next_opt {
     Some(value: next_box) => {
       let inc = increment_list(node: &next_box^.inner);
       give move inc;

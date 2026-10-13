@@ -93,7 +93,12 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   }
   place_back(window: &results, value: diff_other_zero);
   grow_paged(cell: &pool, capacity: 1_u64);
-  place_back(window: &pool.inner, value: 73_u64);
+  if pool.inner.len < pool.inner.cap {
+    place_back(window: &pool.inner, value: 73_u64);
+  } else {
+    set result_code = 3_u8;
+    return exit_status(code: result_code);
+  }
   let heap_at_cap_1 = heap_in_use(meter: &meter);
   let diff_cap_1 = 0_u64;
   if heap_at_cap_1 >= baseline {
@@ -101,7 +106,12 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   }
   place_back(window: &results, value: diff_cap_1);
   grow_paged(cell: &pool, capacity: 2_u64);
-  place_back(window: &pool.inner, value: 1_u64);
+  if pool.inner.len < pool.inner.cap {
+    place_back(window: &pool.inner, value: 1_u64);
+  } else {
+    set result_code = 4_u8;
+    return exit_status(code: result_code);
+  }
   let heap_at_cap_2 = heap_in_use(meter: &meter);
   let diff_cap_2 = 0_u64;
   if heap_at_cap_2 >= baseline {
@@ -109,7 +119,12 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   }
   place_back(window: &results, value: diff_cap_2);
   grow_paged(cell: &pool, capacity: 3_u64);
-  place_back(window: &pool.inner, value: 2_u64);
+  if pool.inner.len < pool.inner.cap {
+    place_back(window: &pool.inner, value: 2_u64);
+  } else {
+    set result_code = 5_u8;
+    return exit_status(code: result_code);
+  }
   let heap_at_cap_3 = heap_in_use(meter: &meter);
   let diff_cap_3 = 0_u64;
   if heap_at_cap_3 >= baseline {
@@ -125,7 +140,12 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   place_back(window: &results, value: diff_cap_4);
   grow_paged(cell: &pool, capacity: 512_u64);
   for (i in 3_u64..512_u64) {
-    place_back(window: &pool.inner, value: i);
+    if pool.inner.len < pool.inner.cap {
+      place_back(window: &pool.inner, value: i);
+    } else {
+      set result_code = 7_u8;
+      return exit_status(code: result_code);
+    }
   }
   let heap_at_cap_512 = heap_in_use(meter: &meter);
   let diff_cap_512 = 0_u64;
@@ -134,7 +154,12 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   }
   place_back(window: &results, value: diff_cap_512);
   grow_paged(cell: &pool, capacity: 513_u64);
-  place_back(window: &pool.inner, value: 512_u64);
+  if pool.inner.len < pool.inner.cap {
+    place_back(window: &pool.inner, value: 512_u64);
+  } else {
+    set result_code = 8_u8;
+    return exit_status(code: result_code);
+  }
   let heap_at_cap_513 = heap_in_use(meter: &meter);
   let diff_cap_513 = 0_u64;
   if heap_at_cap_513 >= baseline {
@@ -153,7 +178,12 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let diff_sep = 0_u64;
   if True() {
     let pool_sep = box_paged_new::<u64>(capacity: 3_u64);
-    place_back(window: &pool_sep.inner, value: 19_u64);
+    if pool_sep.inner.len < pool_sep.inner.cap {
+      place_back(window: &pool_sep.inner, value: 19_u64);
+    } else {
+      set result_code = 12_u8;
+      return exit_status(code: result_code);
+    }
     set heap_at_sep = heap_in_use(meter: &meter);
     if heap_at_sep >= baseline {
       set diff_sep = heap_at_sep - baseline;
@@ -171,7 +201,12 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   if True() {
     let pool_zero = box_paged_new::<Array<u8, 0>>(capacity: 1_u64);
     let zero_elem = array_filled::<u8, 0>(value: 0_u8);
-    place_back(window: &pool_zero.inner, value: zero_elem);
+    if pool_zero.inner.len < pool_zero.inner.cap {
+      place_back(window: &pool_zero.inner, value: zero_elem);
+    } else {
+      set result_code = 15_u8;
+      return exit_status(code: result_code);
+    }
     grow_paged(cell: &pool_zero, capacity: 3_u64);
     set heap_at_zero_elem = heap_in_use(meter: &meter);
     if heap_at_zero_elem >= baseline {

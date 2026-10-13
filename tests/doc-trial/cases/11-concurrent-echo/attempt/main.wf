@@ -63,7 +63,7 @@ fn parse_port(args: &Args) -> result: Option<u16> reads(args) {
     return None<u16>();
   }
   let arg_result = std::text::arg_get(args: args, position: 1_u64);
-  match arg_result {
+  match move arg_result {
     Ok(value: arg_string) => {
       let len = std::text::host_bytes_len(value: &arg_string);
       let buffer = array_filled::<u8, 6>(value: 0_u8);
@@ -159,7 +159,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     Some(value: port) => {
       let address = std::net::socket_address_v4(a: 127_u8, b: 0_u8, c: 0_u8, d: 1_u8, port: port);
       let listen_result = std::net::tcp_listen(factory: &factory, address: &address);
-      match listen_result {
+      match move listen_result {
         Ok(value: listener) => {
           let peer_count = 0_u64;
           loop @accept {
@@ -171,7 +171,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
             let cancel = std::time::cancel_never();
             let accept_result = std::net::tcp_accept(factory: &factory, listener: &listener, deadline: no_deadline, cancel: &cancel);
             std::time::close_cancel_watch(watch: move cancel);
-            match accept_result {
+            match move accept_result {
               Ok(value: accepted) => {
                 let connection = accepted.connection;
                 let shared_factory = std::io::factory_share(factory: &factory);

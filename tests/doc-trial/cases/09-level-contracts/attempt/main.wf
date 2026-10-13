@@ -36,7 +36,7 @@ fn validate(parents: &[u32], depths: &[u32]) -> result: Bool reads(parents), rea
   return valid;
 }
 
-fn count_groups(depths: &[u32]) -> result: u64 pure {
+fn count_groups(depths: &[u32]) -> result: u64 reads(depths) {
   let max_depth = 0_u32;
   for (i in 0_u64..depths^.len) {
     let d = depths^[i];

@@ -186,12 +186,13 @@ fn bytes_equal(a: &Slots<u8>, b: &Slots<u8>) -> result: Bool reads(a), reads(b) 
 fn send_all(send: &TcpSend, factory: &HandleFactory, data: &[u8], deadline: Instant, cancel: &CancelWatch) -> result: unit pure waits {
   let sent = 0_u64;
   let data_len = data^.len;
+  let deadline_some = Some<Instant>(value: deadline);
   loop @sending {
     if sent < data_len {
     } else {
       break @sending;
     }
-    match std::net::send_once(send: send, source: data, start: sent, end: data_len, deadline: Some<Instant>(value: deadline), cancel: cancel) {
+    match std::net::send_once(send: send, source: data, start: sent, end: data_len, deadline: deadline_some, cancel: cancel) {
       Ok(value: next) => {
         set sent = next;
         continue @sending;
@@ -207,6 +208,7 @@ fn send_all(send: &TcpSend, factory: &HandleFactory, data: &[u8], deadline: Inst
 fn handle_connection(store: Shared<unit>, send: TcpSend, receive: TcpReceive, factory: HandleFactory, deadline: Instant, cancel: CancelWatch) -> result: unit pure waits {
   let buffer = array_filled::<u8, 16384>(value: 0_u8);
   let buffer_len = 0_u64;
+  let deadline_opt = Some<Instant>(value: deadline);
   loop @request_loop {
     let parse_result = parse_command(&buffer[0_u64..buffer_len]);
     match parse_result {
@@ -224,48 +226,47 @@ fn handle_connection(store: Shared<unit>, send: TcpSend, receive: TcpReceive, fa
           if cmd.len == 4_u64 {
             if band(band(cmd[0_u64] == 80_u8, cmd[1_u64] == 73_u8), band(cmd[2_u64] == 78_u8, cmd[3_u64] == 71_u8)) {
               send_all(send: &send, factory: &factory, data: &pong_msg[0_u64..7_u64], deadline: deadline, cancel: &cancel);
-            } else {
-              if band(band(cmd[0_u64] == 73_u8, cmd[1_u64] == 78_u8), band(cmd[2_u64] == 67_u8, cmd[3_u64] == 82_u8)) {
-                if cmd_args.len >= 2_u64 {
-                  let key = &cmd_args[1_u64];
-                  let parse_int = bytes_to_i64(key);
-                  match parse_int {
-                    Ok(value: v) => {
-                      let new_val = v +wrap 1_i64;
-                      let digits = slots_new::<u8, 32>();
-                      let remaining = new_val;
-                      if remaining == 0_i64 {
-                        place_back(window: &digits, value: 48_u8);
-                      } else {
-                        let working = remaining;
-                        loop @digit_loop {
-                          if working == 0_i64 {
-                            break @digit_loop;
-                          }
-                          let digit = working % 10_i64;
-                          let digit_u8 = cvt::<i64, u8>(digit);
-                          let byte = digit_u8 +wrap 48_u8;
-                          place_back(window: &digits, value: byte);
-                          set working = working / 10_i64;
-                          continue @digit_loop;
+            }
+            if band(band(cmd[0_u64] == 73_u8, cmd[1_u64] == 78_u8), band(cmd[2_u64] == 67_u8, cmd[3_u64] == 82_u8)) {
+              if cmd_args.len >= 2_u64 {
+                let key = &cmd_args[1_u64];
+                let parse_int = bytes_to_i64(key);
+                match parse_int {
+                  Ok(value: v) => {
+                    let new_val = v +wrap 1_i64;
+                    let digits = slots_new::<u8, 32>();
+                    let remaining = new_val;
+                    if remaining == 0_i64 {
+                      place_back(window: &digits, value: 48_u8);
+                    } else {
+                      let working = remaining;
+                      loop @digit_loop {
+                        if working == 0_i64 {
+                          break @digit_loop;
                         }
+                        let digit = working % 10_i64;
+                        let digit_u8 = cvt::<i64, u8>(digit);
+                        let byte = digit_u8 +wrap 48_u8;
+                        place_back(window: &digits, value: byte);
+                        set working = working / 10_i64;
+                        continue @digit_loop;
                       }
-                      let resp = slots_new::<u8, 64>();
-                      place_back(window: &resp, value: 58_u8);
-                      let dlen = digits.len;
-                      for (i in 0_u64..dlen) {
-                        let sub_1 = dlen - 1_u64;
-                        let idx = sub_1 - i;
-                        let byte = digits[idx];
-                        place_back(window: &resp, value: byte);
-                      }
-                      place_back(window: &resp, value: 13_u8);
-                      place_back(window: &resp, value: 10_u8);
-                      send_all(send: &send, factory: &factory, data: &resp[0_u64..resp.len], deadline: deadline, cancel: &cancel);
                     }
-                    Err(error: err) => {
-                      send_all(send: &send, factory: &factory, data: &err_msg[0_u64..44_u64], deadline: deadline, cancel: &cancel);
+                    let resp = slots_new::<u8, 64>();
+                    place_back(window: &resp, value: 58_u8);
+                    let dlen = digits.len;
+                    for (i in 0_u64..dlen) {
+                      let sub_1 = dlen - 1_u64;
+                      let idx = sub_1 - i;
+                      let byte = digits[idx];
+                      place_back(window: &resp, value: byte);
                     }
+                    place_back(window: &resp, value: 13_u8);
+                    place_back(window: &resp, value: 10_u8);
+                    send_all(send: &send, factory: &factory, data: &resp[0_u64..resp.len], deadline: deadline, cancel: &cancel);
+                  }
+                  Err(error: err) => {
+                    send_all(send: &send, factory: &factory, data: &err_msg[0_u64..44_u64], deadline: deadline, cancel: &cancel);
                   }
                 }
               }
@@ -302,7 +303,7 @@ fn handle_connection(store: Shared<unit>, send: TcpSend, receive: TcpReceive, fa
       Err(error: err) => {
         if err == 0_u64 {
           if buffer_len < 16384_u64 {
-            let read_result = std::net::receive_next(receive: &receive, destination: &buffer[buffer_len..16384_u64], start: buffer_len, end: 16384_u64, deadline: Some<Instant>(value: deadline), cancel: &cancel);
+            let read_result = std::net::receive_next(receive: &receive, destination: &buffer[buffer_len..16384_u64], start: buffer_len, end: 16384_u64, deadline: deadline_opt, cancel: &cancel);
             match read_result {
               Ok(value: next) => {
                 set buffer_len = next;
@@ -385,13 +386,14 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let shared_store = shared_new::<unit>(value: unit);
   let begin = std::time::now(clock: &clock);
   let deadline = std::time::instant_after(instant: begin, nanoseconds: 17000000000_u64);
+  let deadline_some = Some<Instant>(value: deadline);
   let cancel = std::time::cancel_never();
   let accepted = 0_u64;
   loop @accept_loop {
     if accepted >= 9_u64 {
       break @accept_loop;
     }
-    let accept_result = std::net::tcp_accept(factory: &factory, listener: &listener, deadline: Some<Instant>(value: deadline), cancel: &cancel);
+    let accept_result = std::net::tcp_accept(factory: &factory, listener: &listener, deadline: deadline_some, cancel: &cancel);
     match accept_result {
       Ok(value: accepted_conn) => {
         let conn = accepted_conn.connection;

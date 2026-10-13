@@ -141,7 +141,9 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
           break @copy_bytes;
         }
         let byte = bytes[j];
-        place_back(window: &output_bytes, value: byte);
+        if output_bytes.len < output_bytes.cap {
+          place_back(window: &output_bytes, value: byte);
+        }
         set j = j + 1_u64;
         continue;
       }
