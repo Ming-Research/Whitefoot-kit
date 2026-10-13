@@ -1,1 +1,3 @@
-public fn main(inputs: std::process::Inputs) -> result: std::process::ExitStatus;
+alias ExitStatus = std::process::ExitStatus;
+
+public fn main() -> status: ExitStatus pure waits doc "Computes geometry observations and writes them to stdout.";

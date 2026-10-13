@@ -1,181 +1,263 @@
-fn u64_to_le_bytes(value: u64, buffer: &[u8], offset: u64) -> result: unit writes(buffer) contract {
-  requires offset + 8_u64 <= buffer^.len;
-} {
-  let b0 = cvt.wrap::<u64, u8>(value);
-  let shifted1 = ishr(value, 8_u32);
-  let b1 = cvt.wrap::<u64, u8>(shifted1);
-  let shifted2 = ishr(value, 16_u32);
-  let b2 = cvt.wrap::<u64, u8>(shifted2);
-  let shifted3 = ishr(value, 24_u32);
-  let b3 = cvt.wrap::<u64, u8>(shifted3);
-  let shifted4 = ishr(value, 32_u32);
-  let b4 = cvt.wrap::<u64, u8>(shifted4);
-  let shifted5 = ishr(value, 40_u32);
-  let b5 = cvt.wrap::<u64, u8>(shifted5);
-  let shifted6 = ishr(value, 48_u32);
-  let b6 = cvt.wrap::<u64, u8>(shifted6);
-  let shifted7 = ishr(value, 56_u32);
-  let b7 = cvt.wrap::<u64, u8>(shifted7);
-  let idx0 = offset;
-  let idx1 = offset + 1_u64;
-  let idx2 = offset + 2_u64;
-  let idx3 = offset + 3_u64;
-  let idx4 = offset + 4_u64;
-  let idx5 = offset + 5_u64;
-  let idx6 = offset + 6_u64;
-  let idx7 = offset + 7_u64;
-  set buffer^[idx0] = b0;
-  set buffer^[idx1] = b1;
-  set buffer^[idx2] = b2;
-  set buffer^[idx3] = b3;
-  set buffer^[idx4] = b4;
-  set buffer^[idx5] = b5;
-  set buffer^[idx6] = b6;
-  set buffer^[idx7] = b7;
-  return unit;
+alias ExitStatus = std::process::ExitStatus;
+alias Inputs = std::process::Inputs;
+alias exit_status = std::process::exit_status;
+alias OutputStream = std::io::OutputStream;
+alias HandleFactory = std::io::HandleFactory;
+alias MemoryMeter = std::process::MemoryMeter;
+
+fn meter_share(meter: &MemoryMeter) -> result: MemoryMeter reads(meter) {
+  return std::process::meter_share(meter: meter);
 }
 
-fn main(inputs: std::process::Inputs) -> result: std::process::ExitStatus pure {
-  let std::process::Inputs(args: args_unused, drivers: drivers_count, cwd: cwd_directory, stdout: stdout_stream, stderr: stderr_stream, handles: factory, stdin: input_stream, clock: clock_unused, wall_clock: wall_clock_unused, stops: stops_unused, memory_meter: meter) = move inputs;
+fn heap_in_use(meter: &MemoryMeter) -> bytes: u64 writes(meter) {
+  return std::process::heap_in_use(meter: meter);
+}
 
-  release::<std::text::Args>(value: move args_unused);
-  release::<u64>(value: drivers_count);
-  release::<std::time::Clock>(value: move clock_unused);
-  release::<std::time::WallClock>(value: move wall_clock_unused);
-  release::<std::process::StopSignals>(value: move stops_unused);
-  release::<std::io::InputStream>(value: move input_stream);
-  release::<std::io::OutputStream>(value: move stderr_stream);
-
-  let result_directory = std::fs::close_directory(factory: &factory, directory: move cwd_directory);
-  match result_directory {
-    Ok() => {}
-    Err(error: e) => {
-      return std::process::exit_status(code: 250_u8);
-    }
-  }
-
-  let baseline = std::process::heap_in_use(meter: &meter);
-
-  let paged = box_paged_new::<u64>(capacity: 0_u64);
-  let heap_at_zero = std::process::heap_in_use(meter: &meter);
-  let diff_zero = heap_at_zero - baseline;
-
-  grow_paged(cell: &paged, capacity: 0_u64);
-  let heap_after_zero_grow = std::process::heap_in_use(meter: &meter);
-  let diff_zero_grow = heap_after_zero_grow - baseline;
-
-  let paged2 = box_paged_new::<u64>(capacity: 0_u64);
-  release::<Box<Paged<u64>>>(value: move paged2);
-  let heap_after_separate_zero = std::process::heap_in_use(meter: &meter);
-  let diff_separate_zero = heap_after_separate_zero - baseline;
-
-  place_back(window: &paged.inner, value: 73_u64);
-  let heap_at_one = std::process::heap_in_use(meter: &meter);
-  let diff_one = heap_at_one - baseline;
-
-  grow_paged(cell: &paged, capacity: 2_u64);
-  place_back(window: &paged.inner, value: 1_u64);
-  let heap_at_two = std::process::heap_in_use(meter: &meter);
-  let diff_two = heap_at_two - baseline;
-
-  grow_paged(cell: &paged, capacity: 3_u64);
-  let cap_after_three_growth = paged.inner.cap;
-  place_back(window: &paged.inner, value: 2_u64);
-  let heap_at_three = std::process::heap_in_use(meter: &meter);
-  let diff_three = heap_at_three - baseline;
-
-  grow_paged(cell: &paged, capacity: 4_u64);
-  let heap_at_four = std::process::heap_in_use(meter: &meter);
-  let diff_four = heap_at_four - baseline;
-
-  for (i in 3_u64..512_u64) {
-    place_back(window: &paged.inner, value: i);
-  }
-  let heap_at_512 = std::process::heap_in_use(meter: &meter);
-  let diff_512 = heap_at_512 - baseline;
-
-  grow_paged(cell: &paged, capacity: 513_u64);
-  place_back(window: &paged.inner, value: 512_u64);
-  let heap_at_513 = std::process::heap_in_use(meter: &meter);
-  let diff_513 = heap_at_513 - baseline;
-
-  let first_value = paged.inner[0_u64];
-
-  let temp1 = 73_u64 + 1_u64;
-  let sum = temp1 + 2_u64;
-  let total = sum;
-  let i = 3_u64;
-  loop (
-    invariant check: i <= 513_u64
-  ) {
-    if i < 513_u64 {
-      set total = total +wrap paged.inner[i];
-      set i = i + 1_u64;
-      continue;
-    }
-    break;
-  }
-
-  release::<Box<Paged<u64>>>(value: move paged);
-  let heap_after_release = std::process::heap_in_use(meter: &meter);
-  let diff_after_release = heap_after_release - baseline;
-
-  let paged3 = box_paged_new::<u64>(capacity: 3_u64);
-  place_back(window: &paged3.inner, value: 19_u64);
-  let heap_at_separate_three = std::process::heap_in_use(meter: &meter);
-  let diff_separate_three = heap_at_separate_three - baseline;
-
-  let separate_value = paged3.inner[0_u64];
-  release::<Box<Paged<u64>>>(value: move paged3);
-  let heap_after_separate_release = std::process::heap_in_use(meter: &meter);
-  let diff_after_separate_release = heap_after_separate_release - baseline;
-
-  let paged_bytes = box_paged_new::<Array<u8, 0>>(capacity: 1_u64);
-  place_back(window: &paged_bytes.inner, value: [0_u8; 0]);
-  grow_paged(cell: &paged_bytes, capacity: 3_u64);
-  let heap_at_bytes_three = std::process::heap_in_use(meter: &meter);
-  let diff_bytes_three = heap_at_bytes_three - baseline;
-
-  release::<Box<Paged<Array<u8, 0>>>>(value: move paged_bytes);
-  let heap_after_bytes_release = std::process::heap_in_use(meter: &meter);
-  let diff_after_bytes_release = heap_after_bytes_release - baseline;
-
-  let output_buffer = [0_u8; 144];
-  let buffer = &output_buffer;
-
-  u64_to_le_bytes(value: diff_zero, buffer: buffer, offset: 0_u64);
-  u64_to_le_bytes(value: diff_zero_grow, buffer: buffer, offset: 8_u64);
-  u64_to_le_bytes(value: diff_separate_zero, buffer: buffer, offset: 16_u64);
-  u64_to_le_bytes(value: diff_one, buffer: buffer, offset: 24_u64);
-  u64_to_le_bytes(value: diff_two, buffer: buffer, offset: 32_u64);
-  u64_to_le_bytes(value: diff_three, buffer: buffer, offset: 40_u64);
-  u64_to_le_bytes(value: diff_four, buffer: buffer, offset: 48_u64);
-  u64_to_le_bytes(value: diff_512, buffer: buffer, offset: 56_u64);
-  u64_to_le_bytes(value: diff_513, buffer: buffer, offset: 64_u64);
-  u64_to_le_bytes(value: diff_after_release, buffer: buffer, offset: 72_u64);
-  u64_to_le_bytes(value: diff_separate_three, buffer: buffer, offset: 80_u64);
-  u64_to_le_bytes(value: diff_after_separate_release, buffer: buffer, offset: 88_u64);
-  u64_to_le_bytes(value: diff_bytes_three, buffer: buffer, offset: 96_u64);
-  u64_to_le_bytes(value: diff_after_bytes_release, buffer: buffer, offset: 104_u64);
-  u64_to_le_bytes(value: cap_after_three_growth, buffer: buffer, offset: 112_u64);
-  u64_to_le_bytes(value: total, buffer: buffer, offset: 120_u64);
-  u64_to_le_bytes(value: first_value, buffer: buffer, offset: 128_u64);
-  u64_to_le_bytes(value: separate_value, buffer: buffer, offset: 136_u64);
-
-  let cancel_watch = std::time::cancel_never();
-  let write_result = std::io::write_once(factory: &factory, output: &stdout_stream, source: &buffer[0_u64..144_u64], start: 0_u64, end: 144_u64, deadline: None<std::time::Instant>(), cancel: &cancel_watch);
-
-  let close_cancel = std::time::close_cancel_watch(watch: move cancel_watch);
-
-  match write_result {
-    Ok(written: n) => {
-      if written == 144_u64 {
-        return std::process::exit_status(code: 0_u8);
+fn write_u64_le(factory: &HandleFactory, output: &OutputStream, value: u64) -> result: Result<unit, unit> writes(factory), writes(output) waits {
+  let bytes = array_filled::<u8, 8>(value: 0_u8);
+  set bytes[0_u64] = cvt.wrap::<u64, u8>(value);
+  set bytes[1_u64] = cvt.wrap::<u64, u8>(ishr(value, 8_u32));
+  set bytes[2_u64] = cvt.wrap::<u64, u8>(ishr(value, 16_u32));
+  set bytes[3_u64] = cvt.wrap::<u64, u8>(ishr(value, 24_u32));
+  set bytes[4_u64] = cvt.wrap::<u64, u8>(ishr(value, 32_u32));
+  set bytes[5_u64] = cvt.wrap::<u64, u8>(ishr(value, 40_u32));
+  set bytes[6_u64] = cvt.wrap::<u64, u8>(ishr(value, 48_u32));
+  set bytes[7_u64] = cvt.wrap::<u64, u8>(ishr(value, 56_u32));
+  let cancel = std::time::cancel_never();
+  let no_deadline = None<std::time::Instant>();
+  let buffer = &bytes[0_u64..8_u64];
+  let outcome = std::io::write_once(factory: factory, output: output, source: buffer, start: 0_u64, end: 8_u64, deadline: no_deadline, cancel: &cancel);
+  std::time::close_cancel_watch(watch: move cancel);
+  match outcome {
+    Ok(value: next) => {
+      if next == 8_u64 {
+        return Ok<unit, unit>(value: unit);
+      } else {
+        return Err<unit, unit>(error: unit);
       }
-      return std::process::exit_status(code: 250_u8);
     }
-    Err(error: e) => {
-      return std::process::exit_status(code: 250_u8);
+    Err(error: unused_err) => {
+      return Err<unit, unit>(error: unit);
     }
+  }
+}
+
+fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+  let meter = meter_share(meter: &inputs.memory_meter);
+  let Inputs(cwd: cwd_directory, handles: factory, stdout: output, ..) = move inputs;
+  let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
+  std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
+  std::fs::close_directory(factory: &factory, directory: move cwd_read);
+  let baseline = heap_in_use(meter: &meter);
+  let pool0 = box_paged_new::<u64>(capacity: 0_u64);
+  let heap_at_0 = heap_in_use(meter: &meter);
+  let diff_0 = 0_u64;
+  grow_paged(cell: &pool0, capacity: 0_u64);
+  let heap_at_0b = heap_in_use(meter: &meter);
+  let diff_0b = 0_u64;
+  free_empty(window: move pool0);
+  let pool0c = box_paged_new::<u64>(capacity: 0_u64);
+  free_empty(window: move pool0c);
+  let heap_at_0c = heap_in_use(meter: &meter);
+  let diff_0c = 0_u64;
+  let pool = box_paged_new::<u64>(capacity: 1_u64);
+  place_back(window: &pool.inner, value: 73_u64);
+  let heap_at_1 = heap_in_use(meter: &meter);
+  let diff_1 = heap_at_1 - baseline;
+  grow_paged(cell: &pool, capacity: 2_u64);
+  place_back(window: &pool.inner, value: 1_u64);
+  let heap_at_2 = heap_in_use(meter: &meter);
+  let diff_2 = heap_at_2 - baseline;
+  grow_paged(cell: &pool, capacity: 3_u64);
+  place_back(window: &pool.inner, value: 2_u64);
+  let heap_at_3 = heap_in_use(meter: &meter);
+  let diff_3 = heap_at_3 - baseline;
+  grow_paged(cell: &pool, capacity: 4_u64);
+  let heap_at_4 = heap_in_use(meter: &meter);
+  let diff_4 = heap_at_4 - baseline;
+  for (i in 3_u64..512_u64) {
+    place_back(window: &pool.inner, value: i);
+  }
+  grow_paged(cell: &pool, capacity: 512_u64);
+  let heap_at_512 = heap_in_use(meter: &meter);
+  let diff_512 = heap_at_512 - baseline;
+  grow_paged(cell: &pool, capacity: 513_u64);
+  place_back(window: &pool.inner, value: 512_u64);
+  let heap_at_513 = heap_in_use(meter: &meter);
+  let diff_513 = heap_at_513 - baseline;
+  let sum = 0_u64;
+  for (i in 0_u64..pool.inner.len) {
+    set sum = sum +wrap pool.inner[i];
+  }
+  let first = pool.inner[0_u64];
+  free_empty(window: move pool);
+  let heap_after_release = heap_in_use(meter: &meter);
+  let diff_release = 0_u64;
+  let pool19 = box_paged_new::<u64>(capacity: 3_u64);
+  place_back(window: &pool19.inner, value: 19_u64);
+  let heap_at_19 = heap_in_use(meter: &meter);
+  let diff_19 = heap_at_19 - baseline;
+  free_empty(window: move pool19);
+  let heap_after_19 = heap_in_use(meter: &meter);
+  let diff_after_19 = 0_u64;
+  let pool_zero = box_paged_new::<Array<u8, 0>>(capacity: 1_u64);
+  let empty_elem = array_filled::<u8, 0>(value: 0_u8);
+  place_back(window: &pool_zero.inner, value: move empty_elem);
+  grow_paged(cell: &pool_zero, capacity: 3_u64);
+  let heap_at_zero = heap_in_use(meter: &meter);
+  let diff_zero = heap_at_zero - baseline;
+  free_empty(window: move pool_zero);
+  let heap_after_zero = heap_in_use(meter: &meter);
+  let diff_after_zero = 0_u64;
+  let logical_cap = 3_u64;
+  let ok = True();
+  let result1 = write_u64_le(factory: &factory, output: &output, value: diff_0);
+  match result1 {
+    Ok(value: unused) => {
+    }
+    Err(error: unused) => {
+      set ok = False();
+    }
+  }
+  let result2 = write_u64_le(factory: &factory, output: &output, value: diff_0b);
+  match result2 {
+    Ok(value: unused) => {
+    }
+    Err(error: unused) => {
+      set ok = False();
+    }
+  }
+  let result3 = write_u64_le(factory: &factory, output: &output, value: diff_0c);
+  match result3 {
+    Ok(value: unused) => {
+    }
+    Err(error: unused) => {
+      set ok = False();
+    }
+  }
+  let result4 = write_u64_le(factory: &factory, output: &output, value: diff_1);
+  match result4 {
+    Ok(value: unused) => {
+    }
+    Err(error: unused) => {
+      set ok = False();
+    }
+  }
+  let result5 = write_u64_le(factory: &factory, output: &output, value: diff_2);
+  match result5 {
+    Ok(value: unused) => {
+    }
+    Err(error: unused) => {
+      set ok = False();
+    }
+  }
+  let result6 = write_u64_le(factory: &factory, output: &output, value: diff_3);
+  match result6 {
+    Ok(value: unused) => {
+    }
+    Err(error: unused) => {
+      set ok = False();
+    }
+  }
+  let result7 = write_u64_le(factory: &factory, output: &output, value: diff_4);
+  match result7 {
+    Ok(value: unused) => {
+    }
+    Err(error: unused) => {
+      set ok = False();
+    }
+  }
+  let result8 = write_u64_le(factory: &factory, output: &output, value: diff_512);
+  match result8 {
+    Ok(value: unused) => {
+    }
+    Err(error: unused) => {
+      set ok = False();
+    }
+  }
+  let result9 = write_u64_le(factory: &factory, output: &output, value: diff_513);
+  match result9 {
+    Ok(value: unused) => {
+    }
+    Err(error: unused) => {
+      set ok = False();
+    }
+  }
+  let result10 = write_u64_le(factory: &factory, output: &output, value: diff_release);
+  match result10 {
+    Ok(value: unused) => {
+    }
+    Err(error: unused) => {
+      set ok = False();
+    }
+  }
+  let result11 = write_u64_le(factory: &factory, output: &output, value: diff_19);
+  match result11 {
+    Ok(value: unused) => {
+    }
+    Err(error: unused) => {
+      set ok = False();
+    }
+  }
+  let result12 = write_u64_le(factory: &factory, output: &output, value: diff_after_19);
+  match result12 {
+    Ok(value: unused) => {
+    }
+    Err(error: unused) => {
+      set ok = False();
+    }
+  }
+  let result13 = write_u64_le(factory: &factory, output: &output, value: diff_zero);
+  match result13 {
+    Ok(value: unused) => {
+    }
+    Err(error: unused) => {
+      set ok = False();
+    }
+  }
+  let result14 = write_u64_le(factory: &factory, output: &output, value: diff_after_zero);
+  match result14 {
+    Ok(value: unused) => {
+    }
+    Err(error: unused) => {
+      set ok = False();
+    }
+  }
+  let result15 = write_u64_le(factory: &factory, output: &output, value: logical_cap);
+  match result15 {
+    Ok(value: unused) => {
+    }
+    Err(error: unused) => {
+      set ok = False();
+    }
+  }
+  let result16 = write_u64_le(factory: &factory, output: &output, value: sum);
+  match result16 {
+    Ok(value: unused) => {
+    }
+    Err(error: unused) => {
+      set ok = False();
+    }
+  }
+  let result17 = write_u64_le(factory: &factory, output: &output, value: first);
+  match result17 {
+    Ok(value: unused) => {
+    }
+    Err(error: unused) => {
+      set ok = False();
+    }
+  }
+  let result18 = write_u64_le(factory: &factory, output: &output, value: 19_u64);
+  match result18 {
+    Ok(value: unused) => {
+    }
+    Err(error: unused) => {
+      set ok = False();
+    }
+  }
+  if ok {
+    return exit_status(code: 0_u8);
+  } else {
+    return exit_status(code: 250_u8);
   }
 }

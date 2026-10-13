@@ -1,4 +1,12 @@
-fn increment_counter(counter: Shared<u64>) -> result: unit pure {
+alias ExitStatus = std::process::ExitStatus;
+alias exit_status = std::process::exit_status;
+alias Inputs = std::process::Inputs;
+alias HandleFactory = std::io::HandleFactory;
+alias OutputStream = std::io::OutputStream;
+alias CancelWatch = std::time::CancelWatch;
+alias Instant = std::time::Instant;
+
+fn increment_counter(counter: Shared<u64>) -> result: unit pure waits {
   for (i in 0_u64..20000_u64) {
     atomic count = &counter {
       set count^ = count^ +wrap 1_u64;
@@ -7,202 +15,142 @@ fn increment_counter(counter: Shared<u64>) -> result: unit pure {
   return unit;
 }
 
-struct Queue {
-  ring: Slots<u64, 8>;
-}
-
-fn produce(queue: Shared<Queue>, value_start: u64) -> result: unit pure {
-  for (i in 0_u64..5000_u64) {
-    let value = value_start + i;
-    loop (
-      invariant spinning: 0_u64 < 1_u64
-    ) {
-      atomic q = &queue when q^.ring.len < q^.ring.cap {
-        place_back(window: &q^.ring, value: value);
-        break;
+fn produce(queue: Shared<Box<Ring<u32>>>, value: u32) -> result: unit pure waits {
+  atomic q = &queue {
+    loop @wait {
+      if q^.inner.len < 8_u64 {
+        deque_push_back(values: q, value: value);
+        break @wait;
       }
     }
   }
   return unit;
 }
 
-fn consume(queue: Shared<Queue>, total: Shared<u64>) -> result: unit pure {
-  for (i in 0_u64..5000_u64) {
-    loop (
-      invariant spinning: 0_u64 < 1_u64
-    ) {
-      atomic q = &queue, t = &total when q^.ring.len > 0_u64 {
-        let v = take_front(window: &q^.ring);
-        set t^ = t^ +wrap v;
-        break;
-      }
+fn consume_one(queue: Shared<Box<Ring<u32>>>) -> result: Option<u32> pure waits {
+  let result = None<u32>();
+  atomic q = &queue {
+    if q^.inner.len > 0_u64 {
+      let item = deque_pop_front(values: q);
+      set result = Some<u32>(value: item);
     }
   }
-  return unit;
+  return result;
 }
 
-fn main(inputs: pkg::process::Inputs) -> result: pkg::process::ExitStatus pure waits {
-  let pkg::process::Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_dir, stdout: out, stderr: unused_err, handles: factory, stdin: unused_in, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_mem) = move inputs;
-
-  pkg::fs::close_directory_write(factory: &factory, directory: move cwd_dir);
-
+fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+  let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: output, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let std::fs::Directory(read: cwd, write: cwd_write) = move cwd_directory;
+  let write_closed = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
+  let read_closed = std::fs::close_directory(factory: &factory, directory: move cwd);
+  match write_closed {
+    Ok(value: unused_write_closed) => {
+    }
+    Err(error: unused_write_error) => {
+      return exit_status(code: 4_u8);
+    }
+  }
+  match read_closed {
+    Ok(value: unused_read_closed) => {
+    }
+    Err(error: unused_read_error) => {
+      return exit_status(code: 4_u8);
+    }
+  }
   let counter = shared_new::<u64>(value: 0_u64);
-
-  let ring = slots_new::<u64, 8>();
-  let queue_struct = Queue(ring: move ring);
-  let queue = shared_new::<Queue>(value: move queue_struct);
+  let initial_queue = std::collections::deque::deque_new::<u32, 8_u64>(capacity: 8_u64);
+  let queue = shared_new::<Box<Ring<u32>>>(value: move initial_queue);
   let total = shared_new::<u64>(value: 0_u64);
-
-  let counter_h1 = shared_share::<u64>(shared: &counter);
-  let counter_h2 = shared_share::<u64>(shared: &counter);
-  let counter_h3 = shared_share::<u64>(shared: &counter);
-  let counter_h4 = shared_share::<u64>(shared: &counter);
-  let counter_h5 = shared_share::<u64>(shared: &counter);
-  let counter_h6 = shared_share::<u64>(shared: &counter);
-  let counter_h7 = shared_share::<u64>(shared: &counter);
-  let counter_h8 = shared_share::<u64>(shared: &counter);
-  let counter_h9 = shared_share::<u64>(shared: &counter);
-  let counter_h10 = shared_share::<u64>(shared: &counter);
-  let counter_h11 = shared_share::<u64>(shared: &counter);
-  let counter_h12 = shared_share::<u64>(shared: &counter);
-  let counter_h13 = shared_share::<u64>(shared: &counter);
-  let counter_h14 = shared_share::<u64>(shared: &counter);
-  let counter_h15 = shared_share::<u64>(shared: &counter);
-
-  spawn increment_counter(counter: move counter_h1);
-  spawn increment_counter(counter: move counter_h2);
-  spawn increment_counter(counter: move counter_h3);
-  spawn increment_counter(counter: move counter_h4);
-  spawn increment_counter(counter: move counter_h5);
-  spawn increment_counter(counter: move counter_h6);
-  spawn increment_counter(counter: move counter_h7);
-  spawn increment_counter(counter: move counter_h8);
-  spawn increment_counter(counter: move counter_h9);
-  spawn increment_counter(counter: move counter_h10);
-  spawn increment_counter(counter: move counter_h11);
-  spawn increment_counter(counter: move counter_h12);
-  spawn increment_counter(counter: move counter_h13);
-  spawn increment_counter(counter: move counter_h14);
-  spawn increment_counter(counter: move counter_h15);
-
-  let queue_p1 = shared_share::<Queue>(shared: &queue);
-  let queue_p2 = shared_share::<Queue>(shared: &queue);
-  let queue_p3 = shared_share::<Queue>(shared: &queue);
-  let queue_p4 = shared_share::<Queue>(shared: &queue);
-
-  let queue_c1 = shared_share::<Queue>(shared: &queue);
-  let queue_c2 = shared_share::<Queue>(shared: &queue);
-  let queue_c3 = shared_share::<Queue>(shared: &queue);
-  let queue_c4 = shared_share::<Queue>(shared: &queue);
-
-  let total_c1 = shared_share::<u64>(shared: &total);
-  let total_c2 = shared_share::<u64>(shared: &total);
-  let total_c3 = shared_share::<u64>(shared: &total);
-  let total_c4 = shared_share::<u64>(shared: &total);
-
-  spawn produce(queue: move queue_p1, value_start: 0_u64);
-  spawn produce(queue: move queue_p2, value_start: 5000_u64);
-  spawn produce(queue: move queue_p3, value_start: 10000_u64);
-  spawn produce(queue: move queue_p4, value_start: 15000_u64);
-
-  spawn consume(queue: move queue_c1, total: move total_c1);
-  spawn consume(queue: move queue_c2, total: move total_c2);
-  spawn consume(queue: move queue_c3, total: move total_c3);
-  spawn consume(queue: move queue_c4, total: move total_c4);
-
-  let final_counter = 0_u64;
-  let final_total = 0_u64;
-  let final_len = 0_u64;
-
-  atomic counter_val = &counter {
-    let cv = counter_val^;
-    if cv != 320000_u64 {
-      return pkg::process::exit_status(code: 1_u8);
-    }
-    set final_counter = cv;
+  for (i in 0_u64..16_u64) {
+    let counter_handle = shared_share::<u64>(shared: &counter);
+    spawn increment_counter(counter: move counter_handle);
   }
-
-  atomic total_val = &total, queue_val = &queue {
-    let tv = total_val^;
-    let ql = queue_val^.ring.len;
-
-    if tv != 49990000_u64 {
-      return pkg::process::exit_status(code: 2_u8);
-    }
-
-    if ql != 0_u64 {
-      return pkg::process::exit_status(code: 3_u8);
-    }
-
-    set final_total = tv;
-    set final_len = ql;
+  for (p in 0_u32..20000_u32) {
+    let queue_handle = shared_share::<Box<Ring<u32>>>(shared: &queue);
+    spawn produce(queue: move queue_handle, value: p %wrap 5000_u32);
   }
-
-  let b0 = cvt.wrap::<u64, u8>(final_counter);
-  let s1 = ishr(final_counter, 8_u32);
-  let b1 = cvt.wrap::<u64, u8>(s1);
-  let s2 = ishr(final_counter, 16_u32);
-  let b2 = cvt.wrap::<u64, u8>(s2);
-  let s3 = ishr(final_counter, 24_u32);
-  let b3 = cvt.wrap::<u64, u8>(s3);
-  let s4 = ishr(final_counter, 32_u32);
-  let b4 = cvt.wrap::<u64, u8>(s4);
-  let s5 = ishr(final_counter, 40_u32);
-  let b5 = cvt.wrap::<u64, u8>(s5);
-  let s6 = ishr(final_counter, 48_u32);
-  let b6 = cvt.wrap::<u64, u8>(s6);
-  let s7 = ishr(final_counter, 56_u32);
-  let b7 = cvt.wrap::<u64, u8>(s7);
-
-  let b8 = cvt.wrap::<u64, u8>(final_total);
-  let s9 = ishr(final_total, 8_u32);
-  let b9 = cvt.wrap::<u64, u8>(s9);
-  let s10 = ishr(final_total, 16_u32);
-  let b10 = cvt.wrap::<u64, u8>(s10);
-  let s11 = ishr(final_total, 24_u32);
-  let b11 = cvt.wrap::<u64, u8>(s11);
-  let s12 = ishr(final_total, 32_u32);
-  let b12 = cvt.wrap::<u64, u8>(s12);
-  let s13 = ishr(final_total, 40_u32);
-  let b13 = cvt.wrap::<u64, u8>(s13);
-  let s14 = ishr(final_total, 48_u32);
-  let b14 = cvt.wrap::<u64, u8>(s14);
-  let s15 = ishr(final_total, 56_u32);
-  let b15 = cvt.wrap::<u64, u8>(s15);
-
-  let b16 = cvt.wrap::<u64, u8>(final_len);
-  let s17 = ishr(final_len, 8_u32);
-  let b17 = cvt.wrap::<u64, u8>(s17);
-  let s18 = ishr(final_len, 16_u32);
-  let b18 = cvt.wrap::<u64, u8>(s18);
-  let s19 = ishr(final_len, 24_u32);
-  let b19 = cvt.wrap::<u64, u8>(s19);
-  let s20 = ishr(final_len, 32_u32);
-  let b20 = cvt.wrap::<u64, u8>(s20);
-  let s21 = ishr(final_len, 40_u32);
-  let b21 = cvt.wrap::<u64, u8>(s21);
-  let s22 = ishr(final_len, 48_u32);
-  let b22 = cvt.wrap::<u64, u8>(s22);
-  let s23 = ishr(final_len, 56_u32);
-  let b23 = cvt.wrap::<u64, u8>(s23);
-
-  let output_buffer = [b0, b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17, b18, b19, b20, b21, b22, b23];
-
-  let option_cancel = pkg::time::cancel_never();
-  let write_result = pkg::io::write_once(factory: &factory, output: &out, source: &output_buffer[0_u64..24_u64], start: 0_u64, end: 24_u64, deadline: None<pkg::time::Instant>(), cancel: &option_cancel);
-
-  match move write_result {
-    Ok(value: written) => {
-      if written == 24_u64 {
-        pkg::time::close_cancel_watch(watch: move option_cancel);
-        return pkg::process::exit_status(code: 0_u8);
+  for (c in 0_u64..20000_u64) {
+    let queue_handle = shared_share::<Box<Ring<u32>>>(shared: &queue);
+    let total_handle = shared_share::<u64>(shared: &total);
+    spawn @consume_spawn {
+      let item = consume_one(queue: move queue_handle);
+      match item {
+        Some(value: v) => {
+          let as_u64 = cvt::<u32, u64>(v);
+          atomic sum = &total_handle {
+            set sum^ = sum^ +wrap as_u64;
+          }
+        }
+        None() => {
+        }
       }
-      pkg::time::close_cancel_watch(watch: move option_cancel);
-      return pkg::process::exit_status(code: 4_u8);
-    }
-    Err(value: error) => {
-      pkg::time::close_cancel_watch(watch: move option_cancel);
-      return pkg::process::exit_status(code: 4_u8);
+    };
+  }
+  let final_counter = 0_u64;
+  atomic count = &counter {
+    set final_counter = count^;
+  }
+  let final_total = 0_u64;
+  atomic sum = &total {
+    set final_total = sum^;
+  }
+  let queue_length = 0_u64;
+  atomic q = &queue {
+    set queue_length = q^.inner.len;
+  }
+  if final_counter != 320000_u64 {
+    return exit_status(code: 1_u8);
+  }
+  if final_total != 49990000_u64 {
+    return exit_status(code: 2_u8);
+  }
+  if queue_length != 0_u64 {
+    return exit_status(code: 3_u8);
+  }
+  let output_buffer = array_filled::<u8, 24>(value: 0_u8);
+  set output_buffer[0_u64] = cvt::<u64, u8>(final_counter);
+  set output_buffer[1_u64] = cvt::<u64, u8>(ishr(final_counter, 8_u32));
+  set output_buffer[2_u64] = cvt::<u64, u8>(ishr(final_counter, 16_u32));
+  set output_buffer[3_u64] = cvt::<u64, u8>(ishr(final_counter, 24_u32));
+  set output_buffer[4_u64] = cvt::<u64, u8>(ishr(final_counter, 32_u32));
+  set output_buffer[5_u64] = cvt::<u64, u8>(ishr(final_counter, 40_u32));
+  set output_buffer[6_u64] = cvt::<u64, u8>(ishr(final_counter, 48_u32));
+  set output_buffer[7_u64] = cvt::<u64, u8>(ishr(final_counter, 56_u32));
+  set output_buffer[8_u64] = cvt::<u64, u8>(final_total);
+  set output_buffer[9_u64] = cvt::<u64, u8>(ishr(final_total, 8_u32));
+  set output_buffer[10_u64] = cvt::<u64, u8>(ishr(final_total, 16_u32));
+  set output_buffer[11_u64] = cvt::<u64, u8>(ishr(final_total, 24_u32));
+  set output_buffer[12_u64] = cvt::<u64, u8>(ishr(final_total, 32_u32));
+  set output_buffer[13_u64] = cvt::<u64, u8>(ishr(final_total, 40_u32));
+  set output_buffer[14_u64] = cvt::<u64, u8>(ishr(final_total, 48_u32));
+  set output_buffer[15_u64] = cvt::<u64, u8>(ishr(final_total, 56_u32));
+  set output_buffer[16_u64] = cvt::<u64, u8>(queue_length);
+  set output_buffer[17_u64] = cvt::<u64, u8>(ishr(queue_length, 8_u32));
+  set output_buffer[18_u64] = cvt::<u64, u8>(ishr(queue_length, 16_u32));
+  set output_buffer[19_u64] = cvt::<u64, u8>(ishr(queue_length, 24_u32));
+  set output_buffer[20_u64] = cvt::<u64, u8>(ishr(queue_length, 32_u32));
+  set output_buffer[21_u64] = cvt::<u64, u8>(ishr(queue_length, 40_u32));
+  set output_buffer[22_u64] = cvt::<u64, u8>(ishr(queue_length, 48_u32));
+  set output_buffer[23_u64] = cvt::<u64, u8>(ishr(queue_length, 56_u32));
+  let sent = 0_u64;
+  loop @write {
+    if sent < 24_u64 {
+      let remaining = 24_u64 - sent;
+      let no_deadline = None<Instant>();
+      let cancel = std::time::cancel_never();
+      let outcome = std::io::write_once(factory: &factory, output: &output, source: &output_buffer[sent..24_u64], start: 0_u64, end: remaining, deadline: no_deadline, cancel: &cancel);
+      std::time::close_cancel_watch(watch: move cancel);
+      match outcome {
+        Ok(value: next) => {
+          set sent = sent + next;
+        }
+        Err(error: problem) => {
+          return exit_status(code: 4_u8);
+        }
+      }
+    } else {
+      break @write;
     }
   }
+  return exit_status(code: 0_u8);
 }

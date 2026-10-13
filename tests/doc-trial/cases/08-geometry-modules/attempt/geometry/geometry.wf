@@ -1,0 +1,18 @@
+fn point_in_rectangle(point: Point, rect: Rectangle) -> result: Bool pure {
+  let x_in_range = band(point.x >= rect.x, point.x < saturating_add(rect.x, rect.width));
+  let y_bottom = saturating_add(rect.y, rect.height);
+  let y_in_range = band(point.y >= rect.y, point.y < y_bottom);
+  let result = band(x_in_range, y_in_range);
+  return result;
+}
+
+fn rectangles_intersect(rect1: Rectangle, rect2: Rectangle) -> result: Bool pure {
+  let rect1_right = saturating_add(rect1.x, rect1.width);
+  let rect2_right = saturating_add(rect2.x, rect2.width);
+  let rect1_bottom = saturating_add(rect1.y, rect1.height);
+  let rect2_bottom = saturating_add(rect2.y, rect2.height);
+  let x_overlap = band(rect1.x < rect2_right, rect2.x < rect1_right);
+  let y_overlap = band(rect1.y < rect2_bottom, rect2.y < rect1_bottom);
+  let result = band(x_overlap, y_overlap);
+  return result;
+}

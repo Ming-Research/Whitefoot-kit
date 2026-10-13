@@ -1,0 +1,86 @@
+alias ExitStatus = std::process::ExitStatus;
+alias Inputs = std::process::Inputs;
+alias exit_status = std::process::exit_status;
+alias HandleFactory = std::io::HandleFactory;
+alias OutputStream = std::io::OutputStream;
+alias write_once = std::io::write_once;
+alias cancel_never = std::time::cancel_never;
+alias close_cancel_watch = std::time::close_cancel_watch;
+
+fn write_u64_le(buffer: &[u8], offset: u64, value: u64) -> result: unit writes(buffer) {
+  let byte0 = cvt.wrap::<u64, u8>(iand(value, 0xFF_u64));
+  set buffer^[offset] = byte0;
+  let byte1 = cvt.wrap::<u64, u8>(iand(ishr(value, 8_u32), 0xFF_u64));
+  set buffer^[offset +wrap 1_u64] = byte1;
+  let byte2 = cvt.wrap::<u64, u8>(iand(ishr(value, 16_u32), 0xFF_u64));
+  set buffer^[offset +wrap 2_u64] = byte2;
+  let byte3 = cvt.wrap::<u64, u8>(iand(ishr(value, 24_u32), 0xFF_u64));
+  set buffer^[offset +wrap 3_u64] = byte3;
+  let byte4 = cvt.wrap::<u64, u8>(iand(ishr(value, 32_u32), 0xFF_u64));
+  set buffer^[offset +wrap 4_u64] = byte4;
+  let byte5 = cvt.wrap::<u64, u8>(iand(ishr(value, 40_u32), 0xFF_u64));
+  set buffer^[offset +wrap 5_u64] = byte5;
+  let byte6 = cvt.wrap::<u64, u8>(iand(ishr(value, 48_u32), 0xFF_u64));
+  set buffer^[offset +wrap 6_u64] = byte6;
+  let byte7 = cvt.wrap::<u64, u8>(iand(ishr(value, 56_u32), 0xFF_u64));
+  set buffer^[offset +wrap 7_u64] = byte7;
+  return unit;
+}
+
+fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+  let Inputs(cwd: cwd_dir, handles: factory, stdout: output, ..) = move inputs;
+  let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_dir;
+  std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
+  std::fs::close_directory(factory: &factory, directory: move cwd_read);
+
+  let pool = box_slots_new::<Box<Array<u8, 256>>>(capacity: 8_u64);
+  for (i in 0_u64..8_u64) {
+    let block = box_array_filled::<u8>(count: 256_u64, value: 0_u8);
+    place_back(window: &pool.inner, value: move block);
+  }
+
+  let initial_count = pool.inner.len;
+
+  let lease = take_back(window: &pool.inner);
+  let during_count = pool.inner.len;
+
+  place_back(window: &pool.inner, value: move lease);
+  let final_count = pool.inner.len;
+
+  let output_buffer = array_filled::<u8, 24>(value: 0_u8);
+  write_u64_le(buffer: &output_buffer, offset: 0_u64, value: initial_count);
+  write_u64_le(buffer: &output_buffer, offset: 8_u64, value: during_count);
+  write_u64_le(buffer: &output_buffer, offset: 16_u64, value: final_count);
+
+  let cancel = cancel_never();
+  let no_deadline = None<std::time::Instant>();
+  let write_result = write_once(factory: &factory, output: &output, source: &output_buffer[0_u64..24_u64], start: 0_u64, end: 24_u64, deadline: no_deadline, cancel: &cancel);
+  close_cancel_watch(watch: move cancel);
+
+  let exit_code = if initial_count == 8_u64 {
+    if during_count == 7_u64 {
+      if final_count == 8_u64 {
+        match write_result {
+          Ok(value: written) => {
+            if written == 24_u64 {
+              0_u8
+            } else {
+              250_u8
+            }
+          }
+          Err(error: err) => {
+            250_u8
+          }
+        }
+      } else {
+        4_u8
+      }
+    } else {
+      3_u8
+    }
+  } else {
+    2_u8
+  };
+
+  return exit_status(code: exit_code);
+}

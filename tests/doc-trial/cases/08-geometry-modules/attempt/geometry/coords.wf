@@ -1,0 +1,80 @@
+fn from_whole_pixels(pixels: i64) -> result: i32 pure {
+  let scaled = pixels *sat 64_i64;
+  let is_too_big = scaled > 2147483647_i64;
+  if is_too_big {
+    return 2147483647_i32;
+  }
+  let is_too_small = scaled < -2147483648_i64;
+  if is_too_small {
+    return -2147483648_i32;
+  }
+  let result = cvt::<i64, i32>(scaled);
+  return result;
+}
+
+fn from_binary64_pixels(value: f64) -> result: i32 pure {
+  let is_not_nan = feq(value, value);
+  if is_not_nan {
+  } else {
+    return 0_i32;
+  }
+  let scaled = fmul.strict(value, 64.0_f64);
+  let is_not_nan_scaled = feq(scaled, scaled);
+  if is_not_nan_scaled {
+  } else {
+    let sign_bit = flt(scaled, 0.0_f64);
+    if sign_bit {
+      return -2147483648_i32;
+    } else {
+      return 2147483647_i32;
+    }
+  }
+  let check_upper = fle(scaled, 2147483647.0_f64);
+  if check_upper {
+  } else {
+    return 2147483647_i32;
+  }
+  let check_lower = fge(scaled, -2147483648.0_f64);
+  if check_lower {
+  } else {
+    return -2147483648_i32;
+  }
+  let rounded_f64 = froundeven(scaled);
+  let result = cvt::<f64, i32>(rounded_f64);
+  return result;
+}
+
+fn to_binary64_pixels(coord: i32) -> result: f64 pure {
+  let wide = cvt::<i32, i64>(coord);
+  let as_f64 = cvt::<i64, f64>(wide);
+  let result = fdiv.strict(as_f64, 64.0_f64);
+  return result;
+}
+
+fn saturating_add(left: i32, right: i32) -> result: i32 pure {
+  let result = left +sat right;
+  return result;
+}
+
+fn saturating_sub(left: i32, right: i32) -> result: i32 pure {
+  let result = left -sat right;
+  return result;
+}
+
+fn min_coord(left: i32, right: i32) -> result: i32 pure {
+  let is_left_smaller = left < right;
+  if is_left_smaller {
+    return left;
+  } else {
+    return right;
+  }
+}
+
+fn max_coord(left: i32, right: i32) -> result: i32 pure {
+  let is_left_larger = left > right;
+  if is_left_larger {
+    return left;
+  } else {
+    return right;
+  }
+}

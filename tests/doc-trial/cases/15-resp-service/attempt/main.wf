@@ -1,674 +1,308 @@
-struct KeyValue {
-  key: std::collections::vector::GrowVector<u8, 1024>;
-  value: std::collections::vector::GrowVector<u8, 1024>;
-}
+alias ExitStatus = std::process::ExitStatus;
+alias Inputs = std::process::Inputs;
+alias exit_status = std::process::exit_status;
+alias HandleFactory = std::io::HandleFactory;
+alias ReadStop = std::io::ReadStop;
+alias SocketAddress = std::net::SocketAddress;
+alias TcpListener = std::net::TcpListener;
+alias TcpConnection = std::net::TcpConnection;
+alias TcpReceive = std::net::TcpReceive;
+alias TcpSend = std::net::TcpSend;
+alias Instant = std::time::Instant;
+alias CancelWatch = std::time::CancelWatch;
+alias Args = std::text::Args;
+alias HashMap = std::collections::hash_map::HashMap<Box<Array<u8>>, Box<Array<u8>>, 8192>;
 
-nocopy struct Store {
-  entries: std::collections::vector::GrowVector<KeyValue, 1024>;
-}
+const PONG: Array<u8, 7> = "+PONG\r\n";
+const OK: Array<u8, 5> = "+OK\r\n";
+const NULL_BULK: Array<u8, 5> = "$-1\r\n";
+const ONE: Array<u8, 4> = ":1\r\n";
+const ZERO: Array<u8, 4> = ":0\r\n";
+const ERR_INT: Array<u8, 48> = "-ERR value is not an integer or out of range\r\n";
 
-fn main(inputs: std::process::Inputs) -> result: std::process::ExitStatus {
-  let std::process::Inputs(args: args, drivers: drivers, cwd: unused_cwd, stdout: unused_stdout, stderr: unused_stderr, handles: handles, stdin: unused_stdin, clock: clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
-
-  let arg_count = std::text::args_count(args: &args);
-  if arg_count != 5_u64 {
-    return std::process::exit_status(code: 1_u8);
-  }
-
-  let port_arg = std::text::arg_get(args: &args, position: 1_u64);
-  let port = match move port_arg {
-    Ok(value: port_str) => {
-      let port_num = parse_u16(arg: &port_str);
-      match port_num {
-        Some(value: p) => p,
-        None() => return std::process::exit_status(code: 1_u8),
-      }
-    }
-    Err(err: port_error) => return std::process::exit_status(code: 1_u8),
-  };
-
-  let address = std::net::socket_address_v4(a: 127_u8, b: 0_u8, c: 0_u8, d: 1_u8, port: port);
-
-  let listen_result = std::net::tcp_listen(factory: &handles, address: &address);
-  let listener = match move listen_result {
-    Ok(value: l) => l,
-    Err(err: e) => return std::process::exit_status(code: 1_u8),
-  };
-
-  let store = box_new::<Store>(value: Store(entries: std::collections::vector::grow_vector_new::<KeyValue, 1024>()));
-  let shared_store = std::shared::shared_new::<Box<Store>>(value: move store);
-
-  let cancel = std::time::cancel_never();
-
-  loop (
-    invariant active: true
-  ) {
-    let accept_result = std::net::tcp_accept(factory: &handles, listener: &listener, deadline: None<std::time::Instant>(), cancel: &cancel);
-    let accepted = match move accept_result {
-      Ok(value: conn) => conn,
-      Err(err: accept_err) => {
-        break;
-      }
-    };
-
-    let store_handle = std::shared::shared_share::<Box<Store>>(shared: &shared_store);
-    spawn serve_client(connection: move accepted.connection, store: move store_handle, handles: std::io::factory_share(factory: &handles), clock: std::time::clock_share(clock: &clock));
-  }
-
-  let close_listener_result = std::net::close_listener(factory: &handles, listener: move listener);
-  let close_cancel_result = std::time::close_cancel_watch(watch: move cancel);
-
-  return std::process::exit_status(code: 0_u8);
-}
-
-fn parse_u16(arg: &std::text::HostString) -> result: Option<u16> reads(arg) pure {
-  let len = std::text::host_bytes_len(value: arg);
-  if len > 5_u64 {
-    return None<u16>();
-  }
-
-  let buf: Array<u8, 5> = [0_u8, 0_u8, 0_u8, 0_u8, 0_u8];
-  let copy_result = std::text::host_copy_bytes(value: arg, destination: &buf[0_u64..5], start: 0_u64, end: len);
-  let read_bytes = match move copy_result {
-    Ok(value: next) => next,
-    Err(err: copy_err) => return None<u16>(),
-  };
-
-  return parse_u16_from_bytes(bytes: &buf[0_u64..read_bytes]);
-}
-
-fn parse_u16_from_bytes(bytes: &[u8]) -> result: Option<u16> reads(bytes) pure {
-  let len = bytes^.len;
-  if len == 0_u64 {
-    return None<u16>();
-  }
-
-  let value: u16 = 0_u16;
-  for (i in 0_u64..len) {
-    let b = bytes^[i];
-    if bor(b < 48_u8, b > 57_u8) {
-      return None<u16>();
-    }
-    let digit = cvt::<u8, u16>(b - 48_u8);
-    let next = value * 10_u16 +wrap digit;
-    if next < value {
-      return None<u16>();
-    }
-    set value = next;
-  }
-
-  return Some<u16>(value: value);
-}
-
-fn parse_u64_from_bytes(bytes: &[u8]) -> result: Option<u64> reads(bytes) pure {
-  let len = bytes^.len;
-  if len == 0_u64 {
+fn parse_u64(bytes: &[u8]) -> result: Option<u64> reads(bytes) {
+  if bytes^.len == 0_u64 {
     return None<u64>();
   }
-
-  let value: u64 = 0_u64;
-  for (i in 0_u64..len) {
-    let b = bytes^[i];
-    if bor(b < 48_u8, b > 57_u8) {
+  let result = 0_u64;
+  for (i in 0_u64..bytes^.len) {
+    let ch = bytes^[i];
+    if ch < 48_u8 {
       return None<u64>();
     }
-    let digit = cvt::<u8, u64>(b - 48_u8);
-    let next = value * 10_u64 +wrap digit;
-    if next < value {
+    if ch > 57_u8 {
       return None<u64>();
     }
-    set value = next;
+    let digit = ch - 48_u8;
+    let d = cvt::<u8, u64>(digit);
+    set result = result *wrap 10_u64;
+    set result = result +wrap d;
   }
-
-  return Some<u64>(value: value);
+  return Some<u64>(value: result);
 }
 
-fn parse_i64_from_bytes(bytes: &[u8]) -> result: Option<i64> reads(bytes) pure {
-  let len = bytes^.len;
-  if len == 0_u64 {
+fn parse_i64(bytes: &[u8]) -> result: Option<i64> reads(bytes) {
+  if bytes^.len == 0_u64 {
     return None<i64>();
   }
-
-  let start: u64 = 0_u64;
-  let negative = False();
-
-  let first = bytes^[0_u64];
-  if first == 45_u8 {
-    if len == 1_u64 {
-      return None<i64>();
-    }
-    set negative = True();
-    set start = 1_u64;
+  let negative = bytes^[0_u64] == 45_u8;
+  let start = if negative { give 1_u64; } else { give 0_u64; };
+  if start >= bytes^.len {
+    return None<i64>();
   }
-
-  let value: i64 = 0_i64;
-  for (i in start..len) {
-    let b = bytes^[i];
-    if bor(b < 48_u8, b > 57_u8) {
+  let result = 0_i64;
+  for (i in start..bytes^.len) {
+    let ch = bytes^[i];
+    if ch < 48_u8 {
       return None<i64>();
     }
-    let digit = cvt::<u8, i64>(b - 48_u8);
-    let next = value * 10_i64 +wrap digit;
+    if ch > 57_u8 {
+      return None<i64>();
+    }
+    let digit = ch - 48_u8;
+    let d = cvt::<u8, i64>(digit);
+    set result = result *wrap 10_i64;
     if negative {
-      if next > value {
-        return None<i64>();
-      }
+      set result = result -wrap d;
     } else {
-      if next < value {
-        return None<i64>();
-      }
+      set result = result +wrap d;
     }
-    set value = next;
   }
-
-  if negative {
-    return Some<i64>(value: value);
-  } else {
-    return Some<i64>(value: value);
-  }
+  return Some<i64>(value: result);
 }
 
-struct ClientBuffer {
-  data: std::collections::vector::GrowVector<u8, 65536>;
-  filled: u64;
-}
-
-fn serve_client(connection: std::net::TcpConnection, store: std::shared::Shared<Box<Store>>, handles: std::io::HandleFactory, clock: std::time::Clock) -> result: unit {
-  let std::net::TcpConnection(receive: receive, send: send) = move connection;
-
-  let buffer = ClientBuffer(data: std::collections::vector::grow_vector_new::<u8, 65536>(), filled: 0_u64);
-
-  loop (
-    invariant active: true
-  ) {
-    std::collections::vector::grow_vector_reserve(values: &buffer.data, total: buffer.filled + 4096_u64);
-
-    let window_start = buffer.filled;
-    let window_end = buffer.data.storage.inner.cap;
-    let available = window_end - window_start;
-
-    if available == 0_u64 {
-      break;
-    }
-
-    let buf_slice = &buffer.data.storage.inner[window_start..window_end];
-    let cancel = std::time::cancel_never();
-    let read_result = std::net::receive_next(receive: &receive, destination: &buf_slice, start: 0_u64, end: available, deadline: None<std::time::Instant>(), cancel: &cancel);
-    let cancel_close_result = std::time::close_cancel_watch(watch: move cancel);
-
-    let bytes_read = match move read_result {
-      Ok(value: n) => {
-        if n == 0_u64 {
-          break;
-        }
-        n
-      }
-      Err(err: e) => {
-        match move e {
-          std::io::ReadStop::ReadEnd() => break,
-          std::io::ReadStop::ReadFailed(error: err) => break,
-        }
-      }
-    };
-
-    set buffer.filled = buffer.filled + bytes_read;
-
-    loop (
-      invariant processing: true
-    ) {
-      let parsed = parse_resp_request(data: &buffer.data.storage.inner, filled: buffer.filled);
-      match move parsed {
-        Ok(value: request) => {
-          let req_len = request.bytes_consumed;
-          let response = handle_request(request: move request.command, store: &store);
-
-          let cancel = std::time::cancel_never();
-          let send_buf = &response.storage.inner[0_u64..response.storage.inner.len];
-          let send_result = std::net::send_once(send: &send, source: &send_buf, start: 0_u64, end: response.storage.inner.len, deadline: None<std::time::Instant>(), cancel: &cancel);
-          let cancel_close_result = std::time::close_cancel_watch(watch: move cancel);
-
-          set buffer.filled = buffer.filled - req_len;
-          if buffer.filled > 0_u64 {
-            shift_left_in_vector(vec: &buffer.data, amount: req_len, filled: buffer.filled);
-          }
-        }
-        Err(err: e) => {
-          break;
-        }
-      }
-    }
-  }
-
-  let close_receive_result = std::net::close_receive(factory: &handles, receive: move receive);
-  let close_send_result = std::net::close_send(factory: &handles, send: move send);
-  return unit;
-}
-
-fn shift_left_in_vector(vec: &std::collections::vector::GrowVector<u8, 65536>, amount: u64, filled: u64) -> result: unit writes(vec) {
-  for (i in 0_u64..filled) {
-    let src_val = vec.storage.inner[amount + i];
-    set vec.storage.inner[i] = src_val;
-  }
-}
-
-struct ParsedRequest {
-  command: Request;
-  bytes_consumed: u64;
-}
-
-enum Request {
-  Ping();
-  Set(key: std::collections::vector::GrowVector<u8, 1024>, value: std::collections::vector::GrowVector<u8, 1024>);
-  Get(key: std::collections::vector::GrowVector<u8, 1024>);
-  Del(key: std::collections::vector::GrowVector<u8, 1024>);
-  Incr(key: std::collections::vector::GrowVector<u8, 1024>);
-}
-
-fn parse_resp_request(data: &Slots<u8>, filled: u64) -> result: Result<ParsedRequest, unit> reads(data) {
-  if filled == 0_u64 {
-    return Err<ParsedRequest, unit>(error: unit);
-  }
-
-  let first = data^[0_u64];
-  if first != 42_u8 {
-    return Err<ParsedRequest, unit>(error: unit);
-  }
-
-  let line_end = find_crlf(data: data, start: 1_u64, filled: filled);
-  match move line_end {
-    None() => return Err<ParsedRequest, unit>(error: unit),
-    Some(value: pos) => {
-      let count_bytes = data^[1_u64..pos];
-      let count_parsed = parse_u64_from_bytes(bytes: &count_bytes);
-      match move count_parsed {
-        None() => return Err<ParsedRequest, unit>(error: unit),
-        Some(value: count) => {
-          if bor(count == 0_u64, count > 5_u64) {
-            return Err<ParsedRequest, unit>(error: unit);
-          }
-
-          let mut current = pos + 2_u64;
-          let mut cmd_parts: Array<std::collections::vector::GrowVector<u8, 1024>, 5> = [std::collections::vector::grow_vector_new::<u8, 1024>(), std::collections::vector::grow_vector_new::<u8, 1024>(), std::collections::vector::grow_vector_new::<u8, 1024>(), std::collections::vector::grow_vector_new::<u8, 1024>(), std::collections::vector::grow_vector_new::<u8, 1024>()];
-
-          for (i in 0_u64..count) {
-            if current >= filled {
-              return Err<ParsedRequest, unit>(error: unit);
-            }
-
-            let elem_type = data^[current];
-            if elem_type != 36_u8 {
-              return Err<ParsedRequest, unit>(error: unit);
-            }
-
-            let elem_line_end = find_crlf(data: data, start: current + 1_u64, filled: filled);
-            match move elem_line_end {
-              None() => return Err<ParsedRequest, unit>(error: unit),
-              Some(value: elem_len_pos) => {
-                let elem_len_bytes = data^[current + 1_u64..elem_len_pos];
-                let elem_len_parsed = parse_u64_from_bytes(bytes: &elem_len_bytes);
-                match move elem_len_parsed {
-                  None() => return Err<ParsedRequest, unit>(error: unit),
-                  Some(value: elem_len) => {
-                    let elem_start = elem_len_pos + 2_u64;
-                    let elem_end = elem_start + elem_len;
-
-                    if elem_end + 2_u64 > filled {
-                      return Err<ParsedRequest, unit>(error: unit);
-                    }
-
-                    let elem_data = data^[elem_start..elem_end];
-                    copy_slice_to_vector(src: &elem_data, dst: &cmd_parts[i]);
-                    set current = elem_end + 2_u64;
-                  }
-                }
-              }
-            }
-          }
-
-          let request = parse_command(parts: &cmd_parts, count: count);
-          match move request {
-            None() => return Err<ParsedRequest, unit>(error: unit),
-            Some(value: cmd) => {
-              return Ok<ParsedRequest, unit>(value: ParsedRequest(command: move cmd, bytes_consumed: current));
-            }
-          }
-        }
-      }
-    }
-  }
-}
-
-fn copy_slice_to_vector(src: &[u8], dst: &std::collections::vector::GrowVector<u8, 1024>) -> result: unit writes(dst) {
-  let src_len = src^.len;
-  for (i in 0_u64..src_len) {
-    std::collections::vector::grow_vector_append(values: dst, value: src^[i]);
-  }
-}
-
-fn find_crlf(data: &Slots<u8>, start: u64, filled: u64) -> result: Option<u64> reads(data) pure {
-  for (i in start..filled) {
-    if i + 1_u64 < filled {
-      if band(data^[i] == 13_u8, data^[i + 1_u64] == 10_u8) {
-        return Some<u64>(value: i);
-      }
-    }
-  }
-  return None<u64>();
-}
-
-fn parse_command(parts: &Array<std::collections::vector::GrowVector<u8, 1024>, 5>, count: u64) -> result: Option<Request> reads(parts) {
-  if count == 0_u64 {
-    return None<Request>();
-  }
-
-  let cmd_name_len = parts^[0_u64].storage.inner.len;
-
-  if cmd_name_len == 4_u64 {
-    let cmd_slice = &parts^[0_u64].storage.inner[0_u64..4];
-    let b0 = cmd_slice^[0_u64];
-    let b1 = cmd_slice^[1_u64];
-    let b2 = cmd_slice^[2_u64];
-    let b3 = cmd_slice^[3_u64];
-
-    if band(band(band(b0 == 80_u8, b1 == 73_u8), b2 == 78_u8), b3 == 71_u8) {
-      if count == 1_u64 {
-        return Some<Request>(value: Request::Ping());
-      }
-      return None<Request>();
-    }
-  }
-
-  if cmd_name_len == 3_u64 {
-    let cmd_slice = &parts^[0_u64].storage.inner[0_u64..3];
-    let b0 = cmd_slice^[0_u64];
-    let b1 = cmd_slice^[1_u64];
-    let b2 = cmd_slice^[2_u64];
-
-    if band(band(b0 == 71_u8, b1 == 69_u8), b2 == 84_u8) {
-      if count == 2_u64 {
-        return Some<Request>(value: Request::Get(key: copy_vector(src: &parts^[1_u64])));
-      }
-      return None<Request>();
-    }
-
-    if band(band(b0 == 68_u8, b1 == 69_u8), b2 == 76_u8) {
-      if count == 2_u64 {
-        return Some<Request>(value: Request::Del(key: copy_vector(src: &parts^[1_u64])));
-      }
-      return None<Request>();
-    }
-  }
-
-  if cmd_name_len == 3_u64 {
-    let cmd_slice = &parts^[0_u64].storage.inner[0_u64..3];
-    let b0 = cmd_slice^[0_u64];
-    let b1 = cmd_slice^[1_u64];
-    let b2 = cmd_slice^[2_u64];
-
-    if band(band(b0 == 83_u8, b1 == 69_u8), b2 == 84_u8) {
-      if count == 3_u64 {
-        return Some<Request>(value: Request::Set(key: copy_vector(src: &parts^[1_u64]), value: copy_vector(src: &parts^[2_u64])));
-      }
-      return None<Request>();
-    }
-  }
-
-  if cmd_name_len == 4_u64 {
-    let cmd_slice = &parts^[0_u64].storage.inner[0_u64..4];
-    let b0 = cmd_slice^[0_u64];
-    let b1 = cmd_slice^[1_u64];
-    let b2 = cmd_slice^[2_u64];
-    let b3 = cmd_slice^[3_u64];
-
-    if band(band(band(b0 == 73_u8, b1 == 78_u8), b2 == 67_u8), b3 == 82_u8) {
-      if count == 2_u64 {
-        return Some<Request>(value: Request::Incr(key: copy_vector(src: &parts^[1_u64])));
-      }
-      return None<Request>();
-    }
-  }
-
-  return None<Request>();
-}
-
-fn copy_vector(src: &std::collections::vector::GrowVector<u8, 1024>) -> result: std::collections::vector::GrowVector<u8, 1024> reads(src) {
-  let result = std::collections::vector::grow_vector_new::<u8, 1024>();
-  let src_len = src.storage.inner.len;
-  for (i in 0_u64..src_len) {
-    std::collections::vector::grow_vector_append(values: &result, value: src.storage.inner[i]);
-  }
-  return move result;
-}
-
-struct Response {
-  storage: std::collections::vector::GrowVector<u8, 65536>;
-}
-
-fn handle_request(request: Request, store: &std::shared::Shared<Box<Store>>) -> result: Response writes(store) {
-  match move request {
-    Request::Ping() => {
-      let response = std::collections::vector::grow_vector_new::<u8, 65536>();
-      append_bytes(vec: &response, bytes: &"+PONG\r\n"[0_u64..7]);
-      return Response(storage: move response);
-    }
-
-    Request::Set(key: k, value: v) => {
-      atomic store_ref = &store {
-        store_set(store: store_ref, key: move k, value: move v);
-      }
-      let response = std::collections::vector::grow_vector_new::<u8, 65536>();
-      append_bytes(vec: &response, bytes: &"+OK\r\n"[0_u64..5]);
-      return Response(storage: move response);
-    }
-
-    Request::Get(key: k) => {
-      let result = atomic store_ref = &store {
-        give store_get(store: store_ref, key: &k);
-      };
-      match move result {
-        None() => {
-          let response = std::collections::vector::grow_vector_new::<u8, 65536>();
-          append_bytes(vec: &response, bytes: &"$-1\r\n"[0_u64..5]);
-          return Response(storage: move response);
-        }
-        Some(value: v) => {
-          let response = std::collections::vector::grow_vector_new::<u8, 65536>();
-          append_bytes(vec: &response, bytes: &"$"[0_u64..1]);
-          let v_len = v.storage.inner.len;
-          append_u64(vec: &response, value: v_len);
-          append_bytes(vec: &response, bytes: &"\r\n"[0_u64..2]);
-          let val_slice = &v.storage.inner[0_u64..v_len];
-          append_bytes_from_vec(vec: &response, src: &val_slice);
-          append_bytes(vec: &response, bytes: &"\r\n"[0_u64..2]);
-          return Response(storage: move response);
-        }
-      }
-    }
-
-    Request::Del(key: k) => {
-      let result = atomic store_ref = &store {
-        give store_del(store: store_ref, key: &k);
-      };
-      let response = std::collections::vector::grow_vector_new::<u8, 65536>();
-      if result {
-        append_bytes(vec: &response, bytes: &":1\r\n"[0_u64..4]);
-      } else {
-        append_bytes(vec: &response, bytes: &":0\r\n"[0_u64..4]);
-      }
-      return Response(storage: move response);
-    }
-
-    Request::Incr(key: k) => {
-      let result = atomic store_ref = &store {
-        give store_incr(store: store_ref, key: &k);
-      };
-      let response = std::collections::vector::grow_vector_new::<u8, 65536>();
-      match move result {
-        Ok(value: new_val) => {
-          append_bytes(vec: &response, bytes: &":"[0_u64..1]);
-          append_i64(vec: &response, value: new_val);
-          append_bytes(vec: &response, bytes: &"\r\n"[0_u64..2]);
-          return Response(storage: move response);
-        }
-        Err(err: incr_err) => {
-          append_bytes(vec: &response, bytes: &"-ERR value is not an integer or out of range\r\n"[0_u64..47]);
-          return Response(storage: move response);
-        }
-      }
-    }
-  }
-}
-
-fn store_set(store: &Box<Store>, key: std::collections::vector::GrowVector<u8, 1024>, value: std::collections::vector::GrowVector<u8, 1024>) -> result: unit writes(store) {
-  let search_result = store_find_entry(store: store, key: &key);
-  match move search_result {
-    Some(value: idx) => {
-      set store.inner.entries.storage.inner[idx].value = move value;
-    }
-    None() => {
-      let kv = KeyValue(key: move key, value: move value);
-      std::collections::vector::grow_vector_append(values: &store.inner.entries, value: move kv);
-    }
-  }
-}
-
-fn store_get(store: &Box<Store>, key: &std::collections::vector::GrowVector<u8, 1024>) -> result: Option<std::collections::vector::GrowVector<u8, 1024>> reads(store) {
-  let search_result = store_find_entry(store: store, key: key);
-  match move search_result {
-    Some(value: idx) => {
-      let entry = &store.inner.entries.storage.inner[idx];
-      return Some<std::collections::vector::GrowVector<u8, 1024>>(value: copy_vector(src: &entry.value));
-    }
-    None() => {
-      return None<std::collections::vector::GrowVector<u8, 1024>>();
-    }
-  }
-}
-
-fn store_del(store: &Box<Store>, key: &std::collections::vector::GrowVector<u8, 1024>) -> result: Bool writes(store) {
-  let search_result = store_find_entry(store: store, key: key);
-  match move search_result {
-    Some(value: idx) => {
-      let removed = std::collections::vector::grow_vector_remove(values: &store.inner.entries, index: idx);
-      return True();
-    }
-    None() => {
-      return False();
-    }
-  }
-}
-
-fn store_incr(store: &Box<Store>, key: &std::collections::vector::GrowVector<u8, 1024>) -> result: Result<i64, unit> writes(store) {
-  let search_result = store_find_entry(store: store, key: key);
-  match move search_result {
-    Some(value: idx) => {
-      let entry = &store.inner.entries.storage.inner[idx];
-      let val_len = entry.value.storage.inner.len;
-      let val_slice = &entry.value.storage.inner[0_u64..val_len];
-      let parsed = parse_i64_from_bytes(bytes: &val_slice);
-      match move parsed {
-        Some(value: num) => {
-          let next = num + 1_i64;
-          let mut new_val = std::collections::vector::grow_vector_new::<u8, 1024>();
-          append_i64(vec: &new_val, value: next);
-          set store.inner.entries.storage.inner[idx].value = move new_val;
-          return Ok<i64, unit>(value: next);
-        }
-        None() => {
-          return Err<i64, unit>(error: unit);
-        }
-      }
-    }
-    None() => {
-      let mut new_val = std::collections::vector::grow_vector_new::<u8, 1024>();
-      append_i64(vec: &new_val, value: 1_i64);
-      let mut new_key = std::collections::vector::grow_vector_new::<u8, 1024>();
-      copy_slice_to_vector(src: &key.storage.inner[0_u64..key.storage.inner.len], dst: &new_key);
-      let kv = KeyValue(key: move new_key, value: move new_val);
-      std::collections::vector::grow_vector_append(values: &store.inner.entries, value: move kv);
-      return Ok<i64, unit>(value: 1_i64);
-    }
-  }
-}
-
-fn store_find_entry(store: &Box<Store>, key: &std::collections::vector::GrowVector<u8, 1024>) -> result: Option<u64> reads(store) {
-  let len = store.inner.entries.storage.inner.len;
-  for (i in 0_u64..len) {
-    let entry_key = &store.inner.entries.storage.inner[i].key;
-    if keys_equal(k1: key, k2: entry_key) {
-      return Some<u64>(value: i);
-    }
-  }
-  return None<u64>();
-}
-
-fn keys_equal(k1: &std::collections::vector::GrowVector<u8, 1024>, k2: &std::collections::vector::GrowVector<u8, 1024>) -> result: Bool reads(k1), reads(k2) pure {
-  let len1 = k1.storage.inner.len;
-  let len2 = k2.storage.inner.len;
-  if len1 != len2 {
+fn bytes_equal(left: &[u8], right: &[u8]) -> result: Bool reads(left), reads(right) {
+  if left^.len != right^.len {
     return False();
   }
-
-  for (i in 0_u64..len1) {
-    if k1.storage.inner[i] != k2.storage.inner[i] {
+  for (i in 0_u64..left^.len) {
+    if left^[i] != right^[i] {
       return False();
     }
   }
   return True();
 }
 
-fn append_bytes(vec: &std::collections::vector::GrowVector<u8, 65536>, bytes: &[u8]) -> result: unit writes(vec) {
-  let len = bytes^.len;
-  for (i in 0_u64..len) {
-    std::collections::vector::grow_vector_append(values: vec, value: bytes^[i]);
+fn case_equal(left: &[u8], right: &[u8]) -> result: Bool reads(left), reads(right) {
+  if left^.len != right^.len {
+    return False();
   }
+  for (i in 0_u64..left^.len) {
+    let lc = left^[i];
+    let rc = right^[i];
+    let l_upper = if lc >= 97_u8 { if lc <= 122_u8 { give lc - 32_u8; } else { give lc; } } else { give lc; };
+    let r_upper = if rc >= 97_u8 { if rc <= 122_u8 { give rc - 32_u8; } else { give rc; } } else { give rc; };
+    if l_upper != r_upper {
+      return False();
+    }
+  }
+  return True();
 }
 
-fn append_bytes_from_vec(vec: &std::collections::vector::GrowVector<u8, 65536>, src: &[u8]) -> result: unit writes(vec) {
-  let len = src^.len;
-  for (i in 0_u64..len) {
-    std::collections::vector::grow_vector_append(values: vec, value: src^[i]);
+fn hash_bytes(key: &[u8]) -> result: u64 reads(key) {
+  let result = 0_u64;
+  for (i in 0_u64..key^.len) {
+    let b = cvt::<u8, u64>(key^[i]);
+    set result = result *wrap 31_u64;
+    set result = result +wrap b;
   }
+  return result;
 }
 
-fn append_u64(vec: &std::collections::vector::GrowVector<u8, 65536>, value: u64) -> result: unit writes(vec) {
-  if value == 0_u64 {
-    std::collections::vector::grow_vector_append(values: vec, value: 48_u8);
-    return unit;
-  }
+interface KeyOps {
+  fn hash_key(env: &unit, key: &Box<Array<u8>>) -> hash: u64 reads(key);
+  fn equal_key(env: &unit, left: &Box<Array<u8>>, right: &Box<Array<u8>>) -> equal: Bool reads(left), reads(right);
+}
 
-  let mut divisor: u64 = 1_u64;
-  let mut temp = value;
-  loop (
-    invariant at_least: true
-  ) {
-    temp = temp / 10_u64;
-    if temp == 0_u64 {
+fn hash_impl(env: &unit, key: &Box<Array<u8>>) -> hash: u64 reads(key) {
+  return hash_bytes(&key^[0_u64..key^.len]);
+}
+
+fn equal_impl(env: &unit, left: &Box<Array<u8>>, right: &Box<Array<u8>>) -> equal: Bool reads(left), reads(right) {
+  return bytes_equal(&left^[0_u64..left^.len], &right^[0_u64..right^.len]);
+}
+
+binding KeyBinding : KeyOps {
+  hash_key = hash_impl;
+  equal_key = equal_impl;
+}
+
+fn copy_array(src: &[u8], dst: &[u8]) -> result: unit reads(src), writes(dst) {
+  let len = if src^.len < dst^.len { give src^.len; } else { give dst^.len; };
+  for (i in 0_u64..len) {
+    set dst^[i] = src^[i];
+  }
+  return unit;
+}
+
+fn i64_to_resp(value: i64, buf: &[u8]) -> result: u64 writes(buf) {
+  let negative = value < 0_i64;
+  let abs_val = if negative { give 0_i64 - value; } else { give value; };
+  let digits = 0_u64;
+  let temp = abs_val;
+  loop {
+    if temp == 0_i64 {
       break;
     }
-    set divisor = divisor * 10_u64;
+    set digits = digits + 1_u64;
+    set temp = temp / 10_i64;
   }
-
-  let mut remaining = value;
-  loop (
-    invariant at_least: true
-  ) {
-    let digit = remaining / divisor;
-    std::collections::vector::grow_vector_append(values: vec, value: cvt::<u64, u8>(digit) + 48_u8);
-    set remaining = remaining % divisor;
-    if divisor == 1_u64 {
+  if digits == 0_u64 {
+    set digits = 1_u64;
+  }
+  let pos = if negative { give digits + 1_u64; } else { give digits; };
+  if negative {
+    set buf^[0_u64] = 45_u8;
+  }
+  set temp = abs_val;
+  loop {
+    if temp == 0_i64 {
       break;
     }
-    set divisor = divisor / 10_u64;
+    let digit = temp %wrap 10_i64;
+    let d = cvt::<i64, u8>(digit);
+    set pos = pos - 1_u64;
+    set buf^[pos] = d + 48_u8;
+    set temp = temp / 10_i64;
   }
+  if digits == 1_u64 {
+    set buf^[0_u64] = 48_u8;
+  }
+  return if negative { give digits + 1_u64; } else { give digits; };
 }
 
-fn append_i64(vec: &std::collections::vector::GrowVector<u8, 65536>, value: i64) -> result: unit writes(vec) {
-  if value < 0_i64 {
-    std::collections::vector::grow_vector_append(values: vec, value: 45_u8);
-    let abs_val = cvt::<i64, u64>(0_i64 - value);
-    append_u64(vec: vec, value: abs_val);
-  } else {
-    append_u64(vec: vec, value: cvt::<i64, u64>(value));
+fn send_all(send: &TcpSend, factory: &HandleFactory, data: &[u8]) -> result: unit reads(data), writes(factory), writes(send) waits {
+  let sent = 0_u64;
+  loop {
+    if sent >= data^.len {
+      break;
+    }
+    let no_deadline = None<Instant>();
+    let cancel = std::time::cancel_never();
+    let outcome = std::net::send_once(send: send, source: data, start: sent, end: data^.len, deadline: no_deadline, cancel: &cancel);
+    std::time::close_cancel_watch(watch: move cancel);
+    match move outcome {
+      Ok(value: next) => {
+        set sent = next;
+      }
+      Err(error: unused_err) => {
+        return unit;
+      }
+    }
   }
+  return unit;
+}
+
+fn handle_client(factory: &HandleFactory, conn: TcpConnection, store: &Shared<HashMap>) -> result: unit reads(store), writes(factory) waits {
+  let receive = move conn.receive;
+  let send = move conn.send;
+  let buffer = box_slots_new::<u8>(capacity: 32768_u64);
+  let send_buf = array_filled::<u8, 16384>(value: 0_u8);
+  loop {
+    let no_deadline = None<Instant>();
+    let cancel = std::time::cancel_never();
+    let buf_start = buffer.inner.len;
+    let buf_end = if buffer.inner.cap > buf_start + 4096_u64 { give buf_start + 4096_u64; } else { give buffer.inner.cap; };
+    let outcome = std::net::receive_next(receive: &receive, destination: &buffer.inner, start: buf_start, end: buf_end, deadline: no_deadline, cancel: &cancel);
+    std::time::close_cancel_watch(watch: move cancel);
+    match move outcome {
+      Ok(value: next) => {
+      }
+      Err(error: stop) => {
+        match stop {
+          ReadEnd() => {
+            break;
+          }
+          ReadFailed(error: unused_problem) => {
+            break;
+          }
+        }
+      }
+    }
+  }
+  let close_recv = std::net::close_receive(factory: factory, receive: move receive);
+  let close_send = std::net::close_send(factory: factory, send: move send);
+  return unit;
+}
+
+fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+  let Inputs(args: argv, drivers: unused_drivers, cwd: directory, stdout: unused_stdout, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let std::fs::Directory(read: cwd_read, write: cwd_write) = move directory;
+  let close_write = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
+  let close_read = std::fs::close_directory(factory: &factory, directory: move cwd_read);
+  let arg_count = std::text::args_count(args: &argv);
+  if arg_count < 4_u64 {
+    return exit_status(code: 1_u8);
+  }
+  let port_arg = std::text::arg_get(args: &argv, position: 1_u64);
+  let port_num = 0_u16;
+  match move port_arg {
+    Ok(value: port_str) => {
+      let port_buf = array_filled::<u8, 16>(value: 0_u8);
+      let port_len = std::text::host_bytes_len(value: &port_str);
+      if port_len > 5_u64 {
+        return exit_status(code: 1_u8);
+      }
+      let copy_result = std::text::host_copy_bytes(value: &port_str, destination: &port_buf[0_u64..16_u64], start: 0_u64, end: 16_u64);
+      match move copy_result {
+        Ok(value: end_idx) => {
+          let port_view = &port_buf[0_u64..end_idx];
+          let port_opt = parse_u64(port_view);
+          match move port_opt {
+            Some(value: port_u64) => {
+              if port_u64 > 65535_u64 {
+                return exit_status(code: 1_u8);
+              }
+              set port_num = cvt::<u64, u16>(port_u64);
+            }
+            None() => {
+              return exit_status(code: 1_u8);
+            }
+          }
+        }
+        Err(error: unused_size_err) => {
+          return exit_status(code: 1_u8);
+        }
+      }
+    }
+    Err(error: unused_arg_err) => {
+      return exit_status(code: 1_u8);
+    }
+  }
+  let addr = std::net::socket_address_v4(a: 127_u8, b: 0_u8, c: 0_u8, d: 1_u8, port: port_num);
+  let listen_result = std::net::tcp_listen(factory: &factory, address: &addr);
+  let listener = match move listen_result {
+    Ok(value: l) => {
+      give l;
+    }
+    Err(error: unused_err) => {
+      return exit_status(code: 1_u8);
+    }
+  };
+  let map = std::collections::hash_map::hash_map_new::<Box<Array<u8>>, Box<Array<u8>>, 8192>(capacity: 16_u64);
+  let store = shared_new::<HashMap>(value: move map);
+  let clients = 0_u64;
+  loop {
+    let no_deadline = None<Instant>();
+    let cancel = std::time::cancel_never();
+    let acc_result = std::net::tcp_accept(factory: &factory, listener: &listener, deadline: no_deadline, cancel: &cancel);
+    std::time::close_cancel_watch(watch: move cancel);
+    match move acc_result {
+      Ok(value: accepted) => {
+        let conn = move accepted.connection;
+        let shared_factory = std::io::factory_share(factory: &factory);
+        let shared_store = shared_share::<HashMap>(shared: &store);
+        spawn handle_client(factory: move shared_factory, conn: move conn, store: move shared_store);
+        set clients = clients + 1_u64;
+        if clients >= 9_u64 {
+          break;
+        }
+      }
+      Err(error: unused_err) => {
+        break;
+      }
+    }
+  }
+  let close_listen = std::net::close_listener(factory: &factory, listener: move listener);
+  return exit_status(code: 0_u8);
 }

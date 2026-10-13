@@ -1,268 +1,184 @@
-enum ParseError {
-  Truncated();
-  InvalidToken();
+alias ExitStatus = std::process::ExitStatus;
+alias Inputs = std::process::Inputs;
+alias HandleFactory = std::io::HandleFactory;
+alias OutputStream = std::io::OutputStream;
+alias exit_status = std::process::exit_status;
+alias write_once = std::io::write_once;
+alias cancel_never = std::time::cancel_never;
+alias close_cancel_watch = std::time::close_cancel_watch;
+
+enum ParseResult {
+  Success(next_pos: u64, value: u64);
+  Error(error_code: u8);
 }
 
-enum EvalError {
-  Overflow();
-}
-
-enum Expression {
-  Digit(value: u8);
-  Plus(left: Box<Expression>, right: Box<Expression>);
-}
-
-struct ParseResult {
-  expr: Expression;
-  next_pos: u64;
-}
-
-fn parse_digit_or_plus(bytes: &Array<u8, 5>, pos: u64) -> result: Result<ParseResult, ParseError> pure;
-fn parse_plus_args(bytes: &Array<u8, 5>, pos: u64) -> result: Result<ParseResult, ParseError> pure;
-
-fn parse_digit_or_plus(bytes: &Array<u8, 5>, pos: u64) -> result: Result<ParseResult, ParseError> pure {
-  if pos >= 5_u64 {
-    let err = ParseError::Truncated();
-    return Err<ParseResult, ParseError>(move err);
+fn parse_expr(bytes: &[u8], pos: u64) -> result: ParseResult reads(bytes) {
+  if pos >= bytes^.len {
+    return ParseResult::Error(error_code: 1_u8);
   }
-
   let byte = bytes^[pos];
-
-  if byte == '+'_u8 {
+  let is_plus = byte == 43_u8;
+  if is_plus {
     let next_pos = pos + 1_u64;
-    return parse_plus_args(bytes: bytes, pos: next_pos);
-  } else {
-    let is_digit_start = byte >= '0'_u8;
-    let is_digit_end = byte <= '9'_u8;
-    let is_digit = band(is_digit_start, is_digit_end);
-    if is_digit {
-      let digit_val = byte - '0'_u8;
-      let expr = Expression::Digit(value: digit_val);
-      let next_pos = pos + 1_u64;
-      let result = ParseResult(expr: move expr, next_pos: next_pos);
-      return Ok<ParseResult, ParseError>(move result);
-    } else {
-      let err = ParseError::InvalidToken();
-      return Err<ParseResult, ParseError>(move err);
-    }
-  }
-}
-
-fn parse_plus_args(bytes: &Array<u8, 5>, pos: u64) -> result: Result<ParseResult, ParseError> pure {
-  let left_result = parse_digit_or_plus(bytes: bytes, pos: pos);
-  match left_result {
-    Ok(left_result_struct) => {
-      let left_expr = left_result_struct.expr;
-      let next_pos = left_result_struct.next_pos;
-      let right_result = parse_digit_or_plus(bytes: bytes, pos: next_pos);
-      match right_result {
-        Ok(right_result_struct) => {
-          let right_expr = right_result_struct.expr;
-          let final_pos = right_result_struct.next_pos;
-          let left_box = box_new::<Expression>(value: move left_expr);
-          let right_box = box_new::<Expression>(value: move right_expr);
-          let expr = Expression::Plus(left: move left_box, right: move right_box);
-          let result = ParseResult(expr: move expr, next_pos: final_pos);
-          return Ok<ParseResult, ParseError>(move result);
-        }
-        Err(e) => {
-          return Err<ParseResult, ParseError>(move e);
-        }
-      }
-    }
-    Err(e) => {
-      return Err<ParseResult, ParseError>(move e);
-    }
-  }
-}
-
-fn evaluate(expr: Expression) -> result: Result<u64, EvalError> pure {
-  match move expr {
-    Expression::Digit(value: v) => {
-      return Ok<u64, EvalError>(cvt::<u8, u64>(v));
-    }
-    Expression::Plus(left: left_box, right: right_box) => {
-      let left_expr = move left_box.inner;
-      let right_expr = move right_box.inner;
-      let left_result = evaluate(expr: move left_expr);
-      match left_result {
-        Ok(left_val) => {
-          let right_result = evaluate(expr: move right_expr);
-          match right_result {
-            Ok(right_val) => {
-              let max_left = 18446744073709551615_u64;
-              if left_val > max_left - right_val {
-                let err = EvalError::Overflow();
-                return Err<u64, EvalError>(move err);
+    let first = parse_expr(bytes: bytes, pos: next_pos);
+    match first {
+      Success(next_pos: pos1, value: left) => {
+        let second = parse_expr(bytes: bytes, pos: pos1);
+        match second {
+          Success(next_pos: pos2, value: right) => {
+            let sum = left +checked right;
+            match sum {
+              Ok(value: result) => {
+                return ParseResult::Success(next_pos: pos2, value: result);
               }
-              let sum = left_val + right_val;
-              return Ok<u64, EvalError>(sum);
-            }
-            Err(e) => {
-              return Err<u64, EvalError>(move e);
+              Err(error: unused_overflow) => {
+                return ParseResult::Error(error_code: 3_u8);
+              }
             }
           }
-        }
-        Err(e) => {
-          return Err<u64, EvalError>(move e);
+          Error(error_code: err) => {
+            return ParseResult::Error(error_code: err);
+          }
         }
       }
+      Error(error_code: err) => {
+        return ParseResult::Error(error_code: err);
+      }
     }
-  }
-}
-
-fn parse_digit_or_plus_2(bytes: &Array<u8, 2>, pos: u64) -> result: Result<ParseResult, ParseError> pure;
-fn parse_plus_args_2(bytes: &Array<u8, 2>, pos: u64) -> result: Result<ParseResult, ParseError> pure;
-
-fn parse_digit_or_plus_2(bytes: &Array<u8, 2>, pos: u64) -> result: Result<ParseResult, ParseError> pure {
-  if pos >= 2_u64 {
-    let err = ParseError::Truncated();
-    return Err<ParseResult, ParseError>(move err);
-  }
-
-  let byte = bytes^[pos];
-
-  if byte == '+'_u8 {
-    let next_pos = pos + 1_u64;
-    return parse_plus_args_2(bytes: bytes, pos: next_pos);
   } else {
-    let is_digit_start = byte >= '0'_u8;
-    let is_digit_end = byte <= '9'_u8;
+    let is_digit_start = byte >= 48_u8;
+    let is_digit_end = byte <= 57_u8;
     let is_digit = band(is_digit_start, is_digit_end);
     if is_digit {
-      let digit_val = byte - '0'_u8;
-      let expr = Expression::Digit(value: digit_val);
-      let next_pos = pos + 1_u64;
-      let result = ParseResult(expr: move expr, next_pos: next_pos);
-      return Ok<ParseResult, ParseError>(move result);
+      let digit = byte - 48_u8;
+      let value = cvt::<u8, u64>(digit);
+      return ParseResult::Success(next_pos: pos + 1_u64, value: value);
     } else {
-      let err = ParseError::InvalidToken();
-      return Err<ParseResult, ParseError>(move err);
+      return ParseResult::Error(error_code: 2_u8);
     }
   }
 }
 
-fn parse_plus_args_2(bytes: &Array<u8, 2>, pos: u64) -> result: Result<ParseResult, ParseError> pure {
-  let left_result = parse_digit_or_plus_2(bytes: bytes, pos: pos);
-  match left_result {
-    Ok(left_result_struct) => {
-      let left_expr = left_result_struct.expr;
-      let next_pos = left_result_struct.next_pos;
-      let right_result = parse_digit_or_plus_2(bytes: bytes, pos: next_pos);
-      match right_result {
-        Ok(right_result_struct) => {
-          let right_expr = right_result_struct.expr;
-          let final_pos = right_result_struct.next_pos;
-          let left_box = box_new::<Expression>(value: move left_expr);
-          let right_box = box_new::<Expression>(value: move right_expr);
-          let expr = Expression::Plus(left: move left_box, right: move right_box);
-          let result = ParseResult(expr: move expr, next_pos: final_pos);
-          return Ok<ParseResult, ParseError>(move result);
-        }
-        Err(e) => {
-          return Err<ParseResult, ParseError>(move e);
-        }
+fn write_u64_le(factory: &HandleFactory, output: &OutputStream, value: u64) -> result: Result<unit, std::io::IoError> writes(factory), writes(output) waits {
+  let bytes = array_filled::<u8, 8>(value: 0_u8);
+  let mask = 0xFF_u64;
+  let byte0 = iand(value, mask);
+  set bytes[0_u64] = cvt::<u64, u8>(byte0);
+  let shifted1 = ishr(value, 8_u32);
+  let byte1 = iand(shifted1, mask);
+  set bytes[1_u64] = cvt::<u64, u8>(byte1);
+  let shifted2 = ishr(value, 16_u32);
+  let byte2 = iand(shifted2, mask);
+  set bytes[2_u64] = cvt::<u64, u8>(byte2);
+  let shifted3 = ishr(value, 24_u32);
+  let byte3 = iand(shifted3, mask);
+  set bytes[3_u64] = cvt::<u64, u8>(byte3);
+  let shifted4 = ishr(value, 32_u32);
+  let byte4 = iand(shifted4, mask);
+  set bytes[4_u64] = cvt::<u64, u8>(byte4);
+  let shifted5 = ishr(value, 40_u32);
+  let byte5 = iand(shifted5, mask);
+  set bytes[5_u64] = cvt::<u64, u8>(byte5);
+  let shifted6 = ishr(value, 48_u32);
+  let byte6 = iand(shifted6, mask);
+  set bytes[6_u64] = cvt::<u64, u8>(byte6);
+  let shifted7 = ishr(value, 56_u32);
+  let byte7 = iand(shifted7, mask);
+  set bytes[7_u64] = cvt::<u64, u8>(byte7);
+  let buffer = &bytes[0_u64..8_u64];
+  let no_deadline = None<std::time::Instant>();
+  let cancel = cancel_never();
+  let outcome = write_once(factory: factory, output: output, source: buffer, start: 0_u64, end: 8_u64, deadline: no_deadline, cancel: &cancel);
+  close_cancel_watch(watch: move cancel);
+  match outcome {
+    Ok(value: sent) => {
+      let all_sent = sent == 8_u64;
+      if all_sent {
+        return Ok<unit, std::io::IoError>(value: unit);
+      } else {
+        return Err<unit, std::io::IoError>(error: std::io::IoError::WriteZero(code: 0_u32, origin: 0_u8));
       }
     }
-    Err(e) => {
-      return Err<ParseResult, ParseError>(move e);
+    Err(error: err) => {
+      return Err<unit, std::io::IoError>(error: err);
     }
   }
 }
 
-fn place_u64_le(window: &Slots<u8, 24>, index: u64, value: u64) -> result: unit writes(window) {
-  let b0 = cvt::<u64, u8>(value);
-  let b1 = cvt::<u64, u8>(ishr(value, 8_u32));
-  let b2 = cvt::<u64, u8>(ishr(value, 16_u32));
-  let b3 = cvt::<u64, u8>(ishr(value, 24_u32));
-  let b4 = cvt::<u64, u8>(ishr(value, 32_u32));
-  let b5 = cvt::<u64, u8>(ishr(value, 40_u32));
-  let b6 = cvt::<u64, u8>(ishr(value, 48_u32));
-  let b7 = cvt::<u64, u8>(ishr(value, 56_u32));
-
-  set window^[index] = b0;
-  let i1 = index + 1_u64;
-  set window^[i1] = b1;
-  let i2 = index + 2_u64;
-  set window^[i2] = b2;
-  let i3 = index + 3_u64;
-  set window^[i3] = b3;
-  let i4 = index + 4_u64;
-  set window^[i4] = b4;
-  let i5 = index + 5_u64;
-  set window^[i5] = b5;
-  let i6 = index + 6_u64;
-  set window^[i6] = b6;
-  let i7 = index + 7_u64;
-  set window^[i7] = b7;
-
-  return unit;
-}
-
-const INPUT1: Array<u8, 5> = "+2+34";
-const INPUT2: Array<u8, 2> = "+2";
-
-fn main(inputs: std::process::Inputs) -> result: std::process::ExitCode waits {
-  let std::process::Inputs(args: unused_args, drivers: unused_drivers, cwd: unused_cwd, stdout: out, stderr: unused_err, handles: factory, stdin: unused_input, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
-
-  let parse_result1 = parse_digit_or_plus(bytes: &INPUT1, pos: 0_u64);
-
-  let pos1: u64;
-  let val1: u64;
-
-  match move parse_result1 {
-    Ok(result) => {
-      let expr = result.expr;
-      let next_pos = result.next_pos;
-
-      if next_pos != 5_u64 {
-        return std::process::exit(code: 1_u8);
-      }
-
-      match move evaluate(expr: move expr) {
-        Ok(evaluated_val) => {
-          if evaluated_val != 9_u64 {
-            return std::process::exit(code: 1_u8);
-          }
-          pos1 = next_pos;
-          val1 = evaluated_val;
-        }
-        Err(e) => {
-          return std::process::exit(code: 1_u8);
-        }
-      }
+fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+  let Inputs(cwd: cwd_directory, handles: factory, stdout: stdout_stream, ..) = move inputs;
+  let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
+  std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
+  std::fs::close_directory(factory: &factory, directory: move cwd_read);
+  let test1_bytes = array_filled::<u8, 5>(value: 0_u8);
+  set test1_bytes[0_u64] = 43_u8;
+  set test1_bytes[1_u64] = 50_u8;
+  set test1_bytes[2_u64] = 43_u8;
+  set test1_bytes[3_u64] = 51_u8;
+  set test1_bytes[4_u64] = 52_u8;
+  let test1_buffer = &test1_bytes[0_u64..5_u64];
+  let result1 = parse_expr(bytes: test1_buffer, pos: 0_u64);
+  let test1_pos = 0_u64;
+  let test1_value = 0_u64;
+  let test1_error = 0_u8;
+  match result1 {
+    Success(next_pos: pos, value: val) => {
+      set test1_pos = pos;
+      set test1_value = val;
     }
-    Err(e) => {
-      return std::process::exit(code: 1_u8);
+    Error(error_code: err) => {
+      set test1_error = err;
     }
   }
-
-  let parse_result2 = parse_digit_or_plus_2(bytes: &INPUT2, pos: 0_u64);
-
-  let error_marker: u64;
-  match move parse_result2 {
-    Ok(result2) => {
-      return std::process::exit(code: 1_u8);
+  let test2_bytes = array_filled::<u8, 2>(value: 0_u8);
+  set test2_bytes[0_u64] = 43_u8;
+  set test2_bytes[1_u64] = 50_u8;
+  let test2_buffer = &test2_bytes[0_u64..2_u64];
+  let result2 = parse_expr(bytes: test2_buffer, pos: 0_u64);
+  let test2_error = 0_u8;
+  match result2 {
+    Success(next_pos: unused_pos, value: unused_val) => {
     }
-    Err(err) => {
-      match move err {
-        ParseError::Truncated() => {
-          error_marker = 1_u64;
-        }
-        ParseError::InvalidToken() => {
-          error_marker = 2_u64;
-        }
-      }
+    Error(error_code: err) => {
+      set test2_error = err;
     }
   }
-
-  let buffer = slots_new::<u8, 24>();
-  place_u64_le(window: &buffer, index: 0_u64, value: pos1);
-  place_u64_le(window: &buffer, index: 8_u64, value: val1);
-  place_u64_le(window: &buffer, index: 16_u64, value: error_marker);
-
-  let buffer_slice = &buffer[0_u64..24_u64];
-  std::io::write_once(handle: &out, data: buffer_slice);
-
-  return std::process::exit(code: 0_u8);
+  let is_test1_pos_ok = test1_pos == 5_u64;
+  let is_test1_val_ok = test1_value == 9_u64;
+  let is_test1_err_ok = test1_error == 0_u8;
+  let is_test2_err_ok = test2_error == 1_u8;
+  let all_ok = band(is_test1_pos_ok, is_test1_val_ok);
+  let all_ok_2 = band(all_ok, is_test1_err_ok);
+  let all_ok_3 = band(all_ok_2, is_test2_err_ok);
+  if all_ok_3 {
+  } else {
+    return exit_status(code: 1_u8);
+  }
+  let write1 = write_u64_le(factory: &factory, output: &stdout_stream, value: test1_pos);
+  match write1 {
+    Ok(value: unused_result) => {
+    }
+    Err(error: unused_error) => {
+      return exit_status(code: 250_u8);
+    }
+  }
+  let test1_val_extended = test1_value;
+  let write2 = write_u64_le(factory: &factory, output: &stdout_stream, value: test1_val_extended);
+  match write2 {
+    Ok(value: unused_result) => {
+    }
+    Err(error: unused_error) => {
+      return exit_status(code: 250_u8);
+    }
+  }
+  let test2_error_extended = cvt::<u8, u64>(test2_error);
+  let write3 = write_u64_le(factory: &factory, output: &stdout_stream, value: test2_error_extended);
+  match write3 {
+    Ok(value: unused_result) => {
+    }
+    Err(error: unused_error) => {
+      return exit_status(code: 250_u8);
+    }
+  }
+  return exit_status(code: 0_u8);
 }
