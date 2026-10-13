@@ -146,6 +146,8 @@ check "a legacy release prints one note with the command at its commit" \
   "$(grep -F -c "wf-aaaaaaaaaaaa carries no language package; read the language at its commit with: gh api 'repos/Ming-Research/Whitefoot/contents/spec/kernel-spec.md?ref=aaaaaaaaaaaa0000000000000000000000000000' -H 'Accept: application/vnd.github.raw'" "$project/last.log")" 1
 check "a legacy release creates no language directory" \
   "$([ -d "$project/build/whitefoot/wf-aaaaaaaaaaaa/language" ] && echo present || echo absent)" absent
+check "a legacy release records its completed installation" \
+  "$([ -f "$project/build/whitefoot/wf-aaaaaaaaaaaa/installed" ] && echo present || echo absent)" present
 check "the downloaded whitefootc runs" "$("$project/build/whitefoot/wf-aaaaaaaaaaaa/whitefootc")" wf-aaaaaaaaaaaa
 mv "$releases/wf-aaaaaaaaaaaa" "$releases/gone"
 check "a downloaded compiler is reused without the release" "$(local_run compiler)" 0
@@ -210,6 +212,14 @@ check "the language package unpacks a standard-library interface" "$(cat "$langu
 check "the language package preserves nested interface paths" "$(cat "$language_dir/lib/std/collections/vector/module.wfm")" "vector wf-181818181818"
 check "WHITEFOOT_LANGUAGE exports the language directory to recipes" \
   "$(make --no-print-directory -C "$project" print-language)" "$language_dir"
+
+# The older kit installed only the compiler, without recording completion.
+rm -f "$project/build/whitefoot/wf-181818181818/installed"
+rm -rf "$language_dir"
+check "an installation from before the language package is completed" \
+  "$(local_run compiler)|$(cat "$language_dir/spec/kernel-spec.md")" "0|spec wf-181818181818"
+check "a completed installation is reused without the release" \
+  "$(run RELEASES=file:///nonexistent compiler)" 0
 
 release wf-252525252525 2525252525250000000000000000000000000000 "" "" language-custom.tar.gz
 pin 'release = wf-252525252525\n'
