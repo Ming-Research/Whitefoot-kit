@@ -99,7 +99,7 @@ fn process_and_output(factory: &HandleFactory, output: &OutputStream, parents: &
     Ok(value: unit_val) => {
     }
     Err(error: e) => {
-      return Err<unit, IoError>(error: move e);
+      return Err<unit, IoError>(error: e);
     }
   }
   if is_valid {
@@ -108,7 +108,7 @@ fn process_and_output(factory: &HandleFactory, output: &OutputStream, parents: &
       Ok(value: unit_val) => {
       }
       Err(error: e) => {
-        return Err<unit, IoError>(error: move e);
+        return Err<unit, IoError>(error: e);
       }
     }
     let group_counts = box_array_filled::<u64>(count: group_count, value: 0_u64);
@@ -143,7 +143,7 @@ fn process_and_output(factory: &HandleFactory, output: &OutputStream, parents: &
       Ok(value: unit_val) => {
       }
       Err(error: e) => {
-        return Err<unit, IoError>(error: move e);
+        return Err<unit, IoError>(error: e);
       }
     }
     for (i in 0_u64..parents^.len) {

@@ -196,43 +196,56 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     set output_buffer[i] = obs1_bytes[i];
   }
   for (i in 0_u64..8_u64) {
-    set output_buffer[8_u64 +wrap i] = obs2_bytes[i];
+    let idx = 8_u64 +wrap i;
+    set output_buffer[idx] = obs2_bytes[i];
   }
   for (i in 0_u64..8_u64) {
-    set output_buffer[16_u64 +wrap i] = obs3_bytes[i];
+    let idx = 16_u64 +wrap i;
+    set output_buffer[idx] = obs3_bytes[i];
   }
   for (i in 0_u64..8_u64) {
-    set output_buffer[24_u64 +wrap i] = obs4_bytes[i];
+    let idx = 24_u64 +wrap i;
+    set output_buffer[idx] = obs4_bytes[i];
   }
   for (i in 0_u64..8_u64) {
-    set output_buffer[32_u64 +wrap i] = obs5_bytes[i];
+    let idx = 32_u64 +wrap i;
+    set output_buffer[idx] = obs5_bytes[i];
   }
   for (i in 0_u64..8_u64) {
-    set output_buffer[40_u64 +wrap i] = obs6_bytes[i];
+    let idx = 40_u64 +wrap i;
+    set output_buffer[idx] = obs6_bytes[i];
   }
   for (i in 0_u64..8_u64) {
-    set output_buffer[48_u64 +wrap i] = obs7_bytes[i];
+    let idx = 48_u64 +wrap i;
+    set output_buffer[idx] = obs7_bytes[i];
   }
   for (i in 0_u64..8_u64) {
-    set output_buffer[56_u64 +wrap i] = obs8_bytes[i];
+    let idx = 56_u64 +wrap i;
+    set output_buffer[idx] = obs8_bytes[i];
   }
   for (i in 0_u64..8_u64) {
-    set output_buffer[64_u64 +wrap i] = obs9_bytes[i];
+    let idx = 64_u64 +wrap i;
+    set output_buffer[idx] = obs9_bytes[i];
   }
   for (i in 0_u64..8_u64) {
-    set output_buffer[72_u64 +wrap i] = obs10_bytes[i];
+    let idx = 72_u64 +wrap i;
+    set output_buffer[idx] = obs10_bytes[i];
   }
   for (i in 0_u64..8_u64) {
-    set output_buffer[80_u64 +wrap i] = obs11_bytes[i];
+    let idx = 80_u64 +wrap i;
+    set output_buffer[idx] = obs11_bytes[i];
   }
   for (i in 0_u64..8_u64) {
-    set output_buffer[88_u64 +wrap i] = obs12_bytes[i];
+    let idx = 88_u64 +wrap i;
+    set output_buffer[idx] = obs12_bytes[i];
   }
   for (i in 0_u64..8_u64) {
-    set output_buffer[96_u64 +wrap i] = obs13_bytes[i];
+    let idx = 96_u64 +wrap i;
+    set output_buffer[idx] = obs13_bytes[i];
   }
   for (i in 0_u64..8_u64) {
-    set output_buffer[104_u64 +wrap i] = obs14_bytes[i];
+    let idx = 104_u64 +wrap i;
+    set output_buffer[idx] = obs14_bytes[i];
   }
   let output_slice = &output_buffer[0_u64..112_u64];
   let write_result = write_all(factory: &factory, output: &stdout, source: output_slice);

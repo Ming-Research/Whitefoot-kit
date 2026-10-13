@@ -67,7 +67,7 @@ fn parse_port(args: &Args) -> result: Option<u16> reads(args) {
     Ok(value: arg_string) => {
       let len = std::text::host_bytes_len(value: &arg_string);
       let buffer = array_filled::<u8, 6>(value: 0_u8);
-      let copy_result = std::text::host_copy_bytes(value: &arg_string, destination: &buffer, start: 0_u64, end: 6_u64);
+      let copy_result = std::text::host_copy_bytes(value: &arg_string, destination: &buffer[0_u64..6_u64], start: 0_u64, end: 6_u64);
       match copy_result {
         Ok(value: bytes_copied) => {
           let port_bytes = &buffer[0_u64..bytes_copied];
@@ -103,7 +103,7 @@ fn echo_peer(factory: HandleFactory, connection: TcpConnection) -> result: unit 
             break @send;
           }
           let cancel2 = std::time::cancel_never();
-          let send_result = std::net::send_once(send: &send, source: &buffer, start: sent, end: bytes_read, deadline: no_deadline, cancel: &cancel2);
+          let send_result = std::net::send_once(send: &send, source: &buffer[0_u64..3_u64], start: sent, end: bytes_read, deadline: no_deadline, cancel: &cancel2);
           std::time::close_cancel_watch(watch: move cancel2);
           match send_result {
             Ok(value: bytes_sent) => {

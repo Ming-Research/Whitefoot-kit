@@ -68,32 +68,57 @@ fn decode_percent(input: &[u8], destination: &[u8]) -> result: u64 reads(input),
               Some(value: sv) => {
                 let high = fv *wrap 16_u8;
                 let decoded = high +wrap sv;
-                set destination^[out_pos] = decoded;
-                set out_pos = out_pos +wrap 1_u64;
-                set in_pos = next2 +wrap 1_u64;
+                let write_ok = out_pos < destination^.len;
+                if write_ok {
+                  set destination^[out_pos] = decoded;
+                  set out_pos = out_pos +wrap 1_u64;
+                  set in_pos = next2 +wrap 1_u64;
+                } else {
+                  return out_pos;
+                }
               }
               None() => {
-                set destination^[out_pos] = current;
-                set out_pos = out_pos +wrap 1_u64;
-                set in_pos = next1;
+                let write_ok = out_pos < destination^.len;
+                if write_ok {
+                  set destination^[out_pos] = current;
+                  set out_pos = out_pos +wrap 1_u64;
+                  set in_pos = next1;
+                } else {
+                  return out_pos;
+                }
               }
             }
           }
           None() => {
-            set destination^[out_pos] = current;
-            set out_pos = out_pos +wrap 1_u64;
-            set in_pos = next1;
+            let write_ok = out_pos < destination^.len;
+            if write_ok {
+              set destination^[out_pos] = current;
+              set out_pos = out_pos +wrap 1_u64;
+              set in_pos = next1;
+            } else {
+              return out_pos;
+            }
           }
         }
       } else {
+        let write_ok = out_pos < destination^.len;
+        if write_ok {
+          set destination^[out_pos] = current;
+          set out_pos = out_pos +wrap 1_u64;
+          set in_pos = in_pos +wrap 1_u64;
+        } else {
+          return out_pos;
+        }
+      }
+    } else {
+      let write_ok = out_pos < destination^.len;
+      if write_ok {
         set destination^[out_pos] = current;
         set out_pos = out_pos +wrap 1_u64;
         set in_pos = in_pos +wrap 1_u64;
+      } else {
+        return out_pos;
       }
-    } else {
-      set destination^[out_pos] = current;
-      set out_pos = out_pos +wrap 1_u64;
-      set in_pos = in_pos +wrap 1_u64;
     }
   }
   return out_pos;

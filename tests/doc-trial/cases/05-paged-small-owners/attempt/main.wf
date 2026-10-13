@@ -167,7 +167,23 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   }
   place_back(window: &results, value: diff_cap_513);
   let run = &pool.inner[0_u64..pool.inner.len];
+  let first_val = run^[0_u64];
+  if first_val != 73_u64 {
+    set result_code = 9_u8;
+    return exit_status(code: result_code);
+  }
+  let pool_len = pool.inner.len;
+  let last_idx = pool_len - 1_u64;
+  let last_val = run^[last_idx];
+  if last_val != 512_u64 {
+    set result_code = 10_u8;
+    return exit_status(code: result_code);
+  }
   let sum_before_release = sum_range(run: run);
+  if sum_before_release != 131401_u64 {
+    set result_code = 16_u8;
+    return exit_status(code: result_code);
+  }
   let heap_after_release = measure_after_release(pool: move pool, meter: &meter);
   let diff_after_release = 0_u64;
   if heap_after_release >= baseline {
@@ -176,11 +192,17 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   place_back(window: &results, value: diff_after_release);
   let heap_at_sep = 0_u64;
   let diff_sep = 0_u64;
+  let sep_val = 0_u64;
   if True() {
     let pool_sep = box_paged_new::<u64>(capacity: 3_u64);
     if pool_sep.inner.len < pool_sep.inner.cap {
       place_back(window: &pool_sep.inner, value: 19_u64);
     } else {
+      set result_code = 12_u8;
+      return exit_status(code: result_code);
+    }
+    set sep_val = pool_sep.inner[0_u64];
+    if sep_val != 19_u64 {
       set result_code = 12_u8;
       return exit_status(code: result_code);
     }
@@ -220,7 +242,12 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     set diff_after_zero_release = heap_after_zero_release - baseline;
   }
   place_back(window: &results, value: diff_after_zero_release);
-  place_back(window: &results, value: 3_u64);
+  let capacity_after_grow = 3_u64;
+  if pool_zero.inner.cap < 3_u64 {
+    set result_code = 6_u8;
+    return exit_status(code: result_code);
+  }
+  place_back(window: &results, value: capacity_after_grow);
   place_back(window: &results, value: sum_before_release);
   place_back(window: &results, value: 73_u64);
   place_back(window: &results, value: 19_u64);

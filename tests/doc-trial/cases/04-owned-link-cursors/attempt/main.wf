@@ -48,8 +48,7 @@ fn sum_list(node: &LinkNode) -> result: u64 reads(node) {
 fn filter_list(node: &LinkNode) -> result: Option<Box<LinkNode>> reads(node) {
   let remainder = node^.value % 2_u64;
   if remainder == 0_u64 {
-    let next_opt = &node^.next;
-    match next_opt {
+    match &node^.next {
       Some(value: next_box) => {
         return filter_list(node: &next_box^.inner);
       }
@@ -58,23 +57,21 @@ fn filter_list(node: &LinkNode) -> result: Option<Box<LinkNode>> reads(node) {
         return empty;
       }
     }
-  } else {
-    let next_opt = &node^.next;
-    let next_list = match next_opt {
-      Some(value: next_box) => {
-        let filtered = filter_list(node: &next_box^.inner);
-        give move filtered;
-      }
-      None() => {
-        let empty = None<Box<LinkNode>>();
-        give move empty;
-      }
-    };
-    let new_node = LinkNode(value: node^.value, next: move next_list);
-    let boxed = box_new::<LinkNode>(value: move new_node);
-    let result = Some<Box<LinkNode>>(value: move boxed);
-    return result;
   }
+  let next_list = match &node^.next {
+    Some(value: next_box) => {
+      let filtered = filter_list(node: &next_box^.inner);
+      give move filtered;
+    }
+    None() => {
+      let empty = None<Box<LinkNode>>();
+      give move empty;
+    }
+  };
+  let new_node = LinkNode(value: node^.value, next: move next_list);
+  let boxed = box_new::<LinkNode>(value: move new_node);
+  let result = Some<Box<LinkNode>>(value: move boxed);
+  return result;
 }
 
 fn increment_list(node: &LinkNode) -> result: Option<Box<LinkNode>> reads(node) {
