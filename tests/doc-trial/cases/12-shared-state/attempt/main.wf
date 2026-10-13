@@ -104,15 +104,11 @@ fn launch_counter_incrementers(counter: &Shared<u64>) -> result: unit reads(coun
   return unit;
 }
 
-fn launch_producers(queue: &Shared<Ring<u64, 8>>) -> result: unit reads(queue) waits {
+fn launch_producers_and_consumers(queue: &Shared<Ring<u64, 8>>, total: &Shared<u64>) -> result: unit reads(queue), reads(total) waits {
   for (i in 0_u64..4_u64) {
     let queue_handle = shared_share::<Ring<u64, 8>>(shared: queue);
     spawn produce(queue: move queue_handle);
   }
-  return unit;
-}
-
-fn launch_consumers(queue: &Shared<Ring<u64, 8>>, total: &Shared<u64>) -> result: unit reads(queue), reads(total) waits {
   for (i in 0_u64..4_u64) {
     let queue_handle = shared_share::<Ring<u64, 8>>(shared: queue);
     let total_handle = shared_share::<u64>(shared: total);
@@ -131,8 +127,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let queue = shared_new::<Ring<u64, 8>>(value: move initial_queue);
   let total = shared_new::<u64>(value: 0_u64);
   launch_counter_incrementers(counter: &counter);
-  launch_producers(queue: &queue);
-  launch_consumers(queue: &queue, total: &total);
+  launch_producers_and_consumers(queue: &queue, total: &total);
   let final_counter = 0_u64;
   atomic count = &counter {
     set final_counter = count^;

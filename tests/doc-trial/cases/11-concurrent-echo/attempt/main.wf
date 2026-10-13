@@ -41,8 +41,12 @@ fn get_port_from_args(args: &std::text::Args) -> result: u16 reads(args) {
       let buffer = array_filled::<u8, 20>(value: 0_u8);
       let copy_result = std::text::host_copy_bytes(value: &host_string, destination: &buffer[0_u64..20_u64], start: 0_u64, end: 20_u64);
       let num_copied = match copy_result {
-        Ok(value: n) => { give n; }
-        Err(error: e) => { give 0_u64; }
+        Ok(value: n) => {
+          give n;
+        }
+        Err(error: e) => {
+          give 0_u64;
+        }
       }
       let slice = &buffer[0_u64..num_copied];
       let parsed_port = decimal_to_u16(bytes: slice);
@@ -106,8 +110,12 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
 
   let listen_result = std::net::tcp_listen(factory: &factory, address: &address);
   let listener = match listen_result {
-    Ok(value: l) => { give l; }
-    Err(error: e) => { return std::process::exit_status(code: 1_u8); }
+    Ok(value: l) => {
+      give l;
+    }
+    Err(error: e) => {
+      return std::process::exit_status(code: 1_u8);
+    }
   }
 
   for (i in 0_u64..12_u64) {

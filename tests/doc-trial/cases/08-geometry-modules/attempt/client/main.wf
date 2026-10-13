@@ -66,7 +66,9 @@ fn encode_f64_le(buffer: &[u8], offset: u64, value: f64) -> result: unit writes(
   return unit;
 }
 
-fn write_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], length: u64) -> result: Result<unit, std::io::IoError> reads(source), writes(factory), writes(output) waits {
+fn write_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], length: u64) -> result: Result<unit, std::io::IoError> reads(source), writes(factory), writes(output) waits contract {
+  requires length <= source^.len;
+} {
   let sent = 0_u64;
   loop @publish {
     let pending = sent < length;

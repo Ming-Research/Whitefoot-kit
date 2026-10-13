@@ -23,6 +23,11 @@ struct ParseResult {
   value_len: u64;
 }
 
+struct CountResult {
+  count: u64;
+  next_pos: u64;
+}
+
 fn send_all(send: &TcpSend, source: &[u8], length: u64, deadline: Option<Instant>, cancel: &CancelWatch) -> result: Result<unit, IoError> reads(source), reads(cancel), writes(send) waits contract {
   requires length <= source^.len;
 } {
@@ -144,15 +149,15 @@ fn parse_bulk_string(buffer: &[u8], pos: u64) -> result: ParseResult reads(buffe
   }
 }
 
-fn parse_array_count(buffer: &[u8], pos: u64) -> result: Result<(u64, u64), u64> reads(buffer) {
+fn parse_array_count(buffer: &[u8], pos: u64) -> result: Result<CountResult, u64> reads(buffer) {
   if pos >= buffer^.len {
     let error_val = 0_u64;
-    return Err<(u64, u64), u64>(error: error_val);
+    return Err<CountResult, u64>(error: error_val);
   }
   let first = buffer^[pos];
   if first != 42_u8 {
     let error_val = 0_u64;
-    return Err<(u64, u64), u64>(error: error_val);
+    return Err<CountResult, u64>(error: error_val);
   }
   let start_pos = pos + 1_u64;
   let crlf_result = find_crlf(buffer: buffer, start: start_pos);
@@ -164,15 +169,18 @@ fn parse_array_count(buffer: &[u8], pos: u64) -> result: Result<(u64, u64), u64>
       match count_parse {
         Ok(value: count) => {
           let next_pos = crlf_pos + 2_u64;
-          return Ok<(u64, u64), u64>(value: (count, next_pos));
+          let result_val = CountResult(count: count, next_pos: next_pos);
+          return Ok<CountResult, u64>(value: result_val);
         }
         Err(error: e) => {
-          return Err<(u64, u64), u64>(error: 0_u64);
+          let error_val = 0_u64;
+          return Err<CountResult, u64>(error: error_val);
         }
       }
     }
     Err(error: e) => {
-      return Err<(u64, u64), u64>(error: 0_u64);
+      let error_val = 0_u64;
+      return Err<CountResult, u64>(error: error_val);
     }
   }
 }
@@ -306,8 +314,8 @@ fn handle_client(factory: &HandleFactory, receive: TcpReceive, send: TcpSend, st
       let array_result = parse_array_count(buffer: &buffer[0_u64..4096_u64], pos: parsed_pos);
       match array_result {
         Ok(value: counts) => {
-          let count = counts.0;
-          let next_pos = counts.1;
+          let count = counts.count;
+          let next_pos = counts.next_pos;
           if count == 0_u64 {
             set parsed_pos = next_pos;
             continue @parse_loop;

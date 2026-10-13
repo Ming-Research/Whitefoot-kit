@@ -123,7 +123,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   grow_paged(cell: &pool1, capacity: 512_u64);
   let i = 4_u64;
   loop @fill_512 (
-    invariant room: pool1.inner.len < pool1.inner.cap
+    invariant filled_to_i: pool1.inner.len == i
   ) {
     let fill_cond = i < 512_u64;
     if fill_cond {

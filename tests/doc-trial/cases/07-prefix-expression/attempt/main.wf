@@ -205,10 +205,10 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
         InvalidToken() => {
           give False();
         }
-      };
+      }
       give inner;
     }
-  };
+  }
   if incomplete_is_truncated {
     match parse_result {
       Success(expr: expr, next: parsed_next) => {

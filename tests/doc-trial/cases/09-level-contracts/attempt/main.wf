@@ -223,7 +223,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     give 1_u64;
   } else {
     give 0_u64;
-  };
+  }
 
   let outcome1 = write_u64_le(factory: &factory, output: &output, value: acceptance);
   match outcome1 {

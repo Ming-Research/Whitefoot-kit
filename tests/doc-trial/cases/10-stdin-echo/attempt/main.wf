@@ -33,7 +33,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   return exit_status(code: code);
 }
 
-fn run_echo(factory: &HandleFactory, input: &InputStream, output: &OutputStream) -> result: u8 reads(input), reads(output), writes(factory) waits {
+fn run_echo(factory: &HandleFactory, input: &InputStream, output: &OutputStream) -> result: u8 writes(factory), writes(input), writes(output) waits {
   let buffer = array_filled::<u8, 4096>(value: 0_u8);
   let buffer_slice = &buffer[0_u64..4096_u64];
   loop @main_loop {
@@ -64,7 +64,7 @@ fn run_echo(factory: &HandleFactory, input: &InputStream, output: &OutputStream)
   }
 }
 
-fn write_bytes(factory: &HandleFactory, output: &OutputStream, buffer: &[u8], bytes_read: u64) -> result: Bool reads(buffer), writes(factory), writes(output) waits {
+fn write_bytes(factory: &HandleFactory, output: &OutputStream, buffer: &[u8], bytes_read: u64) -> result: Bool writes(buffer), writes(factory), writes(output) waits {
   let written = 0_u64;
   loop @write_loop {
     if written >= bytes_read {
