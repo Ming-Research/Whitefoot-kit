@@ -1,27 +1,15 @@
 # Writing Whitefoot
 
-This guide is for agents that write Whitefoot programs. Read all of it
-before writing code; it is short enough to keep in mind at once.
+This guide is for agents that write Whitefoot programs and is 1944 lines long. Read all of it before writing code. If a file reader shows only part, read the rest in numbered ranges until the final section is received. Before writing concurrent code, read all of Part 3, including child completion and its examples.
 
-- Part 1, syntax, holds the forms every program needs. Most first
-  rejections come from these forms; write them as shown, not as another
-  language would.
-- Parts 2 and 3 say how to design a sequential and a concurrent program:
-  where data lives, who owns it, what the checker must be told, how contexts
-  share state. Rejections cannot teach these.
-- Throughout, "Silent" marks behavior the compiler accepts but that is wrong
-  or slow, with the way to check for it.
+- Part 1, syntax, holds the forms every program needs. Most first rejections come from these forms; write them as shown, not as another language would.
+- Parts 2 and 3 say how to design a sequential and a concurrent program: where data lives, who owns it, what the checker must be told, how contexts share state. Rejections cannot teach these.
+- Throughout, "Silent" marks behavior the compiler accepts but that is wrong or slow, with the way to check for it.
 
-Beside this guide you have the standard library's interfaces,
-`std/<module>/module.wfm`, listed in `std/modules.wfg`, and the
-specification. A rule id in brackets, such as [GRAM-9], names the
-specification rule that defines a form. Read an interface before calling
-anything in it; never guess a name.
+Beside this guide you have the standard library's interfaces, `std/<module>/module.wfm`, listed in `std/modules.wfg`, and the specification. A rule id in brackets, such as [GRAM-9], names the specification rule that defines a form. Read an interface before calling anything in it; never guess a name.
 
-Work in this order: write the whole program from this guide, compile it, and
-fix each rejection. A rejection names its rule and marks the source; when it
-carries a `mechanical_fix`, apply it. Part 1 ends with "When the compiler
-says…", which lists rejections whose text does not lead to the fix.
+Write the whole program from this guide, then compile it. After any rejection, identify its rule, find every other place in all files that breaks the same rule, and fix them all before compiling again. Apply a supplied `mechanical_fix`, then audit for the same fault elsewhere. For FORM-2, audit the whole layout: each ordinary statement, including a destructuring let, occupies one
+physical line; no blank line occurs inside an item; one blank line separates top-level items except runs of aliases, graph packages and graph rows (§12). Part 1 ends with "When the compiler says…", for rejections whose text does not lead to the fix.
 
 ## Part 1. Syntax you will need in every program
 
@@ -29,7 +17,7 @@ says…", which lists rejections whose text does not lead to the fix.
 
 Write `fn name(parameter: Type) -> result_name: ResultType effects waits? contract? {`. The result binder and effect row are mandatory. `pure` is the empty row; `waits` follows the row, and `contract` follows `waits` when present. Parameters use `T`, `&T` or `&[T]`, without `move` or `&mut`. Results are owned values, never references. [GRAM-2, GRAM-3, FN-1, REF-3]
 
-Effect paths root at reference parameters, without `^`: `reads(source)`, `writes(counter.value)`. By-value parameters and locals add no enclosing row entry. Order reads before writes, each in parameter order; `writes(p)` covers reads below `p`. Declared paths and exhibited body accesses must cover each other. `pure` may allocate or wait. [EFF-1, EFF-2, STOR-8]
+Effect paths root at reference parameters, without `^`: `reads(source)`, `writes(counter.value)`. By-value parameters and locals add no enclosing row entry. Order reads before writes, each in parameter order; `writes(p)` covers reads below `p`. Declared paths and exhibited body accesses must cover each other. `pure` may allocate or wait. Audit each row before submission: only reference parameters can root entries; remove every read covered by a write and every narrower entry covered by an ancestor. [EFF-1, EFF-2, STOR-8]
 
 ```whitefoot
 alias ExitStatus = std::process::ExitStatus;
@@ -57,7 +45,7 @@ fn main() -> status: ExitStatus pure {
 
 Put aliases first; there is no `use` import. Use `main(inputs: Inputs)` for startup handles or `main()` when none are needed. The invocation supplies declared arguments; main uses an ordinary function header. [MOD-4, PROG-3]
 
-`Inputs` fields, in declaration order, are `args`, `drivers`, `cwd`, `stdout`, `stderr`, `handles`, `stdin`, `clock`, `wall_clock`, `stops`, `memory_meter`. Bind all fields in that order, or bind a subset in that order and append `, ..`. The rest marker releases omitted droppable fields; it cannot discard a linear field. `cwd` owns two linear directory handles, so consume it and close both halves even when the program does not use its working directory. [GRAM-4, GRAM-10, PROV-6, WIN-3, PRE-2]
+`Inputs` fields, in declaration order, are `args`, `drivers`, `cwd`, `stdout`, `stderr`, `handles`, `stdin`, `clock`, `wall_clock`, `stops`, `memory_meter`. Named fields retain declaration order even when fields are omitted: `stdout` precedes `handles`. Bind all fields, or a subset followed by `, ..`. The rest marker releases omitted droppable fields; it cannot discard a linear field. `cwd` owns two linear directory handles, so consume it and close both halves even when the program does not use its working directory. [GRAM-4, GRAM-10, PROV-6, WIN-3, PRE-2]
 
 ```whitefoot
 alias ExitStatus = std::process::ExitStatus;
@@ -77,7 +65,7 @@ The close calls return `Result<unit, IoError>`; this template discards their res
 
 ### 3. Where must I split an expression?
 
-An executable expression is an atom, a call, or one infix over two atoms. Atoms are literals, places, `move place` and `&place`. Call arguments, constructor fields, infix operands, indices and range endpoints are atoms; bind computations with `let` first. No expression grouping, precedence or chaining exists. [GRAM-5, GRAM-6, GRAM-9]
+An executable expression is an atom, a call, or one infix over two atoms. Atoms are literals, places, `move place` and `&place`. Call arguments, constructor fields, infix operands, indices and range endpoints are atoms; bind computations with `let` first. No expression grouping, precedence or chaining exists. Before submission, audit every call argument, constructor field, index, range endpoint and infix operand. Bind every computed operand first. After any atom error, repair all such positions, not only the marked one. [GRAM-5, GRAM-6, GRAM-9]
 
 ```whitefoot
 fn compose() -> result: u64 pure {
@@ -119,7 +107,7 @@ Wrap arithmetic is modulo the width; wrap shifts mask the amount. Checked forms 
 
 Bool calls are `band(a, b)`, `bor(a, b)`, `bxor(a, b)`, `bnot(a)`, with already evaluated operands; use control flow for conditional evaluation. No `&& || !`, infix bitwise `& |`, or `bitand` exists. [OP-1, GRAM-5]
 
-Rounding float arithmetic uses `fadd.strict fsub.strict fmul.strict fdiv.strict fsqrt.strict ffma.strict`. Float comparisons are `feq flt fle fgt fge fne`; use `feq(a, b)`, not `a == b`. Conversions write both types: `cvt::<u8, u32>(byte)` needs a proved exact domain. [OP-1, OP-3, OP-6]
+Rounding float arithmetic uses `fadd.strict fsub.strict fmul.strict fdiv.strict fsqrt.strict ffma.strict`. Float comparisons are `feq flt fle fgt fge fne`; use `feq(a, b)`, not `a == b`. Conversions write both types: `cvt::<u8, u32>(byte)` needs a proved exact domain. For rounded float-to-integer conversion, bind `froundeven(x)`, then use `cvt.checked::<f64, i32>` for an f64 input and i32 destination. `cvt.nearest` requires a float destination. Compare floats with `fge`/`flt`, not ordering infix operators. [OP-1, OP-3, OP-6]
 
 ### 5. How do I spell a literal?
 
@@ -140,7 +128,7 @@ let message = "hello";
 
 Write `let name = expression;`; the initializer determines the exact type and mode. There is no local type annotation, `mut` or `_` discard binder. Bind an unused field to an ordinary name such as `unused_clock`, or use an admitted rest marker. Replace a live value with `set place = expression;`; `let` does not imply immutability. [GRAM-4, TYPE-5, SET-1]
 
-Value names, including constants, match `[a-z][a-z0-9_]*`; type names `[A-Z][A-Za-z0-9]*`; labels `@[a-z][a-z0-9_]*`. Use a fresh nonreserved name; no live local, parameter, alias or competing module declaration may be shadowed. [FORM-3, TYPE-6, OP-1]
+Value names, including constants, match `[a-z][a-z0-9_]*`; type names `[A-Z][A-Za-z0-9]*`; labels `@[a-z][a-z0-9_]*`. Use a fresh nonreserved name; no local declaration still in scope, parameter, alias or competing module declaration may be shadowed. Audit every declaration: no `_` binder or uppercase value name. Initialize once with `let`, update with `set`. A moved value’s declaration still occupies its name until its block ends. [FORM-3, TYPE-6, OP-1]
 
 Rejected: invalid binders or binding forms.
 
@@ -153,6 +141,8 @@ fn done() -> unit: unit pure {
 ```
 
 ### 7. How do I construct an array, window or constant table?
+
+A fixed array type is `Array<T, N>`, never `[T; N]`, including inside `Box` and other type arguments. [GRAM-3, TYPE-9]
 
 There is no list literal in executable expression position. `array_filled::<T, N>(value: x)` initializes all N elements and requires copy T. `slots_new::<T, N>()` creates an empty constant-capacity window; `place_back(window: &s, value: x)` requires `s.len < s.cap` and adds an initialized element. Index only initialized elements. [OP-13, OP-10, OP-4, PRE-1]
 
@@ -179,7 +169,7 @@ Array sizes and const type arguments use bare decimal counts, such as `3`, or an
 
 An `if` condition is an owned Bool expression, without parentheses. The then-block may be empty; an explicit empty else-block is rejected. Write `} else if condition {` for a chain; an else-block containing only another `if` is rejected. [GRAM-4, GRAM-6, OP-5]
 
-A value conditional initializes a `let` only. It requires else; every continuing branch ends in `give expression;` with one identical type and mode. Close with `}`, without `;`. Returning paths need no give. [GRAM-7, GIVE-1]
+A value conditional initializes a `let` only. It requires else; every continuing branch ends in `give expression;` with one identical type and mode. Close with `}`, without `;`. Returning paths need no give. Do not write `give if ...` or `return if ...`. Bind the conditional with `let`, then give or return its binder. [GRAM-7, GIVE-1]
 
 `for (i in lower..upper) {` captures two u64 endpoints once, increments its own u64 binder and visits the half-open range. `loop {` has no implied update; terminate or repeat with `break;` and `continue;`. Optional labels appear after `for`/`loop`, as `loop @scan {`; use `break @scan;` or `continue @scan;` for the named enclosing loop. [GRAM-4, FN-1, TYPE-6]
 
@@ -250,7 +240,7 @@ fn main() -> status: ExitStatus pure {
 }
 ```
 
-A statement match produces no value; a let-initializer match uses give and no trailing semicolon. Reference-derived scrutinees keep their owner and bind reference payloads. Affine/linear own scrutinees need `move`. [GRAM-7, GIVE-1, OWN-1, OWN-13]
+A statement match produces no value; a let-initializer match uses give and no trailing semicolon. Remove the trailing semicolon after every let-value match or if; audit all occurrences after the first such rejection. Reference-derived scrutinees keep their owner and bind reference payloads. Affine/linear own scrutinees need `move`. [GRAM-7, GIVE-1, OWN-1, OWN-13]
 
 ### 10. How do I construct a struct or enum variant?
 
@@ -297,7 +287,7 @@ Prelude forms are `None<T>()`, `Some<T>(value: x)`, `Ok<T, E>(value: x)`, `Err<T
 
 ### 11. How do I spell references, slices, fields and moves?
 
-`&place` forms a reference. A reference variable is not implicitly read as its value: use `r^`, `r^.field`, `r^[index]`, or `r^.len`. A half-open slice is `&array[lower..upper]`; a slice reference has `len`, not `cap`. A Box exposes its content as `cell.inner`. [GRAM-5, TYPE-7, TYPE-9, REF-1, REF-4]
+`&place` forms a reference. A reference variable is not implicitly read as its value: use `r^`, `r^.field`, `r^[index]`, or `r^.len`. A half-open slice is `&array[lower..upper]`; a slice reference has `len`, not `cap`. A Box exposes its content as `cell.inner`. For an array `a`, `&a` is an array reference, not a slice reference. For a parameter `&[T]`, pass `&a[0_u64..length]` with a u64 endpoint. [GRAM-5, TYPE-5, TYPE-7, TYPE-9, REF-1, REF-4]
 
 ```whitefoot
 alias ExitStatus = std::process::ExitStatus;
@@ -338,7 +328,7 @@ Bare copy values copy; affine or linear values need explicit `move place` to tra
 
 Use UTF-8/LF and two spaces per brace depth. No tabs, trailing spaces, leading blank line or blank line inside an item. Put one blank line between top-level items, except adjacent aliases, graph packages and graph rows. End the last line with one LF, without a trailing blank line. Noncanonical bytes are rejected. [FORM-1, FORM-2]
 
-Ordinary statements and function headers through `{` each occupy one line. Empty blocks use two lines. Join else as `} else {` or `} else if ... {`, and contract/body as `} {`. Write `Array<u8, 3>`, `f(x: a, y: b)`, `=[...]`, `&a[lo..hi]`, `r^`. Follow the complete files' layout. [FORM-2]
+Audit canonical layout across every file: ordinary and destructuring statements stay on one physical line; no blank lines inside items; one blank line between top-level items except the stated runs. Function headers through `{` each occupy one line. Empty blocks use two lines. Join else as `} else {` or `} else if ... {`, and contract/body as `} {`. Write `Array<u8, 3>`, `f(x: a, y: b)`, `=[...]`, `&a[lo..hi]`, `r^`. Follow the complete files' layout. [FORM-2]
 
 No comments exist. `doc "...";` is declaration documentation, permitted at the start of a declaration body or as an interface declaration's documentation; do not insert it between executable statements. [FORM-4, GRAM-2]
 
@@ -423,7 +413,7 @@ Modes and operation names are prohibited for source function names, constants, v
 
 ### When the compiler says…
 
-Fix the first error and check again; diagnostics depend on context.
+After any rejection, audit all files for violations of the same rule and fix them all before compiling again. For FORM-2, audit the whole canonical layout in §12, including destructuring lets.
 
 | Diagnostic symptom | Form to check |
 | --- | --- |
@@ -597,7 +587,7 @@ Observation/edit callbacks return owned results; drain callbacks consume `nodrop
 
 Choose copy, transfer or borrow: ownership follows fields, payloads, Box content and elements, so wrapping a resource preserves its obligation [OWN-1, PROV-6].
 
-Copy values are used bare; affine values transfer with `move` or take derived release; linear values must be consumed. `nocopy` removes copy; `nodrop` removes copy and drop. Neither attaches a finalizer [OWN-1, STOR-3].
+Copy values are used bare; affine values transfer with `move` or take derived release; linear values must be consumed. `nocopy` removes copy; `nodrop` removes copy and drop. Neither attaches a finalizer. `Result` inherits its payload capabilities: match `Result<u64, IoError>` bare; move a Result owning `HostString`. Do not add `move` to every Result [OWN-1, STOR-3, PRE-2].
 
 `cell.inner` reaches Box content; moving it consumes/frees the cell. `^` is for references only. Runtime-capacity shapes, Segments and Paged cannot move out of Box [TYPE-7, TYPE-9].
 
@@ -820,7 +810,7 @@ Silent failure and check: a `requires` clause removes the runtime failure altern
 
 ### Which evidence must travel with a successful result?
 
-Put a reusable success relation in a routed `ensures when Ok(value: ...)` or `ensures when Some(value: ...)`, then keep the outcome as an ordinary value until selection. Reason: the caller checks a signature and does not inspect the callee's body to rediscover why its payload is safe [FN-9, CALL-6, ENT-5].
+Put a reusable success relation in a routed `ensures when Ok(value: ...)` or `ensures when Some(value: ...)`, then keep the outcome as an ordinary value until selection. Reason: the caller checks a signature and does not inspect the callee's body to rediscover why its payload is safe. Written routed `ensures` admits only Result’s `Ok` or Option’s `Some`, with one `value` binder; custom-enum routes cannot be written. Report a needed unsupported boundary; do not hide it with a redundant runtime guard [FN-9, CALL-6, ENT-5].
 
 ```whitefoot
 fn selected(value: i32, fail: Bool) -> result: Result<i32, Overflow> pure contract {
@@ -1155,10 +1145,7 @@ Silent cost and check: monomorphization can multiply code/build work despite dir
 
 ### Which data should be immutable tables?
 
-Use `const` for lookup tables, fixed messages and fixed records; borrow the
-needed range instead of creating a mutable array and filling it at startup.
-A const is program-lifetime read-only storage with no allocation or release
-[CONST-2].
+Use `const` for lookup tables, fixed messages and fixed records; borrow the needed range instead of creating a mutable array and filling it at startup. A const is program-lifetime read-only storage with no allocation or release [CONST-2].
 
 ```whitefoot
 const digits: Array<u8, 4> =['0'_u8, '1'_u8, '2'_u8, '3'_u8];
@@ -1177,24 +1164,13 @@ fn message() -> count: u64 pure {
 }
 ```
 
-A static value may contain primitives, fixed `Array` values and non-opaque
-source structs whose fields are const-eligible. It cannot contain an enum,
-`Box`, `Slots`, `Ring` or runtime-capacity array. Dependencies between consts
-must be acyclic. A struct const uses its ordinary field labels and declaration
-order; for example, a `Dimensions` with `width: u64` and `height: u64` takes
+A static value may contain primitives, fixed `Array` values and non-opaque source structs whose fields are const-eligible. It cannot contain an enum, `Box`, `Slots`, `Ring` or runtime-capacity array. Dependencies between consts must be acyclic. A struct const uses its ordinary field labels and declaration order; for example, a `Dimensions` with `width: u64` and `height: u64` takes
 `Dimensions(width: 3_u64, height: 2_u64)` as its const initializer.
 
-Text has exactly its UTF-8 byte length, with no implicit trailing zero. A
-STRING is a const initializer, not a runtime string expression. Use `\n`,
-`\t`, `\r` and canonical `\u{...}` escapes where required [FORM-5, FORM-7].
-The compiler reports the actual byte length when `Array<u8, N>` disagrees.
+Text has exactly its UTF-8 byte length, with no implicit trailing zero. A STRING is a const initializer, not a runtime string expression. Use `\n`, `\t`, `\r` and canonical `\u{...}` escapes where required [FORM-5, FORM-7]. The compiler reports the actual byte length when `Array<u8, N>` disagrees.
 
-**Cost and check.** A bare use of a copy array copies its value; `&table` or a
-range borrows it. Choosing `const` does not remove index bounds obligations.
-Check the program with `--check`, and test every table boundary and every
-externally required byte sequence against the format being implemented.
-When a large table appears in a stack frame, inspect value passing and
-`--stack-ledger`; static storage itself is not a per-call local array.
+**Cost and check.** A bare use of a copy array copies its value; `&table` or a range borrows it. Choosing `const` does not remove index bounds obligations. Check the program with `--check`, and test every table boundary and every externally required byte sequence against the format being implemented. When a large table appears in a stack frame, inspect value passing and `--stack-ledger`;
+static storage itself is not a per-call local array.
 
 ### Which module owns this boundary, and where do I find its API?
 
@@ -1437,9 +1413,7 @@ fn countdown(n: u64) -> result: u64 pure {
 
 ### What evidence says the chosen design works?
 
-Check source obligations and generated code separately; neither substitutes
-for output tests. Keep compiler, interfaces and specification at one revision.
-Run these commands in CI with the actual source, graph and entry.
+Check source obligations and generated code separately; neither substitutes for output tests. Keep compiler, interfaces and specification at one revision. Run these commands in CI with the actual source, graph and entry.
 
 | Question | Current compiler: evidence |
 |---|---|
@@ -1450,28 +1424,17 @@ Run these commands in CI with the actual source, graph and entry.
 | Build phases and cache reuse | `whitefootc --report program.wf -o program`. For a module build use `--graph modules.wfg --entry main` instead of the source path. |
 | Owned heap versus residency | Read `std/process/module.wfm`: `heap_in_use` and `resident_bytes` measure different quantities. |
 
-The stack ledger is target/build-specific and includes machine spills. An
-inlined callee has no separate row. Displayed recursive levels divide stack
-size by per-level cost; other frames and runtime code still need space, and
-linked runtime translation units are outside the ledger. It is not a proof
-of maximum input depth. A source-only `--check` supplies no machine frames.
+The stack ledger is target/build-specific and includes machine spills. An inlined callee has no separate row. Displayed recursive levels divide stack size by per-level cost; other frames and runtime code still need space, and linked runtime translation units are outside the ledger. It is not a proof of maximum input depth. A source-only `--check` supplies no machine frames.
 
-`--report` measures compilation, not runtime memory, speed or proof traces.
-`--report --check program.wf` is refused for a source bundle. Source rejection,
-compiler capability limits, target/build failure and denied optimization are
-distinct outcomes [DIAG-1, DIAG-2, STOR-6].
+`--report` measures compilation, not runtime memory, speed or proof traces. `--report --check program.wf` is refused for a source bundle. Source rejection, compiler capability limits, target/build failure and denied optimization are distinct outcomes [DIAG-1, DIAG-2, STOR-6].
 
 ## Part 3. Designing a concurrent program
 
 ### Which work needs its own context?
 
-Spawn activities that must run while others wait; split by ownership and
-lifetime. Use `--par` for independent computation that preserves the
-source-order result [WAIT-2, PAR-1, PAR-2].
+Spawn activities that must run while others wait; split by ownership and lifetime. Use `--par` for independent computation that preserves the source-order result [WAIT-2, PAR-1, PAR-2].
 
-A waiting call pauses its caller; `spawn` lets it continue. The callee must
-be declared `waits` and take only value parameters. Move resources and separate shared
-handles into it [WAIT-1, WAIT-3]. Contexts are not core or thread assignments.
+A waiting call pauses its caller; `spawn` lets it continue. The callee must be declared `waits` and take only value parameters. Move resources and separate shared handles into it [WAIT-1, WAIT-3]. Contexts are not core or thread assignments.
 
 ```whitefoot
 alias ExitStatus = std::process::ExitStatus;
@@ -1505,31 +1468,19 @@ fn main() -> status: ExitStatus pure waits {
 }
 ```
 
-The expression-statement spawns join when `launch` exits, after both children
-start. A bound spawn delivers its result directly at its implicit join; no
-shared result slot is needed solely to cross a context boundary.
+The expression-statement spawns join when `launch` exits, after both children start. A bound spawn delivers its result directly at its implicit join; no shared result slot is needed solely to cross a context boundary.
 
-**Silent failure:** an ordinary connection-handler call serializes acceptance;
-unlimited spawns can exhaust retained buffers and handles. `pure waits` can
-mutate shared state: target-state paths are excluded from atomic statements’
-ordinary effect footprints [SHARE-2].
+**Silent failure:** an ordinary connection-handler call serializes acceptance; unlimited spawns can exhaust retained buffers and handles. `pure waits` can mutate shared state: target-state paths are excluded from atomic statements’ ordinary effect footprints [SHARE-2].
 
-**Check:** locate an actual `spawn` for every activity that must overlap a wait.
-Waiting calls have no PAR permission: `--par-ledger` cannot demonstrate
-concurrent I/O.
+**Check:** locate an actual `spawn` for every activity that must overlap a wait. Waiting calls have no PAR permission: `--par-ledger` cannot demonstrate concurrent I/O.
 
 ### Where should shared state split?
 
-Keep request-local data owned by its context. Partition mutable shared state
-by what must change together. Use `Frozen<T>` for retained immutable values
-and `SharedRead<T>` to grant only read authority [SHARE-1].
+Keep request-local data owned by its context. Partition mutable shared state by what must change together. Use `Frozen<T>` for retained immutable values and `SharedRead<T>` to grant only read authority [SHARE-1].
 
-`SharedRead` requires atomic access; `Frozen.inner` does not. Shared state lives
-until its last handle is gone and no atomic statement on it is executing.
+`SharedRead` requires atomic access; `Frozen.inner` does not. Shared state lives until its last handle is gone and no atomic statement on it is executing.
 
-**Current compiler:** an ordinary shared object is one lock unit. Maps also
-admit entry and key-set holds: use them for known keys. Use a whole-map target
-for whole-map operations or keys computed inside the block [SHARE-2].
+**Current compiler:** an ordinary shared object is one lock unit. Maps also admit entry and key-set holds: use them for known keys. Use a whole-map target for whole-map operations or keys computed inside the block [SHARE-2].
 
 ```whitefoot
 alias ExitStatus = std::process::ExitStatus;
@@ -1558,35 +1509,20 @@ fn main() -> status: ExitStatus pure waits {
 }
 ```
 
-For known keys, put their entry targets or a `KeySet` target in one statement.
-A key-set binding is an `&Entries<V>` indexed in key-set order. A whole-map
-target holds the map even when a helper accesses just one entry.
+For known keys, put their entry targets or a `KeySet` target in one statement. A key-set binding is an `&Entries<V>` indexed in key-set order. A whole-map target holds the map even when a helper accesses just one entry.
 
-**Silent failure:** adding one global counter to every request can serialize
-otherwise independent keys. When every context updates the same
-`Shared<u64>`, total throughput falls as contexts are added, instead of
-rising; giving each context its own object restores scaling. Nothing in the
-compiler reports this; measure with the counter and without it.
+**Silent failure:** adding one global counter to every request can serialize otherwise independent keys. When every context updates the same `Shared<u64>`, total throughput falls as contexts are added, instead of rising; giving each context its own object restores scaling. Nothing in the compiler reports this; measure with the counter and without it.
 
-`Shards<T>` is **not yet available** in this release. For a final aggregate,
-keep counts local and return them from bound spawns, then combine them after
-joining. If independently observed partitions fit the requirement, use
-separate `Shared<T>` objects. For one exact shared observation, retain the transaction and measure it;
-delayed aggregation changes the requirement. Report a missing facility if
-required semantics and throughput cannot both be met.
+`Shards<T>` is **not yet available** in this release. For a final aggregate, keep counts local and return them from bound spawns, then combine them after joining. If independently observed partitions fit the requirement, use separate `Shared<T>` objects. For one exact shared observation, retain the transaction and measure it; delayed aggregation changes the requirement. Report a missing
+facility if required semantics and throughput cannot both be met.
 
-**Check:** list the shared objects each hot operation reaches through direct
-accesses and helpers. Distinguish entry and whole-map holds; compare throughput
-across context counts in CI.
+**Check:** list the shared objects each hot operation reaches through direct accesses and helpers. Distinguish entry and whole-map holds; compare throughput across context counts in CI.
 
 ### What must take effect together?
 
-Put a transition that observers must never see halfway through in one atomic
-statement. Its target-state reads and writes take effect at one point;
-consecutive statements have separate points and can interleave [SHARE-3].
+Put a transition that observers must never see halfway through in one atomic statement. Its target-state reads and writes take effect at one point; consecutive statements have separate points and can interleave [SHARE-3].
 
-Here taking an item and accounting for it are one transition. The guard
-proves that `take_front` has an item.
+Here taking an item and accounting for it are one transition. The guard proves that `take_front` has an item.
 
 ```whitefoot
 alias ExitStatus = std::process::ExitStatus;
@@ -1627,35 +1563,21 @@ fn main() -> status: ExitStatus pure waits {
 }
 ```
 
-An observer comparing queue state with its total must read both in one
-statement too. The total deliberately uses modulo arithmetic.
+An observer comparing queue state with its total must read both in one statement too. The total deliberately uses modulo arithmetic.
 
-Prepare independent inputs first; validate current state and apply the
-transition inside. Copy or move results to locals: atomic bindings, their
-references and shared-state facts end with the block [REF-2, SHARE-2]. Receive
-before and send afterward. The guard and block cannot wait or contain nested
-atomic statements [SHARE-2].
+Prepare independent inputs first; validate current state and apply the transition inside. Copy or move results to locals: atomic bindings, their references and shared-state facts end with the block [REF-2, SHARE-2]. Receive before and send afterward. The guard and block cannot wait or contain nested atomic statements [SHARE-2].
 
-**Silent failure:** separate atomic reads and writes can lose intervening
-updates. Splitting removal from accounting can expose an impossible state
-even though every access is race-free.
+**Silent failure:** separate atomic reads and writes can lose intervening updates. Splitting removal from accounting can expose an impossible state even though every access is race-free.
 
-**Check:** enumerate what another statement can observe between your atomic
-statements, including error exits. The checker cannot choose the application's
-transaction boundary.
+**Check:** enumerate what another statement can observe between your atomic statements, including error exits. The checker cannot choose the application's transaction boundary.
 
 ### How do I lock an object only on paths that use it?
 
-Keep all uses of conditional metadata inside its condition, while retaining
-all targets needed for the transition in one atomic statement. Header order
-does not set lock order.
+Keep all uses of conditional metadata inside its condition, while retaining all targets needed for the transition in one atomic statement. Header order does not set lock order.
 
-**Current compiler:** first use of a state-type group acquires it and all
-earlier untaken groups until block end. [SHARE-3] permits this policy without
-requiring its acquisition points in every implementation.
+**Current compiler:** first use of a state-type group acquires it and all earlier untaken groups until block end. [SHARE-3] permits this policy without requiring its acquisition points in every implementation.
 
-Before: metadata is read before the branch, so writes with neither logging
-nor timing acquire it.
+Before: metadata is read before the branch, so writes with neither logging nor timing acquire it.
 
 ```whitefoot
 alias ExitStatus = std::process::ExitStatus;
@@ -1696,8 +1618,7 @@ fn main() -> status: ExitStatus pure waits {
 }
 ```
 
-After: move the read under `if held`. The map group precedes `Meta`, so the
-false path avoids `meta` while all changes remain one transition.
+After: move the read under `if held`. The map group precedes `Meta`, so the false path avoids `meta` while all changes remain one transition.
 
 ```whitefoot
 alias ExitStatus = std::process::ExitStatus;
@@ -1739,51 +1660,28 @@ fn main() -> status: ExitStatus pure waits {
 
 The four limits of this compiler policy are:
 
-1. **One type is one group.** Using any target of a type takes every target of
-   that type, including targets used only on other paths.
-2. **Later groups take earlier groups along.** Primitive types come first,
-   then prelude nominal types such as `ConcurrentHashMap<Entry>`, then source
-   and host-module nominal types ordered by module path and name, with type
-   arguments breaking ties. Using a later group acquires every earlier group
-   not yet taken, even when the path does not use it.
-3. **Entries, key sets and guard reads acquire early.** Their groups acquire
-   before the guard, with all earlier untaken groups. Moving a block use into
-   a branch does not defer them. A guard that reads **no target** acquires
-   **every group** before evaluation. Omit an unnecessary guard; when the
-   program needs a guard, retain its meaning and inspect what it reads.
-4. **A primitive counter beside a map is already early.** A `Shared<u64>`
-   counter acquires with the entry even if its use is conditional. A separate
-   source struct such as `Meta` orders after the map and can remain untaken
-   on the path that does not use it.
+1. **One type is one group.** Using any target of a type takes every target of that type, including targets used only on other paths.
+2. **Later groups take earlier groups along.** Primitive types come first, then prelude nominal types such as `ConcurrentHashMap<Entry>`, then source and host-module nominal types ordered by module path and name, with type arguments breaking ties. Using a later group acquires every earlier group not yet taken, even when the path does not use it.
+3. **Entries, key sets and guard reads acquire early.** Their groups acquire before the guard, with all earlier untaken groups. Moving a block use into a branch does not defer them. A guard that reads **no target** acquires **every group** before evaluation. Omit an unnecessary guard; when the program needs a guard, retain its meaning and inspect what it reads.
+4. **A primitive counter beside a map is already early.** A `Shared<u64>` counter acquires with the entry even if its use is conditional. A separate source struct such as `Meta` orders after the map and can remain untaken on the path that does not use it.
 
-**Silent failure:** a statistics read before the branch, a helper that reads
-metadata, or a target-free `when held` can make an optional object a lock on
-every request. Finishing with an object early does not release it early.
+**Silent failure:** a statistics read before the branch, a helper that reads metadata, or a target-free `when held` can make an optional object a lock on every request. Finishing with an object early does not release it early.
 
-**Check:** compile with `whitefootc --lock-ledger main.wf -o main`. It
-prints one line per target group of every atomic statement:
+**Check:** compile with `whitefootc --lock-ledger main.wf -o main`. It prints one line per target group of every atomic statement:
 
 ```text
 LOCK <function>  <file:line:col of the atomic>  targets(<names>): <state type>  <when>[; first use <sites>][; taken with targets(<names>) at <site>]
 ```
 
-`<when>` is `before the guard`, `on every path`, `on some paths` or `never`.
-An object you meant to take only on some requests must read `on some paths`;
-`on every path` or `before the guard` means a use, a helper's footprint, a
-guard or a later-ordered group takes it on every execution, and
-`taken with` names the later group whose first use pulled it in. Result
-checks establish state transitions, not lock timing, and `--par-ledger` is
-not a substitute.
+`<when>` is `before the guard`, `on every path`, `on some paths` or `never`. An object you meant to take only on some requests must read `on some paths`; `on every path` or `before the guard` means a use, a helper's footprint, a guard or a later-ordered group takes it on every execution, and `taken with` names the later group whose first use pulled it in. Result checks establish state
+transitions, not lock timing, and `--par-ledger` is not a substitute.
 
 ### Where must children finish, and what lets them finish?
 
-Mark every implicit join before arranging control flow. Put an action that
-enables a child before the statement that joins it [WAIT-3].
+Mark every implicit join before arranging control flow. Put an action that enables a child before the statement that joins it [WAIT-3].
 
-A bound spawn joins before the first later statement **in its binding’s block**
-that names the binding **or contains an edge leaving that block**, otherwise
-at block end. An expression-statement spawn joins when its activation leaves
-by any edge. Bound results cannot be polled.
+A bound spawn joins before the first later statement **in its binding’s block** that names the binding **or contains an edge leaving that block**, otherwise at block end. An expression-statement spawn joins when its activation leaves by any edge. Bound results cannot be polled. A bound spawn inside a for-body joins no later than that iteration’s end. For many activities followed by final
+observations, launch expression spawns in a synchronous helper and observe after it returns. [WAIT-3]
 
 ```whitefoot
 alias ExitStatus = std::process::ExitStatus;
@@ -1810,36 +1708,20 @@ fn main() -> status: ExitStatus pure waits {
 }
 ```
 
-The enabling write runs before the `if`, which joins before evaluating its
-condition. If the write were inside an `if` containing a `return` from this
-block, the join would precede the whole `if` and the write could never run.
-A `propagate` error edge can similarly bring a join forward. To gather
-independent answers, place their bound spawns before the first statement that
-mentions either result or can leave their block.
+The enabling write runs before the `if`, which joins before evaluating its condition. If the write were inside an `if` containing a `return` from this block, the join would precede the whole `if` and the write could never run. A `propagate` error edge can similarly bring a join forward. To gather independent answers, place their bound spawns before the first statement that mentions
+either result or can leave their block.
 
-Use guards for state waits; identify a reachable producer for each false
-guard. [WAIT-2] gives conditional progress: contexts can still deadlock on
-false guards or each other.
+Use guards for state waits; identify a reachable producer for each false guard. [WAIT-2] gives conditional progress: contexts can still deadlock on false guards or each other.
 
-**Silent failure:** coherent reads can observe intermediate results. A guarded
-publication flag can deliver data before cleanup finishes; join when child
-completion is required.
+**Silent failure:** coherent reads can observe intermediate results. A guarded publication flag can deliver data before cleanup finishes; join when child completion is required.
 
-**Check:** draw the wait dependencies, including implicit joins before
-exit-containing statements. In CI, exercise one-driver and multiple-driver
-execution and record `Inputs.drivers`, the actual count [PRE-2]. No ledger
-proves termination.
+**Check:** draw the wait dependencies, including implicit joins before exit-containing statements. In CI, exercise one-driver and multiple-driver execution and record `Inputs.drivers`, the actual count [PRE-2]. No ledger proves termination.
 
 ### Who owns I/O, and what does an I/O result mean?
 
-Give each ordered stream one owner with local buffers. Both ordered host
-operations must reach that owner’s state; one context alone does not order
-unrelated handles [HOST-1]. Receive, change state, then send. Spawn transfers
-owned handles, not parent references [WAIT-3].
+Give each ordered stream one owner with local buffers. Both ordered host operations must reach that owner’s state; one context alone does not order unrelated handles [HOST-1]. Receive, change state, then send. Spawn transfers owned handles, not parent references [WAIT-3].
 
-A successful send can be partial. This helper advances to the returned
-endpoint and carries the same deadline and cancellation watch across retries.
-Its `main` supplies an entry point; callers supply a live send handle.
+A successful send can be partial. This helper advances to the returned endpoint and carries the same deadline and cancellation watch across retries. Its `main` supplies an entry point; callers supply a live send handle.
 
 ```whitefoot
 alias TcpSend = std::net::TcpSend;
@@ -1874,30 +1756,18 @@ fn main() -> status: ExitStatus pure {
 }
 ```
 
-`Cancelled` or `DeadlinePassed` transfers nothing **in that invocation**
-[PRE-2]. Earlier iterations may already have sent a prefix. This helper does
-not report that prefix on error, so do not restart it from zero unless the
-application protocol permits duplicate bytes. The `send_once` contract permits
-`next == start`; the loop alone proves neither eventual completion nor a bound
-on return time.
+`Cancelled` or `DeadlinePassed` transfers nothing **in that invocation** [PRE-2]. Earlier iterations may already have sent a prefix. This helper does not report that prefix on error, so do not restart it from zero unless the application protocol permits duplicate bytes. The `send_once` contract permits `next == start`; the loop alone proves neither eventual completion nor a bound on
+return time.
 
-**Silent failure:** treating one successful send as the whole response
-truncates it. Retrying a request after a failed response can repeat a state
-mutation: a send error does not undo the transaction that preceded it.
+**Silent failure:** treating one successful send as the whole response truncates it. Retrying a request after a failed response can repeat a state mutation: a send error does not undo the transaction that preceded it.
 
-**Check:** follow handles to their explicit closes, inspect partial transfers
-and define the retry rule. The checker cannot decide whether a retry duplicates
-an application operation.
+**Check:** follow handles to their explicit closes, inspect partial transfers and define the retry rule. The checker cannot decide whether a retry duplicates an application operation.
 
 ### How do cancellation and deadlines end every wait?
 
-For shutdown, request stop, wake waits, clean up, then join. Guards cannot read
-clocks or other self-changing host handles. For state-or-time waiting, spawn
-a timer that fires a cancellation source; read its shared state in the guard
-[SHARE-2, PRE-2].
+For shutdown, request stop, wake waits, clean up, then join. Guards cannot read clocks or other self-changing host handles. For state-or-time waiting, spawn a timer that fires a cancellation source; read its shared state in the guard [SHARE-2, PRE-2].
 
-Make that timer cancellable too, so early readiness does not leave the parent
-joining a timer with a distant deadline.
+Make that timer cancellable too, so early readiness does not leave the parent joining a timer with a distant deadline.
 
 ```whitefoot
 alias Instant = std::time::Instant;
@@ -1951,37 +1821,19 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
 }
 ```
 
-The example chooses readiness when readiness and timeout are both observed.
-It waits for state or **timer notification**: the timer must run after sleep
-completion to publish timeout. It does not prove that readiness occurred
-before the clock deadline. Cancellation handles release their retained shared
-handles on leaving scope; dropping a source does not fire it.
+The example chooses readiness when readiness and timeout are both observed. It waits for state or **timer notification**: the timer must run after sleep completion to publish timeout. It does not prove that readiness occurred before the clock deadline. Cancellation handles release their retained shared handles on leaving scope; dropping a source does not fire it.
 
-For host I/O, pass a deadline directly. An already-produced host outcome wins
-over later cancellation or deadline expiry; a race between cancellation and
-deadline may choose either [PRE-2]. If one deadline bounds a whole request,
-carry that absolute deadline through successive waits instead of granting a
-fresh interval on every retry.
+For host I/O, pass a deadline directly. An already-produced host outcome wins over later cancellation or deadline expiry; a race between cancellation and deadline may choose either [PRE-2]. If one deadline bounds a whole request, carry that absolute deadline through successive waits instead of granting a fresh interval on every retry.
 
-**Silent failure:** firing a source does not mean host calls returned, children
-joined or cleanup finished. A host cancellation watch does not interrupt
-arbitrary computation or an unrelated guarded wait. Filesystem calls have no
-deadline or cancellation parameters [PRE-2]. Joining a still-armed timer can
-delay a request that already has its answer.
+**Silent failure:** firing a source does not mean host calls returned, children joined or cleanup finished. A host cancellation watch does not interrupt arbitrary computation or an unrelated guarded wait. Filesystem calls have no deadline or cancellation parameters [PRE-2]. Joining a still-armed timer can delay a request that already has its answer.
 
-**Check:** list every wait's normal wake condition and shutdown path. In CI,
-exercise work-first, timeout-first, already-cancelled and racing outcomes.
-Check resource cleanup after joining, not merely after observing `fired`.
+**Check:** list every wait's normal wake condition and shutdown path. In CI, exercise work-first, timeout-first, already-cancelled and racing outcomes. Check resource cleanup after joining, not merely after observing `fired`.
 
 ### How do I expose computation to `--par`?
 
-Write the correct source-order program first. Express independence through
-precise effects, disjoint storage and counted loops. A PAR permission allows
-parallel execution; it does not require it [PAR-1, PAR-2].
+Write the correct source-order program first. Express independence through precise effects, disjoint storage and counted loops. A PAR permission allows parallel execution; it does not require it [PAR-1, PAR-2].
 
-Adjacent statements may overlap when each one’s writes are disjoint from the
-other’s reads and writes, including arguments, moves and new bindings. Reads
-may overlap reads. Waiting calls, including atomic statements, never qualify.
+Adjacent statements may overlap when each one’s writes are disjoint from the other’s reads and writes, including arguments, moves and new bindings. Reads may overlap reads. Waiting calls, including atomic statements, never qualify.
 
 ```whitefoot
 alias ExitStatus = std::process::ExitStatus;
@@ -2005,34 +1857,19 @@ fn main() -> status: ExitStatus pure {
 }
 ```
 
-The calls are independent and the loop admits reduction; this tiny workload
-is not a speedup claim.
+The calls are independent and the loop admits reduction; this tiny workload is not a speedup claim.
 
-For an element map, keep iteration `i` within element `i` and its owned parts:
-fields, payloads, `Box` content and nested storage. A helper taking
-`&items^[i]` keeps that shape when its effect row stays within that argument.
-Alternatively partition an origin into proved-disjoint ranges. Reading a
-neighbor while writing the current element, or passing the whole mutable run
-beside the element, can introduce interference and keep the loop sequential.
-Do not add an atomic accumulator per iteration to obtain parallel computation.
+For an element map, keep iteration `i` within element `i` and its owned parts: fields, payloads, `Box` content and nested storage. A helper taking `&items^[i]` keeps that shape when its effect row stays within that argument. Alternatively partition an origin into proved-disjoint ranges. Reading a neighbor while writing the current element, or passing the whole mutable run beside the
+element, can introduce interference and keep the loop sequential. Do not add an atomic accumulator per iteration to obtain parallel computation.
 
-For a scalar reduction, keep at most one outer whole-binding accumulator and
-use it only in its admitted updates. The operations are integer `+wrap`,
-`*wrap`, `iand`, `ior`, `ixor`, `imin`, `imax`; unsigned `+sat`; and Boolean
-`band`, `bor`, `bxor`. Indexed accumulator families have their own restricted
-update and occurrence rules [PAR-2]. Ordinary exact addition, floating
-addition and signed saturating addition are not interchangeable with the
-admitted operations. Never change numerical meaning to obtain permission.
+For a scalar reduction, keep at most one outer whole-binding accumulator and use it only in its admitted updates. The operations are integer `+wrap`, `*wrap`, `iand`, `ior`, `ixor`, `imin`, `imax`; unsigned `+sat`; and Boolean `band`, `bor`, `bxor`. Indexed accumulator families have their own restricted update and occurrence rules [PAR-2]. Ordinary exact addition, floating addition and
+signed saturating addition are not interchangeable with the admitted operations. Never change numerical meaning to obtain permission.
 
 #### What if each iteration writes an index read from storage?
 
-For a scatter, put `apart(i, j) { }` last in the counted loop's header. It asks
-the checker to prove that different iterations touch disjoint elements
-[RANGE-5]. Supply the relationship that makes stored indices distinct; the
-certificate is not a runtime alias test.
+For a scatter, put `apart(i, j) { }` last in the counted loop's header. It asks the checker to prove that different iterations touch disjoint elements [RANGE-5]. Supply the relationship that makes stored indices distinct; the certificate is not a runtime alias test.
 
-This program builds a permutation and its left inverse, establishing range
-invariants that become the scatter's range requirement.
+This program builds a permutation and its left inverse, establishing range invariants that become the scatter's range requirement.
 
 ```whitefoot
 fn scatter(order: &[u64], pos: &[u64], out: &[u64]) -> result: unit reads(order), writes(out) contract {
@@ -2084,37 +1921,17 @@ fn main() -> status: std::process::ExitStatus pure {
 }
 ```
 
-A left inverse `pos[order[k]] == k` makes distinct iterations’ valid output
-indices distinct. Another useful relation makes each new index exceed all
-earlier ones. Establish these relations where the arrays are built. Builders can
-return range postconditions, including routed success postconditions; a
-struct whose writers preserve a relationship between its stores can carry it
-as a range type invariant [RANGE-1, RANGE-3, TYPE-11]. Facts describe the
-storage versions over which they were proved and survive only the writes the
-rules permit.
+A left inverse `pos[order[k]] == k` makes distinct iterations’ valid output indices distinct. Another useful relation makes each new index exceed all earlier ones. Establish these relations where the arrays are built. Builders can return range postconditions, including routed success postconditions; a struct whose writers preserve a relationship between its stores can carry it as a range
+type invariant [RANGE-1, RANGE-3, TYPE-11]. Facts describe the storage versions over which they were proved and survive only the writes the rules permit.
 
-An `apart` certificate that fails is a compile error naming the accesses it
-could not separate. A holding certificate still needs the loop's other PAR-2
-conditions, including its exits and accumulator restrictions. Without such an
-explicit failed obligation, lack of parallel permission keeps otherwise
-accepted code sequential.
+An `apart` certificate that fails is a compile error naming the accesses it could not separate. A holding certificate still needs the loop's other PAR-2 conditions, including its exits and accumulator restrictions. Without such an explicit failed obligation, lack of parallel permission keeps otherwise accepted code sequential.
 
-**Silent failure:** a broad effect row or a read of partially accumulated state
-can suppress permission without rejecting the program. Permission alone does
-not establish that the compiler emitted parallel work.
+**Silent failure:** a broad effect row or a read of partially accumulated state can suppress permission without rejecting the program. Permission alone does not establish that the compiler emitted parallel work.
 
-**Current compiler:** cost selection can omit an offer for permitted work
-that is too small. Inspect `omitted offer` messages rather than assuming
-adjacent independent calls run on different workers. A statement binding an
-ordered result list also has a PAR-1 planning limitation; retain the natural
-interface and report the compiler gap rather than replacing it with a record
-solely to bypass that limitation.
+**Current compiler:** cost selection can omit an offer for permitted work that is too small. Inspect `omitted offer` messages rather than assuming adjacent independent calls run on different workers. A statement binding an ordered result list also has a PAR-1 planning limitation; retain the natural interface and report the compiler gap rather than replacing it with a record solely to
+bypass that limitation.
 
-**Check in CI:** use `--par-ledger` to inspect permission and refused conditions;
-use `--par --par-ledger` to inspect actualization, including omitted offers.
-Retain ledger expectations for critical loops. Check sequential and parallel
-results against an independent oracle, then measure speedup. Permission,
-emitted offers and performance are separate evidence.
+**Check in CI:** use `--par-ledger` to inspect permission and refused conditions; use `--par --par-ledger` to inspect actualization, including omitted offers. Retain ledger expectations for critical loops. Check sequential and parallel results against an independent oracle, then measure speedup. Permission, emitted offers and performance are separate evidence.
 
 ### What must I check before accepting the design?
 
@@ -2124,5 +1941,4 @@ emitted offers and performance are separate evidence.
 - Lock order preserves conditional access, including through helpers.
 - Publication, cancellation, cleanup and child completion remain distinct.
 - Retry rules and deadline scope match the protocol.
-- CI checks results, driver counts, cancellation races, PAR permissions and
-  measured contention.
+- CI checks results, driver counts, cancellation races, PAR permissions and measured contention.
