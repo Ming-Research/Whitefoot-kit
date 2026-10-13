@@ -2,272 +2,399 @@ alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
 alias exit_status = std::process::exit_status;
 alias heap_in_use = std::process::heap_in_use;
-alias IoError = std::io::IoError;
-alias OutputStream = std::io::OutputStream;
+alias MemoryMeter = std::process::MemoryMeter;
 alias HandleFactory = std::io::HandleFactory;
+alias OutputStream = std::io::OutputStream;
+alias write_once = std::io::write_once;
+alias Instant = std::time::Instant;
+alias CancelWatch = std::time::CancelWatch;
+alias cancel_never = std::time::cancel_never;
+alias close_cancel_watch = std::time::close_cancel_watch;
+alias close_directory = std::fs::close_directory;
+alias close_directory_write = std::fs::close_directory_write;
 
-fn write_le_u64(factory: &HandleFactory, output: &OutputStream, value: u64) -> result: Result<unit, IoError> writes(factory), writes(output) waits {
-  let bytes = array_filled::<u8, 8>(value: 0_u8);
-  let b0 = iand(value, 255_u64);
-  set bytes[0_u64] = cvt.wrap::<u64, u8>(b0);
-  let s1 = ishr(value, 8_u32);
-  let b1 = iand(s1, 255_u64);
-  set bytes[1_u64] = cvt.wrap::<u64, u8>(b1);
-  let s2 = ishr(value, 16_u32);
-  let b2 = iand(s2, 255_u64);
-  set bytes[2_u64] = cvt.wrap::<u64, u8>(b2);
-  let s3 = ishr(value, 24_u32);
-  let b3 = iand(s3, 255_u64);
-  set bytes[3_u64] = cvt.wrap::<u64, u8>(b3);
-  let s4 = ishr(value, 32_u32);
-  let b4 = iand(s4, 255_u64);
-  set bytes[4_u64] = cvt.wrap::<u64, u8>(b4);
-  let s5 = ishr(value, 40_u32);
-  let b5 = iand(s5, 255_u64);
-  set bytes[5_u64] = cvt.wrap::<u64, u8>(b5);
-  let s6 = ishr(value, 48_u32);
-  let b6 = iand(s6, 255_u64);
-  set bytes[6_u64] = cvt.wrap::<u64, u8>(b6);
-  let s7 = ishr(value, 56_u32);
-  let b7 = iand(s7, 255_u64);
-  set bytes[7_u64] = cvt.wrap::<u64, u8>(b7);
-  let view = &bytes[0_u64..8_u64];
-  let no_deadline = None<std::time::Instant>();
-  let cancel = std::time::cancel_never();
-  let outcome = std::io::write_once(factory: factory, output: output, source: view, start: 0_u64, end: 8_u64, deadline: no_deadline, cancel: &cancel);
-  std::time::close_cancel_watch(watch: move cancel);
-  match outcome {
-    Ok(value: next) => {
-      if next == 8_u64 {
-        return Ok<unit, IoError>(value: unit);
+fn encode_u64(value: u64) -> result: Array<u8, 8> pure {
+  let byte0 = iand(value, 255_u64);
+  let byte0_u8 = cvt::<u64, u8>(byte0);
+  let shift1 = ishr(value, 8_u32);
+  let byte1 = iand(shift1, 255_u64);
+  let byte1_u8 = cvt::<u64, u8>(byte1);
+  let shift2 = ishr(value, 16_u32);
+  let byte2 = iand(shift2, 255_u64);
+  let byte2_u8 = cvt::<u64, u8>(byte2);
+  let shift3 = ishr(value, 24_u32);
+  let byte3 = iand(shift3, 255_u64);
+  let byte3_u8 = cvt::<u64, u8>(byte3);
+  let shift4 = ishr(value, 32_u32);
+  let byte4 = iand(shift4, 255_u64);
+  let byte4_u8 = cvt::<u64, u8>(byte4);
+  let shift5 = ishr(value, 40_u32);
+  let byte5 = iand(shift5, 255_u64);
+  let byte5_u8 = cvt::<u64, u8>(byte5);
+  let shift6 = ishr(value, 48_u32);
+  let byte6 = iand(shift6, 255_u64);
+  let byte6_u8 = cvt::<u64, u8>(byte6);
+  let shift7 = ishr(value, 56_u32);
+  let byte7 = iand(shift7, 255_u64);
+  let byte7_u8 = cvt::<u64, u8>(byte7);
+  let result = array_filled::<u8, 8>(value: 0_u8);
+  set result[0_u64] = byte0_u8;
+  set result[1_u64] = byte1_u8;
+  set result[2_u64] = byte2_u8;
+  set result[3_u64] = byte3_u8;
+  set result[4_u64] = byte4_u8;
+  set result[5_u64] = byte5_u8;
+  set result[6_u64] = byte6_u8;
+  set result[7_u64] = byte7_u8;
+  return move result;
+}
+
+fn write_all(factory: &HandleFactory, output: &OutputStream, source: &[u8]) -> result: Result<unit, std::io::IoError> reads(source), writes(factory), writes(output) waits {
+  let total = source^.len;
+  let sent = 0_u64;
+  loop @write_loop {
+    let remaining = sent < total;
+    if remaining {
+    } else {
+      break @write_loop;
+    }
+    let no_deadline = None<Instant>();
+    let cancel = cancel_never();
+    let write_result = write_once(factory: factory, output: output, source: source, start: sent, end: total, deadline: no_deadline, cancel: &cancel);
+    close_cancel_watch(watch: move cancel);
+    match write_result {
+      Ok(value: next_sent) => {
+        set sent = next_sent;
       }
-      let error = IoError::UnexpectedEnd(code: 0_u32, origin: 0_u8);
-      return Err<unit, IoError>(error: error);
-    }
-    Err(error: problem) => {
-      return Err<unit, IoError>(error: problem);
+      Err(error: problem) => {
+        return Err<unit, std::io::IoError>(error: problem);
+      }
     }
   }
-}
-
-fn sum_range(run: &Run<u64>) -> result: u64 reads(run) {
-  let sum = 0_u64;
-  for (i in 0_u64..run^.len) {
-    set sum = sum +wrap run^[i];
-  }
-  return sum;
-}
-
-fn measure_after_release(pool: Box<Paged<u64>>, meter: &std::process::MemoryMeter) -> result: u64 writes(meter) {
-  return std::process::heap_in_use(meter: meter);
+  return Ok<unit, std::io::IoError>(value: unit);
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(args: unused_args, drivers: unused_drivers, cwd: directory, stdout: output, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: meter) = move inputs;
-  let std::fs::Directory(read: directory_read, write: directory_write) = move directory;
-  std::fs::close_directory_write(factory: &factory, directory: move directory_write);
-  std::fs::close_directory(factory: &factory, directory: move directory_read);
+  let Inputs(cwd: cwd_directory, stdout: output, handles: factory, memory_meter: meter, ..) = move inputs;
+  let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
+  let write_close_result = close_directory_write(factory: &factory, directory: move cwd_write);
+  let read_close_result = close_directory(factory: &factory, directory: move cwd_read);
+  match write_close_result {
+    Ok(value: unused_write_ok) => {
+    }
+    Err(error: unused_write_err) => {
+      return exit_status(code: 255_u8);
+    }
+  }
+  match read_close_result {
+    Ok(value: unused_read_ok) => {
+    }
+    Err(error: unused_read_err) => {
+      return exit_status(code: 255_u8);
+    }
+  }
   let baseline = heap_in_use(meter: &meter);
-  let result_code = 0_u8;
-  let results = slots_new::<u64, 18>();
-  let pool = box_paged_new::<u64>(capacity: 0_u64);
-  let diff = 0_u64;
-  let heap_after_zero = heap_in_use(meter: &meter);
-  if heap_after_zero >= baseline {
-    set diff = heap_after_zero - baseline;
-  }
-  place_back(window: &results, value: diff);
-  grow_paged(cell: &pool, capacity: 0_u64);
-  let heap_after_zero_grow = heap_in_use(meter: &meter);
-  let diff_zero_grow = 0_u64;
-  if heap_after_zero_grow >= baseline {
-    set diff_zero_grow = heap_after_zero_grow - baseline;
-  }
-  place_back(window: &results, value: diff_zero_grow);
-  let other_pool = box_paged_new::<u64>(capacity: 0_u64);
-  free_empty(window: move other_pool);
-  let heap_after_other_zero = heap_in_use(meter: &meter);
-  let diff_other_zero = 0_u64;
-  if heap_after_other_zero >= baseline {
-    set diff_other_zero = heap_after_other_zero - baseline;
-  }
-  place_back(window: &results, value: diff_other_zero);
-  grow_paged(cell: &pool, capacity: 1_u64);
-  if pool.inner.len < pool.inner.cap {
-    place_back(window: &pool.inner, value: 73_u64);
-  } else {
-    set result_code = 3_u8;
-    return exit_status(code: result_code);
-  }
-  let heap_at_cap_1 = heap_in_use(meter: &meter);
-  let diff_cap_1 = 0_u64;
-  if heap_at_cap_1 >= baseline {
-    set diff_cap_1 = heap_at_cap_1 - baseline;
-  }
-  place_back(window: &results, value: diff_cap_1);
-  grow_paged(cell: &pool, capacity: 2_u64);
-  if pool.inner.len < pool.inner.cap {
-    place_back(window: &pool.inner, value: 1_u64);
-  } else {
-    set result_code = 4_u8;
-    return exit_status(code: result_code);
-  }
-  let heap_at_cap_2 = heap_in_use(meter: &meter);
-  let diff_cap_2 = 0_u64;
-  if heap_at_cap_2 >= baseline {
-    set diff_cap_2 = heap_at_cap_2 - baseline;
-  }
-  place_back(window: &results, value: diff_cap_2);
-  grow_paged(cell: &pool, capacity: 3_u64);
-  if pool.inner.len < pool.inner.cap {
-    place_back(window: &pool.inner, value: 2_u64);
-  } else {
-    set result_code = 5_u8;
-    return exit_status(code: result_code);
-  }
-  let heap_at_cap_3 = heap_in_use(meter: &meter);
-  let diff_cap_3 = 0_u64;
-  if heap_at_cap_3 >= baseline {
-    set diff_cap_3 = heap_at_cap_3 - baseline;
-  }
-  place_back(window: &results, value: diff_cap_3);
-  grow_paged(cell: &pool, capacity: 4_u64);
-  let heap_at_cap_4 = heap_in_use(meter: &meter);
-  let diff_cap_4 = 0_u64;
-  if heap_at_cap_4 >= baseline {
-    set diff_cap_4 = heap_at_cap_4 - baseline;
-  }
-  place_back(window: &results, value: diff_cap_4);
-  grow_paged(cell: &pool, capacity: 512_u64);
-  for (i in 3_u64..512_u64) {
-    if pool.inner.len < pool.inner.cap {
-      place_back(window: &pool.inner, value: i);
+  let pool0 = box_paged_new::<u64>(capacity: 0_u64);
+  let heap0 = heap_in_use(meter: &meter);
+  let diff0 = heap0 - baseline;
+  grow_paged(cell: &pool0, capacity: 0_u64);
+  let heap1 = heap_in_use(meter: &meter);
+  let diff1 = heap1 - baseline;
+  let pool0b = box_paged_new::<u64>(capacity: 0_u64);
+  release::<Box<Paged<u64>>>(value: move pool0b);
+  let heap2 = heap_in_use(meter: &meter);
+  let diff2 = heap2 - baseline;
+  let pool1 = box_paged_new::<u64>(capacity: 1_u64);
+  place_back(window: &pool1.inner, value: 73_u64);
+  let heap3 = heap_in_use(meter: &meter);
+  let diff3 = heap3 - baseline;
+  grow_paged(cell: &pool1, capacity: 2_u64);
+  place_back(window: &pool1.inner, value: 1_u64);
+  let heap4 = heap_in_use(meter: &meter);
+  let diff4 = heap4 - baseline;
+  grow_paged(cell: &pool1, capacity: 3_u64);
+  place_back(window: &pool1.inner, value: 2_u64);
+  let heap5 = heap_in_use(meter: &meter);
+  let diff5 = heap5 - baseline;
+  grow_paged(cell: &pool1, capacity: 4_u64);
+  place_back(window: &pool1.inner, value: 3_u64);
+  let heap6 = heap_in_use(meter: &meter);
+  let diff6 = heap6 - baseline;
+  grow_paged(cell: &pool1, capacity: 512_u64);
+  let i = 4_u64;
+  loop @fill_512 {
+    let fill_cond = i < 512_u64;
+    if fill_cond {
     } else {
-      set result_code = 7_u8;
-      return exit_status(code: result_code);
+      break @fill_512;
     }
+    place_back(window: &pool1.inner, value: i);
+    set i = i + 1_u64;
   }
-  let heap_at_cap_512 = heap_in_use(meter: &meter);
-  let diff_cap_512 = 0_u64;
-  if heap_at_cap_512 >= baseline {
-    set diff_cap_512 = heap_at_cap_512 - baseline;
-  }
-  place_back(window: &results, value: diff_cap_512);
-  grow_paged(cell: &pool, capacity: 513_u64);
-  if pool.inner.len < pool.inner.cap {
-    place_back(window: &pool.inner, value: 512_u64);
-  } else {
-    set result_code = 8_u8;
-    return exit_status(code: result_code);
-  }
-  let heap_at_cap_513 = heap_in_use(meter: &meter);
-  let diff_cap_513 = 0_u64;
-  if heap_at_cap_513 >= baseline {
-    set diff_cap_513 = heap_at_cap_513 - baseline;
-  }
-  place_back(window: &results, value: diff_cap_513);
-  let run = &pool.inner[0_u64..pool.inner.len];
-  let first_val = run^[0_u64];
-  if first_val != 73_u64 {
-    set result_code = 9_u8;
-    return exit_status(code: result_code);
-  }
-  let pool_len = pool.inner.len;
-  let last_idx = pool_len - 1_u64;
-  let last_val = run^[last_idx];
-  if last_val != 512_u64 {
-    set result_code = 10_u8;
-    return exit_status(code: result_code);
-  }
-  let sum_before_release = sum_range(run: run);
-  if sum_before_release != 131401_u64 {
-    set result_code = 16_u8;
-    return exit_status(code: result_code);
-  }
-  let heap_after_release = measure_after_release(pool: move pool, meter: &meter);
-  let diff_after_release = 0_u64;
-  if heap_after_release >= baseline {
-    set diff_after_release = heap_after_release - baseline;
-  }
-  place_back(window: &results, value: diff_after_release);
-  let heap_at_sep = 0_u64;
-  let diff_sep = 0_u64;
-  let sep_val = 0_u64;
-  if True() {
-    let pool_sep = box_paged_new::<u64>(capacity: 3_u64);
-    if pool_sep.inner.len < pool_sep.inner.cap {
-      place_back(window: &pool_sep.inner, value: 19_u64);
+  let heap7 = heap_in_use(meter: &meter);
+  let diff7 = heap7 - baseline;
+  grow_paged(cell: &pool1, capacity: 513_u64);
+  place_back(window: &pool1.inner, value: 512_u64);
+  let heap8 = heap_in_use(meter: &meter);
+  let diff8 = heap8 - baseline;
+  let sum = 0_u64;
+  let j = 0_u64;
+  loop @calc_sum {
+    let sum_cond = j < pool1.inner.len;
+    if sum_cond {
     } else {
-      set result_code = 12_u8;
-      return exit_status(code: result_code);
+      break @calc_sum;
     }
-    set sep_val = pool_sep.inner[0_u64];
-    if sep_val != 19_u64 {
-      set result_code = 12_u8;
-      return exit_status(code: result_code);
-    }
-    set heap_at_sep = heap_in_use(meter: &meter);
-    if heap_at_sep >= baseline {
-      set diff_sep = heap_at_sep - baseline;
-    }
+    let elem_j = pool1.inner[j];
+    set sum = sum +wrap elem_j;
+    set j = j + 1_u64;
   }
-  place_back(window: &results, value: diff_sep);
-  let heap_after_sep_release = heap_in_use(meter: &meter);
-  let diff_after_sep_release = 0_u64;
-  if heap_after_sep_release >= baseline {
-    set diff_after_sep_release = heap_after_sep_release - baseline;
-  }
-  place_back(window: &results, value: diff_after_sep_release);
-  let heap_at_zero_elem = 0_u64;
-  let diff_zero_elem = 0_u64;
-  if True() {
-    let pool_zero = box_paged_new::<Array<u8, 0>>(capacity: 1_u64);
-    let zero_elem = array_filled::<u8, 0>(value: 0_u8);
-    if pool_zero.inner.len < pool_zero.inner.cap {
-      place_back(window: &pool_zero.inner, value: zero_elem);
+  let first_val = pool1.inner[0_u64];
+  release::<Box<Paged<u64>>>(value: move pool0);
+  release::<Box<Paged<u64>>>(value: move pool1);
+  let heap9 = heap_in_use(meter: &meter);
+  let diff9 = heap9 - baseline;
+  let pool3 = box_paged_new::<u64>(capacity: 3_u64);
+  place_back(window: &pool3.inner, value: 19_u64);
+  let val_in_pool3 = pool3.inner[0_u64];
+  let heap10 = heap_in_use(meter: &meter);
+  let diff10 = heap10 - baseline;
+  release::<Box<Paged<u64>>>(value: move pool3);
+  let heap11 = heap_in_use(meter: &meter);
+  let diff11 = heap11 - baseline;
+  let pool_empty = box_paged_new::<Array<u8, 0>>(capacity: 1_u64);
+  place_back(window: &pool_empty.inner, value: array_filled::<u8, 0>(value: 0_u8));
+  grow_paged(cell: &pool_empty, capacity: 3_u64);
+  let logical_cap = pool_empty.inner.pages.len;
+  let heap12 = heap_in_use(meter: &meter);
+  let diff12 = heap12 - baseline;
+  release::<Box<Paged<Array<u8, 0>>>>(value: move pool_empty);
+  let heap14 = heap_in_use(meter: &meter);
+  let diff14 = heap14 - baseline;
+  let output_buf = array_filled::<u8, 144>(value: 0_u8);
+  let enc0 = encode_u64(value: diff0);
+  let k = 0_u64;
+  loop @copy0 {
+    let copy_cond = k < 8_u64;
+    if copy_cond {
     } else {
-      set result_code = 15_u8;
-      return exit_status(code: result_code);
+      break @copy0;
     }
-    grow_paged(cell: &pool_zero, capacity: 3_u64);
-    if pool_zero.inner.cap < 3_u64 {
-      set result_code = 6_u8;
-      return exit_status(code: result_code);
-    }
-    set heap_at_zero_elem = heap_in_use(meter: &meter);
-    if heap_at_zero_elem >= baseline {
-      set diff_zero_elem = heap_at_zero_elem - baseline;
-    }
+    set output_buf[k] = enc0[k];
+    set k = k + 1_u64;
   }
-  place_back(window: &results, value: diff_zero_elem);
-  let heap_after_zero_release = heap_in_use(meter: &meter);
-  let diff_after_zero_release = 0_u64;
-  if heap_after_zero_release >= baseline {
-    set diff_after_zero_release = heap_after_zero_release - baseline;
-  }
-  place_back(window: &results, value: diff_after_zero_release);
-  let capacity_after_grow = 3_u64;
-  place_back(window: &results, value: capacity_after_grow);
-  place_back(window: &results, value: sum_before_release);
-  place_back(window: &results, value: 73_u64);
-  place_back(window: &results, value: 19_u64);
-  let i = 0_u64;
-  loop {
-    if i < results.len {
-      let val = results[i];
-      let write_result = write_le_u64(factory: &factory, output: &output, value: val);
-      match write_result {
-        Ok(value: unused) => {
-        }
-        Err(error: unused) => {
-          set result_code = 250_u8;
-          return exit_status(code: result_code);
-        }
-      }
-      set i = i + 1_u64;
+  let enc1 = encode_u64(value: diff1);
+  set k = 0_u64;
+  loop @copy1 {
+    let copy_cond = k < 8_u64;
+    if copy_cond {
     } else {
-      break;
+      break @copy1;
+    }
+    let idx1 = k + 8_u64;
+    set output_buf[idx1] = enc1[k];
+    set k = k + 1_u64;
+  }
+  let enc2 = encode_u64(value: diff2);
+  set k = 0_u64;
+  loop @copy2 {
+    let copy_cond = k < 8_u64;
+    if copy_cond {
+    } else {
+      break @copy2;
+    }
+    let idx2 = k + 16_u64;
+    set output_buf[idx2] = enc2[k];
+    set k = k + 1_u64;
+  }
+  let enc3 = encode_u64(value: diff3);
+  set k = 0_u64;
+  loop @copy3 {
+    let copy_cond = k < 8_u64;
+    if copy_cond {
+    } else {
+      break @copy3;
+    }
+    let idx3 = k + 24_u64;
+    set output_buf[idx3] = enc3[k];
+    set k = k + 1_u64;
+  }
+  let enc4 = encode_u64(value: diff4);
+  set k = 0_u64;
+  loop @copy4 {
+    let copy_cond = k < 8_u64;
+    if copy_cond {
+    } else {
+      break @copy4;
+    }
+    let idx4 = k + 32_u64;
+    set output_buf[idx4] = enc4[k];
+    set k = k + 1_u64;
+  }
+  let enc5 = encode_u64(value: diff5);
+  set k = 0_u64;
+  loop @copy5 {
+    let copy_cond = k < 8_u64;
+    if copy_cond {
+    } else {
+      break @copy5;
+    }
+    let idx5 = k + 40_u64;
+    set output_buf[idx5] = enc5[k];
+    set k = k + 1_u64;
+  }
+  let enc6 = encode_u64(value: diff6);
+  set k = 0_u64;
+  loop @copy6 {
+    let copy_cond = k < 8_u64;
+    if copy_cond {
+    } else {
+      break @copy6;
+    }
+    let idx6 = k + 48_u64;
+    set output_buf[idx6] = enc6[k];
+    set k = k + 1_u64;
+  }
+  let enc7 = encode_u64(value: diff7);
+  set k = 0_u64;
+  loop @copy7 {
+    let copy_cond = k < 8_u64;
+    if copy_cond {
+    } else {
+      break @copy7;
+    }
+    let idx7 = k + 56_u64;
+    set output_buf[idx7] = enc7[k];
+    set k = k + 1_u64;
+  }
+  let enc8 = encode_u64(value: diff8);
+  set k = 0_u64;
+  loop @copy8 {
+    let copy_cond = k < 8_u64;
+    if copy_cond {
+    } else {
+      break @copy8;
+    }
+    let idx8 = k + 64_u64;
+    set output_buf[idx8] = enc8[k];
+    set k = k + 1_u64;
+  }
+  let enc9 = encode_u64(value: diff9);
+  set k = 0_u64;
+  loop @copy9 {
+    let copy_cond = k < 8_u64;
+    if copy_cond {
+    } else {
+      break @copy9;
+    }
+    let idx9 = k + 72_u64;
+    set output_buf[idx9] = enc9[k];
+    set k = k + 1_u64;
+  }
+  let enc10 = encode_u64(value: diff10);
+  set k = 0_u64;
+  loop @copy10 {
+    let copy_cond = k < 8_u64;
+    if copy_cond {
+    } else {
+      break @copy10;
+    }
+    let idx10 = k + 80_u64;
+    set output_buf[idx10] = enc10[k];
+    set k = k + 1_u64;
+  }
+  let enc11 = encode_u64(value: diff11);
+  set k = 0_u64;
+  loop @copy11 {
+    let copy_cond = k < 8_u64;
+    if copy_cond {
+    } else {
+      break @copy11;
+    }
+    let idx11 = k + 88_u64;
+    set output_buf[idx11] = enc11[k];
+    set k = k + 1_u64;
+  }
+  let enc12 = encode_u64(value: diff12);
+  set k = 0_u64;
+  loop @copy12 {
+    let copy_cond = k < 8_u64;
+    if copy_cond {
+    } else {
+      break @copy12;
+    }
+    let idx12 = k + 96_u64;
+    set output_buf[idx12] = enc12[k];
+    set k = k + 1_u64;
+  }
+  let enc13 = encode_u64(value: diff14);
+  set k = 0_u64;
+  loop @copy13 {
+    let copy_cond = k < 8_u64;
+    if copy_cond {
+    } else {
+      break @copy13;
+    }
+    let idx13 = k + 104_u64;
+    set output_buf[idx13] = enc13[k];
+    set k = k + 1_u64;
+  }
+  let enc14 = encode_u64(value: logical_cap);
+  set k = 0_u64;
+  loop @copy14 {
+    let copy_cond = k < 8_u64;
+    if copy_cond {
+    } else {
+      break @copy14;
+    }
+    let idx14 = k + 112_u64;
+    set output_buf[idx14] = enc14[k];
+    set k = k + 1_u64;
+  }
+  let enc15 = encode_u64(value: sum);
+  set k = 0_u64;
+  loop @copy15 {
+    let copy_cond = k < 8_u64;
+    if copy_cond {
+    } else {
+      break @copy15;
+    }
+    let idx15 = k + 120_u64;
+    set output_buf[idx15] = enc15[k];
+    set k = k + 1_u64;
+  }
+  let enc16 = encode_u64(value: first_val);
+  set k = 0_u64;
+  loop @copy16 {
+    let copy_cond = k < 8_u64;
+    if copy_cond {
+    } else {
+      break @copy16;
+    }
+    let idx16 = k + 128_u64;
+    set output_buf[idx16] = enc16[k];
+    set k = k + 1_u64;
+  }
+  let enc17 = encode_u64(value: val_in_pool3);
+  set k = 0_u64;
+  loop @copy17 {
+    let copy_cond = k < 8_u64;
+    if copy_cond {
+    } else {
+      break @copy17;
+    }
+    let idx17 = k + 136_u64;
+    set output_buf[idx17] = enc17[k];
+    set k = k + 1_u64;
+  }
+  let output_view = &output_buf[0_u64..144_u64];
+  let write_result = write_all(factory: &factory, output: &output, source: output_view);
+  match write_result {
+    Ok(value: unused) => {
+      return exit_status(code: 0_u8);
+    }
+    Err(error: unused_err) => {
+      return exit_status(code: 250_u8);
     }
   }
-  return exit_status(code: result_code);
 }

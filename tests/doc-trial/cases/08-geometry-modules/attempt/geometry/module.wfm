@@ -1,33 +1,17 @@
-public struct Coord {
-  public raw: i32;
-}
+public fn from_whole_pixels(pixels: i32) -> raw: i32 pure doc "Converts whole pixels to raw coordinate (pixels * 64, saturating).";
 
-public struct Point {
-  public x: Coord;
-  public y: Coord;
-}
+public fn from_binary64(pixels: f64) -> raw: i32 pure doc "Converts binary64 pixels to raw coordinate (pixels * 64, rounded, saturating; NaN becomes 0).";
 
-public struct Rect {
-  public x: Coord;
-  public y: Coord;
-  public width: Coord;
-  public height: Coord;
-}
+public fn to_binary64(raw: i32) -> pixels: f64 pure doc "Converts raw coordinate back to binary64 pixels (raw / 64, exact).";
 
-public fn coord_from_pixels(pixels: i32) -> result: Coord pure doc "Creates a coordinate from whole pixels.";
+public fn saturating_add(a: i32, b: i32) -> result: i32 pure doc "Saturating addition of raw coordinates.";
 
-public fn coord_from_f64(value: f64) -> result: Coord pure doc "Creates a coordinate from a binary64 pixel value using rounding.";
+public fn saturating_sub(a: i32, b: i32) -> result: i32 pure doc "Saturating subtraction of raw coordinates.";
 
-public fn coord_to_f64(coord: Coord) -> result: f64 pure doc "Converts a coordinate back to binary64 pixels.";
+public fn min_coord(a: i32, b: i32) -> result: i32 pure doc "Minimum of two raw coordinates.";
 
-public fn coord_add_saturate(a: Coord, b: Coord) -> result: Coord pure doc "Saturating addition of two coordinates.";
+public fn max_coord(a: i32, b: i32) -> result: i32 pure doc "Maximum of two raw coordinates.";
 
-public fn coord_sub_saturate(a: Coord, b: Coord) -> result: Coord pure doc "Saturating subtraction of two coordinates.";
+public fn point_in_rect(px: i32, py: i32, rx: i32, ry: i32, width: i32, height: i32) -> contained: Bool pure doc "Whether point (px, py) is contained in rectangle at (rx, ry) with size (width, height).";
 
-public fn coord_min(a: Coord, b: Coord) -> result: Coord pure doc "Returns the minimum of two coordinates.";
-
-public fn coord_max(a: Coord, b: Coord) -> result: Coord pure doc "Returns the maximum of two coordinates.";
-
-public fn rect_contains(rect: Rect, point: Point) -> result: Bool pure doc "Checks if a rectangle contains a point.";
-
-public fn rect_intersects(a: Rect, b: Rect) -> result: Bool pure doc "Checks if two rectangles intersect.";
+public fn rects_intersect(r1x: i32, r1y: i32, r1w: i32, r1h: i32, r2x: i32, r2y: i32, r2w: i32, r2h: i32) -> intersect: Bool pure doc "Whether two rectangles intersect.";

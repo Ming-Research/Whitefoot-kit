@@ -1,416 +1,635 @@
+alias ExitStatus = std::process::ExitStatus;
+alias exit_status = std::process::exit_status;
+alias Inputs = std::process::Inputs;
 alias HandleFactory = std::io::HandleFactory;
+alias Directory = std::fs::Directory;
 alias IoError = std::io::IoError;
-alias ReadStop = std::io::ReadStop;
-alias TcpListener = std::net::TcpListener;
-alias TcpReceive = std::net::TcpReceive;
-alias TcpSend = std::net::TcpSend;
 alias Instant = std::time::Instant;
 alias CancelWatch = std::time::CancelWatch;
-alias ExitStatus = std::process::ExitStatus;
-alias Inputs = std::process::Inputs;
+alias SocketAddress = std::net::SocketAddress;
+alias TcpListener = std::net::TcpListener;
+alias TcpConnection = std::net::TcpConnection;
+alias TcpReceive = std::net::TcpReceive;
+alias TcpSend = std::net::TcpSend;
 
-struct BulkStringParsed {
-  data: Slots<u8>;
-  next_pos: u64;
+struct Value {
+  bytes: Box<Slots<u8>>;
 }
 
-struct CommandParsed {
-  elements: Slots<Slots<u8>>;
-  consumed: u64;
+struct ParseResult {
+  success: Bool;
+  position: u64;
+  value_start: u64;
+  value_len: u64;
 }
 
-const pong_resp: Array<u8, 7> = [43_u8, 80_u8, 79_u8, 78_u8, 71_u8, 13_u8, 10_u8];
-const ok_resp: Array<u8, 5> = [43_u8, 79_u8, 75_u8, 13_u8, 10_u8];
-const nil_resp: Array<u8, 5> = [36_u8, 45_u8, 49_u8, 13_u8, 10_u8];
-const err_resp: Array<u8, 44> = [45_u8, 69_u8, 82_u8, 82_u8, 32_u8, 118_u8, 97_u8, 108_u8, 117_u8, 101_u8, 32_u8, 105_u8, 115_u8, 32_u8, 110_u8, 111_u8, 116_u8, 32_u8, 97_u8, 110_u8, 32_u8, 105_u8, 110_u8, 116_u8, 101_u8, 103_u8, 101_u8, 114_u8, 32_u8, 111_u8, 117_u8, 116_u8, 32_u8, 111_u8, 102_u8, 32_u8, 114_u8, 97_u8, 110_u8, 103_u8, 101_u8, 13_u8, 10_u8];
-const del_0_resp: Array<u8, 4> = [58_u8, 48_u8, 13_u8, 10_u8];
-const del_1_resp: Array<u8, 4> = [58_u8, 49_u8, 13_u8, 10_u8];
-
-fn parse_bulk_string(buffer: &[u8], start: u64) -> result: Result<BulkStringParsed, u64> reads(buffer) {
-  let buffer_len = buffer^.len;
-  if start >= buffer_len {
-    return Err<BulkStringParsed, u64>(error: 0_u64);
-  }
-  if buffer^[start] != 36_u8 {
-    return Err<BulkStringParsed, u64>(error: 1_u64);
-  }
-  let pos = start +wrap 1_u64;
-  let len_end = pos;
-  loop @find_len_end {
-    if len_end >= buffer_len {
-      return Err<BulkStringParsed, u64>(error: 0_u64);
+fn send_all(send: &TcpSend, source: &[u8], length: u64, deadline: Option<Instant>, cancel: &CancelWatch) -> result: Result<unit, IoError> reads(source), reads(cancel), writes(send) waits contract {
+  requires length <= source^.len;
+} {
+  let sent = 0_u64;
+  loop @sending {
+    if sent < length {
+    } else {
+      break @sending;
     }
-    if buffer^[len_end] == 13_u8 {
-      break @find_len_end;
-    }
-    set len_end = len_end +wrap 1_u64;
-  }
-  let len_str = &buffer^[pos..len_end];
-  let len_value = 0_u64;
-  for (i in 0_u64..len_str^.len) {
-    let byte = len_str^[i];
-    if byte < 48_u8 {
-      return Err<BulkStringParsed, u64>(error: 1_u64);
-    }
-    if byte > 57_u8 {
-      return Err<BulkStringParsed, u64>(error: 1_u64);
-    }
-    let digit = byte - 48_u8;
-    let digit_u64 = cvt::<u8, u64>(digit);
-    set len_value = len_value *wrap 10_u64;
-    set len_value = len_value +wrap digit_u64;
-  }
-  let data_start = len_end +wrap 2_u64;
-  let data_end = data_start +wrap len_value;
-  let check_end = data_end +wrap 2_u64;
-  if check_end > buffer_len {
-    return Err<BulkStringParsed, u64>(error: 0_u64);
-  }
-  if buffer^[data_end] != 13_u8 {
-    return Err<BulkStringParsed, u64>(error: 1_u64);
-  }
-  let cr_pos = data_end +wrap 1_u64;
-  if buffer^[cr_pos] != 10_u8 {
-    return Err<BulkStringParsed, u64>(error: 1_u64);
-  }
-  let data = slots_new::<u8, 4096>();
-  for (i in 0_u64..len_value) {
-    let byte_pos = data_start +wrap i;
-    let byte = buffer^[byte_pos];
-    place_back(window: &data, value: byte);
-  }
-  let next_pos = data_end +wrap 2_u64;
-  let parsed = BulkStringParsed(data: move data, next_pos: next_pos);
-  return Ok<BulkStringParsed, u64>(value: move parsed);
-}
-
-fn parse_command(buffer: &[u8]) -> result: Result<CommandParsed, u64> reads(buffer) {
-  let buffer_len = buffer^.len;
-  if buffer_len == 0_u64 {
-    return Err<CommandParsed, u64>(error: 0_u64);
-  }
-  if buffer^[0_u64] != 42_u8 {
-    return Err<CommandParsed, u64>(error: 1_u64);
-  }
-  let pos = 1_u64;
-  let count_end = pos;
-  loop @find_count_end {
-    if count_end >= buffer_len {
-      return Err<CommandParsed, u64>(error: 0_u64);
-    }
-    if buffer^[count_end] == 13_u8 {
-      break @find_count_end;
-    }
-    set count_end = count_end +wrap 1_u64;
-  }
-  let count_str = &buffer^[pos..count_end];
-  let count = 0_u64;
-  for (i in 0_u64..count_str^.len) {
-    let byte = count_str^[i];
-    if byte < 48_u8 {
-      return Err<CommandParsed, u64>(error: 1_u64);
-    }
-    if byte > 57_u8 {
-      return Err<CommandParsed, u64>(error: 1_u64);
-    }
-    let digit = byte - 48_u8;
-    let digit_u64 = cvt::<u8, u64>(digit);
-    set count = count *wrap 10_u64;
-    set count = count +wrap digit_u64;
-  }
-  let elements = slots_new::<Slots<u8>, 16>();
-  set pos = count_end +wrap 2_u64;
-  let elem_idx = 0_u64;
-  loop @parse_elements {
-    if elem_idx >= count {
-      break @parse_elements;
-    }
-    let parse_result = parse_bulk_string(buffer, pos);
-    match parse_result {
-      Ok(value: parsed) => {
-        let data = parsed.data;
-        let next_pos = parsed.next_pos;
-        place_back(window: &elements, value: move data);
-        set pos = next_pos;
-        set elem_idx = elem_idx +wrap 1_u64;
-        continue @parse_elements;
+    let outcome = std::net::send_once(send: send, source: source, start: sent, end: length, deadline: deadline, cancel: cancel);
+    match outcome {
+      Ok(value: next) => {
+        set sent = next;
       }
-      Err(error: err) => {
-        return Err<CommandParsed, u64>(error: err);
+      Err(error: problem) => {
+        return Err<unit, IoError>(error: problem);
       }
     }
   }
-  let cmd_parsed = CommandParsed(elements: move elements, consumed: pos);
-  return Ok<CommandParsed, u64>(value: move cmd_parsed);
+  return Ok<unit, IoError>(value: unit);
 }
 
-fn bytes_to_i64(bytes: &Slots<u8>) -> result: Result<i64, unit> reads(bytes) {
-  let len = bytes.len;
-  if len == 0_u64 {
-    return Err<i64, unit>(error: unit);
+fn find_crlf(buffer: &[u8], start: u64) -> result: Result<u64, u64> reads(buffer) {
+  let pos = start;
+  loop @search {
+    if pos + 1_u64 >= buffer^.len {
+      return Err<u64, u64>(error: 0_u64);
+    }
+    let byte = buffer^[pos];
+    if byte == 13_u8 {
+      let next_byte = buffer^[pos + 1_u64];
+      if next_byte == 10_u8 {
+        return Ok<u64, u64>(value: pos);
+      }
+    }
+    let next_pos = pos + 1_u64;
+    if next_pos >= buffer^.len {
+      return Err<u64, u64>(error: 0_u64);
+    }
+    set pos = next_pos;
   }
-  let negative = False();
-  let start = 0_u64;
-  let first = bytes[0_u64];
-  if first == 45_u8 {
-    set negative = True();
-    set start = 1_u64;
+}
+
+fn parse_decimal(buffer: &[u8], start: u64, end: u64) -> result: Result<u64, u64> reads(buffer) {
+  let value = 0_u64;
+  let pos = start;
+  loop @parse {
+    if pos >= end {
+      break @parse;
+    }
+    let byte = buffer^[pos];
+    if byte >= 48_u8 {
+    } else {
+      return Err<u64, u64>(error: 0_u64);
+    }
+    if byte <= 57_u8 {
+    } else {
+      return Err<u64, u64>(error: 0_u64);
+    }
+    let digit = byte - 48_u8;
+    let digit_u64 = cvt::<u8, u64>(digit);
+    set value = value *wrap 10_u64;
+    set value = value +wrap digit_u64;
+    set pos = pos + 1_u64;
+  }
+  return Ok<u64, u64>(value: value);
+}
+
+fn parse_bulk_string(buffer: &[u8], pos: u64) -> result: ParseResult reads(buffer) {
+  if pos >= buffer^.len {
+    return ParseResult(success: False(), position: pos, value_start: 0_u64, value_len: 0_u64);
+  }
+  let first = buffer^[pos];
+  if first != 36_u8 {
+    return ParseResult(success: False(), position: pos, value_start: 0_u64, value_len: 0_u64);
+  }
+  let crlf_result = find_crlf(buffer: buffer, start: pos + 1_u64);
+  match crlf_result {
+    Ok(value: crlf_pos) => {
+      let len_start = pos + 1_u64;
+      let len_end = crlf_pos;
+      let len_parse = parse_decimal(buffer: buffer, start: len_start, end: len_end);
+      match len_parse {
+        Ok(value: length) => {
+          let data_start = crlf_pos + 2_u64;
+          let data_end = data_start + length;
+          if data_end > buffer^.len {
+            return ParseResult(success: False(), position: pos, value_start: 0_u64, value_len: 0_u64);
+          }
+          let after_data = data_end + 2_u64;
+          if after_data > buffer^.len {
+            return ParseResult(success: False(), position: pos, value_start: 0_u64, value_len: 0_u64);
+          }
+          let cr_check = buffer^[data_end];
+          let lf_check = buffer^[data_end + 1_u64];
+          if band(cr_check == 13_u8, lf_check == 10_u8) {
+            return ParseResult(success: True(), position: after_data, value_start: data_start, value_len: length);
+          }
+          return ParseResult(success: False(), position: pos, value_start: 0_u64, value_len: 0_u64);
+        }
+        Err(error: e) => {
+          return ParseResult(success: False(), position: pos, value_start: 0_u64, value_len: 0_u64);
+        }
+      }
+    }
+    Err(error: e) => {
+      return ParseResult(success: False(), position: pos, value_start: 0_u64, value_len: 0_u64);
+    }
+  }
+}
+
+fn parse_array_count(buffer: &[u8], pos: u64) -> result: Result<(u64, u64), u64> reads(buffer) {
+  if pos >= buffer^.len {
+    return Err<(u64, u64), u64>(error: 0_u64);
+  }
+  let first = buffer^[pos];
+  if first != 42_u8 {
+    return Err<(u64, u64), u64>(error: 0_u64);
+  }
+  let crlf_result = find_crlf(buffer: buffer, start: pos + 1_u64);
+  match crlf_result {
+    Ok(value: crlf_pos) => {
+      let count_start = pos + 1_u64;
+      let count_end = crlf_pos;
+      let count_parse = parse_decimal(buffer: buffer, start: count_start, end: count_end);
+      match count_parse {
+        Ok(value: count) => {
+          let next_pos = crlf_pos + 2_u64;
+          return Ok<(u64, u64), u64>(value: (count, next_pos));
+        }
+        Err(error: e) => {
+          return Err<(u64, u64), u64>(error: 0_u64);
+        }
+      }
+    }
+    Err(error: e) => {
+      return Err<(u64, u64), u64>(error: 0_u64);
+    }
+  }
+}
+
+fn to_upper(byte: u8) -> result: u8 pure {
+  if byte >= 97_u8 {
+    if byte <= 122_u8 {
+      return byte - 32_u8;
+    }
+  }
+  return byte;
+}
+
+fn bytes_to_i64(data: &[u8]) -> result: Result<i64, u64> reads(data) {
+  if data^.len == 0_u64 {
+    return Err<i64, u64>(error: 0_u64);
+  }
+  let first_byte = data^[0_u64];
+  let is_negative = False();
+  let start_idx = 0_u64;
+  if first_byte == 45_u8 {
+    set is_negative = True();
+    set start_idx = 1_u64;
+    if start_idx >= data^.len {
+      return Err<i64, u64>(error: 0_u64);
+    }
   }
   let value = 0_i64;
-  for (i in start..len) {
-    let byte = bytes[i];
-    if byte < 48_u8 {
-      return Err<i64, unit>(error: unit);
+  for (i in start_idx..data^.len) {
+    let byte = data^[i];
+    if byte >= 48_u8 {
+    } else {
+      return Err<i64, u64>(error: 0_u64);
     }
-    if byte > 57_u8 {
-      return Err<i64, unit>(error: unit);
+    if byte <= 57_u8 {
+    } else {
+      return Err<i64, u64>(error: 0_u64);
     }
     let digit = byte - 48_u8;
     let digit_i64 = cvt::<u8, i64>(digit);
     set value = value *wrap 10_i64;
     set value = value +wrap digit_i64;
   }
-  if negative {
+  if is_negative {
     set value = 0_i64 - value;
   }
-  return Ok<i64, unit>(value: value);
+  return Ok<i64, u64>(value: value);
 }
 
-fn bytes_equal(a: &Slots<u8>, b: &Slots<u8>) -> result: Bool reads(a), reads(b) {
-  let a_len = a.len;
-  let b_len = b.len;
-  if a_len != b_len {
-    return False();
+fn i64_to_bytes(value: i64) -> result: Box<Slots<u8>> pure {
+  let buffer = box_slots_new::<u8>(capacity: 32_u64);
+  let num = value;
+  let is_negative = False();
+  if num < 0_i64 {
+    set is_negative = True();
+    set num = 0_i64 - num;
   }
-  for (i in 0_u64..a_len) {
-    if a[i] != b[i] {
-      return False();
-    }
-  }
-  return True();
-}
-
-fn send_all(send: &TcpSend, factory: &HandleFactory, data: &[u8], deadline: Instant, cancel: &CancelWatch) -> result: unit pure waits {
-  let sent = 0_u64;
-  let data_len = data^.len;
-  let deadline_some = Some<Instant>(value: deadline);
-  loop @sending {
-    if sent < data_len {
-    } else {
-      break @sending;
-    }
-    match std::net::send_once(send: send, source: data, start: sent, end: data_len, deadline: deadline_some, cancel: cancel) {
-      Ok(value: next) => {
-        set sent = next;
-        continue @sending;
+  let digits = slots_new::<u8, 32>();
+  if num == 0_i64 {
+    place_back(window: &digits, value: 48_u8);
+  } else {
+    let temp = num;
+    loop @count_digits {
+      if temp == 0_i64 {
+        break @count_digits;
       }
-      Err(error: problem) => {
-        break @sending;
-      }
+      let remainder = temp %wrap 10_i64;
+      let digit_byte = cvt::<i64, u8>(remainder) + 48_u8;
+      place_back(window: &digits, value: digit_byte);
+      set temp = temp /wrap 10_i64;
     }
   }
-  return unit;
+  if is_negative {
+    place_back(window: &buffer.inner, value: 45_u8);
+  }
+  let idx = digits.len;
+  loop @reverse {
+    if idx == 0_u64 {
+      break @reverse;
+    }
+    let digit_idx = idx - 1_u64;
+    let digit = digits[digit_idx];
+    place_back(window: &buffer.inner, value: digit);
+    set idx = digit_idx;
+  }
+  return move buffer;
 }
 
-fn handle_connection(store: Shared<unit>, send: TcpSend, receive: TcpReceive, factory: HandleFactory, deadline: Instant, cancel: CancelWatch) -> result: unit pure waits {
-  let buffer = array_filled::<u8, 16384>(value: 0_u8);
-  let buffer_len = 0_u64;
-  let deadline_opt = Some<Instant>(value: deadline);
-  loop @request_loop {
-    let parse_result = parse_command(&buffer[0_u64..buffer_len]);
-    match parse_result {
-      Ok(value: parsed) => {
-        let cmd_args = parsed.elements;
-        let consumed = parsed.consumed;
-        if cmd_args.len > 0_u64 {
-          let cmd = &cmd_args[0_u64];
-          if cmd.len == 4_u64 {
-            if band(band(cmd[0_u64] == 80_u8, cmd[1_u64] == 73_u8), band(cmd[2_u64] == 78_u8, cmd[3_u64] == 71_u8)) {
-              send_all(send: &send, factory: &factory, data: &pong_resp[0_u64..7_u64], deadline: deadline, cancel: &cancel);
-            }
-            if band(band(cmd[0_u64] == 73_u8, cmd[1_u64] == 78_u8), band(cmd[2_u64] == 67_u8, cmd[3_u64] == 82_u8)) {
-              if cmd_args.len >= 2_u64 {
-                let key = &cmd_args[1_u64];
-                let parse_int = bytes_to_i64(key);
-                match parse_int {
-                  Ok(value: v) => {
-                    let new_val = v +wrap 1_i64;
-                    let digits = slots_new::<u8, 32>();
-                    let remaining = new_val;
-                    if remaining == 0_i64 {
-                      place_back(window: &digits, value: 48_u8);
-                    } else {
-                      let working = remaining;
-                      loop @digit_loop {
-                        if working == 0_i64 {
-                          break @digit_loop;
-                        }
-                        let digit = working % 10_i64;
-                        let digit_u8 = cvt::<i64, u8>(digit);
-                        let byte = digit_u8 +wrap 48_u8;
-                        place_back(window: &digits, value: byte);
-                        set working = working / 10_i64;
-                        continue @digit_loop;
-                      }
-                    }
-                    let resp = slots_new::<u8, 64>();
-                    place_back(window: &resp, value: 58_u8);
-                    let dlen = digits.len;
-                    for (i in 0_u64..dlen) {
-                      let sub_1 = dlen - 1_u64;
-                      let idx = sub_1 - i;
-                      let byte = digits[idx];
-                      place_back(window: &resp, value: byte);
-                    }
-                    place_back(window: &resp, value: 13_u8);
-                    place_back(window: &resp, value: 10_u8);
-                    send_all(send: &send, factory: &factory, data: &resp[0_u64..resp.len], deadline: deadline, cancel: &cancel);
-                  }
-                  Err(error: err) => {
-                    send_all(send: &send, factory: &factory, data: &err_resp[0_u64..44_u64], deadline: deadline, cancel: &cancel);
-                  }
+fn handle_client(factory: &HandleFactory, receive: TcpReceive, send: TcpSend, store: Shared<ConcurrentHashMap<Value>>, deadline: Option<Instant>, cancel: &CancelWatch) -> result: unit reads(cancel), writes(factory) waits {
+  let buffer = array_filled::<u8, 4096>(value: 0_u8);
+  let response_buffer = array_filled::<u8, 4096>(value: 0_u8);
+  let filled = 0_u64;
+  loop @client_loop {
+    let remaining = 4096_u64 - filled;
+    if remaining == 0_u64 {
+      break @client_loop;
+    }
+    let outcome = std::net::receive_next(receive: &receive, destination: &buffer[0_u64..4096_u64], start: filled, end: 4096_u64, deadline: deadline, cancel: cancel);
+    match outcome {
+      Ok(value: received) => {
+        if received == filled {
+          break @client_loop;
+        }
+        set filled = received;
+      }
+      Err(error: stop) => {
+        break @client_loop;
+      }
+    }
+    let parsed_pos = 0_u64;
+    loop @parse_loop {
+      if parsed_pos >= filled {
+        set filled = 0_u64;
+        break @parse_loop;
+      }
+      let array_result = parse_array_count(buffer: &buffer[0_u64..4096_u64], pos: parsed_pos);
+      match array_result {
+        Ok(value: counts) => {
+          let count = counts.0;
+          let next_pos = counts.1;
+          if count == 0_u64 {
+            set parsed_pos = next_pos;
+            continue @parse_loop;
+          }
+          let cmd_parse = parse_bulk_string(buffer: &buffer[0_u64..4096_u64], pos: next_pos);
+          if cmd_parse.success {
+          } else {
+            break @parse_loop;
+          }
+          let cmd_start = cmd_parse.value_start;
+          let after_cmd = cmd_parse.position;
+          let first_byte = buffer^[cmd_start];
+          let upper_first = to_upper(byte: first_byte);
+          let handled = False();
+          if upper_first == 80_u8 {
+            if count == 1_u64 {
+              let pong = "+PONG\r\n";
+              let send_outcome = send_all(send: &send, source: &pong[0_u64..7_u64], length: 7_u64, deadline: deadline, cancel: cancel);
+              match send_outcome {
+                Ok(value: unit) => {
+                  set parsed_pos = after_cmd;
+                  set handled = True();
+                }
+                Err(error: e) => {
+                  break @client_loop;
                 }
               }
             }
           }
-          if cmd.len == 3_u64 {
-            let is_set = band(band(cmd[0_u64] == 83_u8, cmd[1_u64] == 69_u8), cmd[2_u64] == 84_u8);
-            if is_set {
-              if cmd_args.len >= 3_u64 {
-                send_all(send: &send, factory: &factory, data: &ok_resp[0_u64..5_u64], deadline: deadline, cancel: &cancel);
-              }
-            }
-            let is_get = band(band(cmd[0_u64] == 71_u8, cmd[1_u64] == 69_u8), cmd[2_u64] == 84_u8);
-            if is_get {
-              if cmd_args.len >= 2_u64 {
-                send_all(send: &send, factory: &factory, data: &nil_resp[0_u64..5_u64], deadline: deadline, cancel: &cancel);
-              }
-            }
-            let is_del = band(band(cmd[0_u64] == 68_u8, cmd[1_u64] == 69_u8), cmd[2_u64] == 76_u8);
-            if is_del {
-              if cmd_args.len >= 2_u64 {
-                send_all(send: &send, factory: &factory, data: &del_0_resp[0_u64..4_u64], deadline: deadline, cancel: &cancel);
+          if upper_first == 71_u8 {
+            if count == 2_u64 {
+              let key_parse = parse_bulk_string(buffer: &buffer[0_u64..4096_u64], pos: after_cmd);
+              if key_parse.success {
+                let key_start = key_parse.value_start;
+                let key_len = key_parse.value_len;
+                let key_slice = &buffer[key_start..key_start + key_len];
+                let found_val = False();
+                let val_len = 0_u64;
+                atomic slot = &store[key_slice] {
+                  match slot^ {
+                    Some(value: v) => {
+                      set found_val = True();
+                      set val_len = v^.bytes.inner.len;
+                    }
+                    None() => {
+                    }
+                  }
+                }
+                if found_val {
+                  let resp_pos = 0_u64;
+                  set response_buffer[resp_pos] = 36_u8;
+                  let len_str = i64_to_bytes(value: cvt::<u64, i64>(val_len));
+                  let len_bytes = &len_str.inner[0_u64..len_str.inner.len];
+                  let resp_pos2 = resp_pos + 1_u64;
+                  let ci = 0_u64;
+                  for (i in resp_pos2..resp_pos2 + len_bytes^.len) {
+                    set response_buffer[i] = len_bytes^[ci];
+                    set ci = ci + 1_u64;
+                  }
+                  let resp_pos3 = resp_pos2 + len_bytes^.len;
+                  set response_buffer[resp_pos3] = 13_u8;
+                  set response_buffer[resp_pos3 + 1_u64] = 10_u8;
+                  let resp_pos4 = resp_pos3 + 2_u64;
+                  atomic slot = &store[key_slice] {
+                    match slot^ {
+                      Some(value: v) => {
+                        let vi = 0_u64;
+                        for (i in resp_pos4..resp_pos4 + val_len) {
+                          set response_buffer[i] = v^.bytes.inner[vi];
+                          set vi = vi + 1_u64;
+                        }
+                      }
+                      None() => {
+                      }
+                    }
+                  }
+                  let resp_pos5 = resp_pos4 + val_len;
+                  set response_buffer[resp_pos5] = 13_u8;
+                  set response_buffer[resp_pos5 + 1_u64] = 10_u8;
+                  let final_pos = resp_pos5 + 2_u64;
+                  let send_outcome = send_all(send: &send, source: &response_buffer[0_u64..4096_u64], length: final_pos, deadline: deadline, cancel: cancel);
+                  match send_outcome {
+                    Ok(value: unit) => {
+                      set parsed_pos = key_parse.position;
+                      set handled = True();
+                    }
+                    Err(error: e) => {
+                      break @client_loop;
+                    }
+                  }
+                } else {
+                  let null_response = "$-1\r\n";
+                  let send_outcome = send_all(send: &send, source: &null_response[0_u64..5_u64], length: 5_u64, deadline: deadline, cancel: cancel);
+                  match send_outcome {
+                    Ok(value: unit) => {
+                      set parsed_pos = key_parse.position;
+                      set handled = True();
+                    }
+                    Err(error: e) => {
+                      break @client_loop;
+                    }
+                  }
+                }
+              } else {
+                break @parse_loop;
               }
             }
           }
-        }
-        set buffer_len = buffer_len - consumed;
-        for (i in 0_u64..buffer_len) {
-          let src_pos = consumed +wrap i;
-          set buffer[i] = buffer[src_pos];
-        }
-        continue @request_loop;
-      }
-      Err(error: err) => {
-        if err == 0_u64 {
-          if buffer_len < 16384_u64 {
-            let read_result = std::net::receive_next(receive: &receive, destination: &buffer[buffer_len..16384_u64], start: buffer_len, end: 16384_u64, deadline: deadline_opt, cancel: &cancel);
-            match read_result {
-              Ok(value: next) => {
-                set buffer_len = next;
-                continue @request_loop;
-              }
-              Err(error: stop) => {
-                break @request_loop;
+          if upper_first == 83_u8 {
+            if count == 3_u64 {
+              let key_parse = parse_bulk_string(buffer: &buffer[0_u64..4096_u64], pos: after_cmd);
+              if key_parse.success {
+                let key_start = key_parse.value_start;
+                let key_len = key_parse.value_len;
+                let key_slice = &buffer[key_start..key_start + key_len];
+                let val_parse = parse_bulk_string(buffer: &buffer[0_u64..4096_u64], pos: key_parse.position);
+                if val_parse.success {
+                  let val_start = val_parse.value_start;
+                  let val_len = val_parse.value_len;
+                  let val_slice = &buffer[val_start..val_start + val_len];
+                  let new_value = box_slots_new::<u8>(capacity: val_len);
+                  let vi = 0_u64;
+                  for (i in 0_u64..val_len) {
+                    place_back(window: &new_value.inner, value: val_slice^[i]);
+                  }
+                  let new_val = Value(bytes: move new_value);
+                  atomic slot = &store[key_slice] {
+                    set slot^ = Some<Value>(value: move new_val);
+                  }
+                  let ok_response = "+OK\r\n";
+                  let send_outcome = send_all(send: &send, source: &ok_response[0_u64..5_u64], length: 5_u64, deadline: deadline, cancel: cancel);
+                  match send_outcome {
+                    Ok(value: unit) => {
+                      set parsed_pos = val_parse.position;
+                      set handled = True();
+                    }
+                    Err(error: e) => {
+                      break @client_loop;
+                    }
+                  }
+                } else {
+                  break @parse_loop;
+                }
+              } else {
+                break @parse_loop;
               }
             }
-          } else {
-            break @request_loop;
           }
-        } else {
-          break @request_loop;
+          if upper_first == 68_u8 {
+            if count == 2_u64 {
+              let key_parse = parse_bulk_string(buffer: &buffer[0_u64..4096_u64], pos: after_cmd);
+              if key_parse.success {
+                let key_start = key_parse.value_start;
+                let key_len = key_parse.value_len;
+                let key_slice = &buffer[key_start..key_start + key_len];
+                let existed = False();
+                atomic slot = &store[key_slice] {
+                  match slot^ {
+                    Some(value: v) => {
+                      set slot^ = None<Value>();
+                      set existed = True();
+                    }
+                    None() => {
+                    }
+                  }
+                }
+                let response = if existed {
+                  give ":1\r\n";
+                } else {
+                  give ":0\r\n";
+                }
+                let send_outcome = send_all(send: &send, source: &response[0_u64..4_u64], length: 4_u64, deadline: deadline, cancel: cancel);
+                match send_outcome {
+                  Ok(value: unit) => {
+                    set parsed_pos = key_parse.position;
+                    set handled = True();
+                  }
+                  Err(error: e) => {
+                    break @client_loop;
+                  }
+                }
+              } else {
+                break @parse_loop;
+              }
+            }
+          }
+          if upper_first == 73_u8 {
+            if count == 2_u64 {
+              let key_parse = parse_bulk_string(buffer: &buffer[0_u64..4096_u64], pos: after_cmd);
+              if key_parse.success {
+                let key_start = key_parse.value_start;
+                let key_len = key_parse.value_len;
+                let key_slice = &buffer[key_start..key_start + key_len];
+                let new_value = 0_i64;
+                let error_occurred = False();
+                atomic slot = &store[key_slice] {
+                  match slot^ {
+                    Some(value: v) => {
+                      let parse_result = bytes_to_i64(data: &v^.bytes.inner[0_u64..v^.bytes.inner.len]);
+                      match parse_result {
+                        Ok(value: int_val) => {
+                          let next = int_val +wrap 1_i64;
+                          set new_value = next;
+                          let new_bytes = i64_to_bytes(value: next);
+                          let new_val = Value(bytes: move new_bytes);
+                          set slot^ = Some<Value>(value: move new_val);
+                        }
+                        Err(error: e) => {
+                          set error_occurred = True();
+                        }
+                      }
+                    }
+                    None() => {
+                      set new_value = 1_i64;
+                      let new_bytes = i64_to_bytes(value: 1_i64);
+                      let new_val = Value(bytes: move new_bytes);
+                      set slot^ = Some<Value>(value: move new_val);
+                    }
+                  }
+                }
+                if error_occurred {
+                  let error_msg = "-ERR value is not an integer or out of range\r\n";
+                  let send_outcome = send_all(send: &send, source: &error_msg[0_u64..46_u64], length: 46_u64, deadline: deadline, cancel: cancel);
+                  match send_outcome {
+                    Ok(value: unit) => {
+                      set parsed_pos = key_parse.position;
+                      set handled = True();
+                    }
+                    Err(error: e) => {
+                      break @client_loop;
+                    }
+                  }
+                } else {
+                  let int_str = i64_to_bytes(value: new_value);
+                  let int_bytes = &int_str.inner[0_u64..int_str.inner.len];
+                  let resp_pos = 0_u64;
+                  set response_buffer[resp_pos] = 58_u8;
+                  let resp_pos2 = resp_pos + 1_u64;
+                  let ci = 0_u64;
+                  for (i in resp_pos2..resp_pos2 + int_bytes^.len) {
+                    set response_buffer[i] = int_bytes^[ci];
+                    set ci = ci + 1_u64;
+                  }
+                  let resp_pos3 = resp_pos2 + int_bytes^.len;
+                  set response_buffer[resp_pos3] = 13_u8;
+                  set response_buffer[resp_pos3 + 1_u64] = 10_u8;
+                  let final_pos = resp_pos3 + 2_u64;
+                  let send_outcome = send_all(send: &send, source: &response_buffer[0_u64..4096_u64], length: final_pos, deadline: deadline, cancel: cancel);
+                  match send_outcome {
+                    Ok(value: unit) => {
+                      set parsed_pos = key_parse.position;
+                      set handled = True();
+                    }
+                    Err(error: e) => {
+                      break @client_loop;
+                    }
+                  }
+                }
+              } else {
+                break @parse_loop;
+              }
+            }
+          }
+          if bnot(handled) {
+            set parsed_pos = after_cmd;
+          }
+          continue @parse_loop;
+        }
+        Err(error: e) => {
+          break @parse_loop;
         }
       }
     }
   }
-  let close_receive_result = std::net::close_receive(factory: &factory, receive: move receive);
-  let close_send_result = std::net::close_send(factory: &factory, send: move send);
+  let close_recv = std::net::close_receive(factory: factory, receive: move receive);
+  let close_send = std::net::close_send(factory: factory, send: move send);
   return unit;
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(args: args, drivers: unused_drivers, cwd: cwd, stdout: unused_stdout, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
-  let std::fs::Directory(read: directory_read, write: directory_write) = move cwd;
-  std::fs::close_directory_write(factory: &factory, directory: move directory_write);
-  std::fs::close_directory(factory: &factory, directory: move directory_read);
-  let arg_count = std::text::args_count(args: &args);
-  if arg_count < 2_u64 {
-    return std::process::exit_status(code: 1_u8);
+  let Inputs(args: arg_list, drivers: unused_drivers, cwd: cwd_directory, stdout: unused_stdout, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
+  std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
+  std::fs::close_directory(factory: &factory, directory: move cwd_read);
+  let count = std::text::args_count(args: &arg_list);
+  if count < 4_u64 {
+    return exit_status(code: 1_u8);
   }
-  let port_arg = std::text::arg_get(args: &args, position: 1_u64);
-  let port_value = 0_u16;
+  let port_arg = std::text::arg_get(args: &arg_list, position: 1_u64);
+  let port_u16 = 0_u16;
   match port_arg {
     Ok(value: port_str) => {
-      let port_len = std::text::host_bytes_len(value: &port_str);
-      if port_len > 10_u64 {
-        return std::process::exit_status(code: 1_u8);
-      }
-      let port_buf = array_filled::<u8, 16>(value: 0_u8);
-      let copy_result = std::text::host_copy_bytes(value: &port_str, destination: &port_buf[0_u64..port_len], start: 0_u64, end: port_len);
+      let port_buffer = array_filled::<u8, 32>(value: 0_u8);
+      let copy_result = std::text::host_copy_bytes(value: &port_str, destination: &port_buffer[0_u64..32_u64], start: 0_u64, end: 32_u64);
       match copy_result {
-        Ok(value: next) => {
-          let port_parsed = 0_u16;
-          for (i in 0_u64..next) {
-            let byte = port_buf[i];
-            if byte < 48_u8 {
-              return std::process::exit_status(code: 1_u8);
+        Ok(value: port_len) => {
+          let port_parse = parse_decimal(buffer: &port_buffer[0_u64..32_u64], start: 0_u64, end: port_len);
+          match port_parse {
+            Ok(value: port_val) => {
+              set port_u16 = cvt::<u64, u16>(port_val);
             }
-            if byte > 57_u8 {
-              return std::process::exit_status(code: 1_u8);
+            Err(error: e) => {
+              return exit_status(code: 1_u8);
             }
-            let digit = byte - 48_u8;
-            let digit_u16 = cvt::<u8, u16>(digit);
-            set port_parsed = port_parsed *wrap 10_u16;
-            set port_parsed = port_parsed +wrap digit_u16;
           }
-          set port_value = port_parsed;
         }
-        Err(error: err) => {
-          return std::process::exit_status(code: 1_u8);
+        Err(error: e) => {
+          return exit_status(code: 1_u8);
         }
       }
     }
-    Err(error: err) => {
-      return std::process::exit_status(code: 1_u8);
+    Err(error: e) => {
+      return exit_status(code: 1_u8);
     }
   }
-  let listener_addr = std::net::socket_address_v4(a: 127_u8, b: 0_u8, c: 0_u8, d: 1_u8, port: port_value);
-  let listen_result = std::net::tcp_listen(factory: &factory, address: &listener_addr);
-  let listener = match listen_result {
-    Ok(value: l) => {
-      give move l;
-    }
-    Err(error: err) => {
-      return std::process::exit_status(code: 1_u8);
-    }
-  };
-  let shared_store = shared_new::<unit>(value: unit);
-  let begin = std::time::now(clock: &clock);
-  let deadline = std::time::instant_after(instant: begin, nanoseconds: 17000000000_u64);
-  let deadline_some = Some<Instant>(value: deadline);
-  let cancel = std::time::cancel_never();
-  let accepted = 0_u64;
-  loop @accept_loop {
-    if accepted >= 9_u64 {
-      break @accept_loop;
-    }
-    let accept_result = std::net::tcp_accept(factory: &factory, listener: &listener, deadline: deadline_some, cancel: &cancel);
-    match accept_result {
-      Ok(value: accepted_conn) => {
-        let conn = accepted_conn.connection;
-        let store_shared = shared_share::<unit>(shared: &shared_store);
-        let factory_shared = factory_share(factory: &factory);
-        let clock_shared = clock_share(clock: &clock);
-        spawn handle_connection(store: move store_shared, send: move conn.send, receive: move conn.receive, factory: move factory_shared, deadline: deadline, cancel: move cancel);
-        set accepted = accepted +wrap 1_u64;
-        continue @accept_loop;
+  let addr = std::net::socket_address_v4(a: 127_u8, b: 0_u8, c: 0_u8, d: 1_u8, port: port_u16);
+  let listener_result = std::net::tcp_listen(factory: &factory, address: &addr);
+  match listener_result {
+    Ok(value: listener) => {
+      let store = shared_map_new::<Value>(capacity: 256_u64);
+      let connection_count = 0_u64;
+      let no_deadline = None<Instant>();
+      let cancel = std::time::cancel_never();
+      loop @accept_loop {
+        if connection_count >= 9_u64 {
+          break @accept_loop;
+        }
+        let accept_result = std::net::tcp_accept(factory: &factory, listener: &listener, deadline: no_deadline, cancel: &cancel);
+        match accept_result {
+          Ok(value: accepted) => {
+            let connection = accepted.connection;
+            let store_share = shared_share::<ConcurrentHashMap<Value>>(shared: &store);
+            let receive = connection.receive;
+            let send = connection.send;
+            spawn handle_client(factory: &factory, receive: move receive, send: move send, store: move store_share, deadline: no_deadline, cancel: &cancel);
+            set connection_count = connection_count + 1_u64;
+            continue @accept_loop;
+          }
+          Err(error: e) => {
+            break @accept_loop;
+          }
+        }
       }
-      Err(error: err) => {
-        break @accept_loop;
-      }
+      let close_result = std::net::close_listener(factory: &factory, listener: move listener);
+      std::time::close_cancel_watch(watch: move cancel);
+      return exit_status(code: 0_u8);
+    }
+    Err(error: e) => {
+      std::time::close_cancel_watch(watch: move cancel);
+      return exit_status(code: 1_u8);
     }
   }
-  let close_result = std::net::close_listener(factory: &factory, listener: move listener);
-  std::time::close_cancel_watch(watch: move cancel);
-  return std::process::exit_status(code: 0_u8);
 }

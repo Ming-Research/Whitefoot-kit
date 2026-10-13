@@ -1,0 +1,62 @@
+fn from_whole_pixels(pixels: i32) -> raw: i32 pure {
+  return pixels *sat 64_i32;
+}
+
+fn from_binary64(pixels: f64) -> raw: i32 pure {
+  let is_nan = fne(pixels, pixels);
+  if is_nan {
+    return 0_i32;
+  }
+  let scaled = fmul.strict(pixels, 64.0_f64);
+  let rounded = froundeven(scaled);
+  let max_bound = 2147483647.0_f64;
+  let min_bound = -2147483648.0_f64;
+  let at_or_above_max = fge(rounded, max_bound);
+  let at_or_below_min = fle(rounded, min_bound);
+  if at_or_above_max {
+    return 2147483647_i32;
+  }
+  if at_or_below_min {
+    return -2147483648_i32;
+  }
+  let checked = cvt.checked::<f64, i32>(rounded);
+  match checked {
+    Ok(value: result) => {
+      return result;
+    }
+    Err(error: unused) => {
+      return 0_i32;
+    }
+  }
+}
+
+fn to_binary64(raw: i32) -> pixels: f64 pure {
+  let as_f64 = cvt::<i32, f64>(raw);
+  return fdiv.strict(as_f64, 64.0_f64);
+}
+
+fn saturating_add(a: i32, b: i32) -> result: i32 pure {
+  return a +sat b;
+}
+
+fn saturating_sub(a: i32, b: i32) -> result: i32 pure {
+  return a -sat b;
+}
+
+fn min_coord(a: i32, b: i32) -> result: i32 pure {
+  let a_le_b = a <= b;
+  if a_le_b {
+    return a;
+  } else {
+    return b;
+  }
+}
+
+fn max_coord(a: i32, b: i32) -> result: i32 pure {
+  let a_ge_b = a >= b;
+  if a_ge_b {
+    return a;
+  } else {
+    return b;
+  }
+}

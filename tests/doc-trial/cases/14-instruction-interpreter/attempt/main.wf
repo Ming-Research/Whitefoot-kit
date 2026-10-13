@@ -5,100 +5,62 @@ alias HandleFactory = std::io::HandleFactory;
 alias OutputStream = std::io::OutputStream;
 alias IoError = std::io::IoError;
 alias Instant = std::time::Instant;
+alias Directory = std::fs::Directory;
 
 enum Instruction {
-  Add(literal: u64);
+  Add(value: u64);
   Decrement();
-  JumpIfNonZero(target: u64);
+  JumpIfNonzero(position: u64);
   Halt();
 }
 
-fn run_machine(instructions: &[Instruction], counter: u64) -> result: u64 reads(instructions) {
-  let n = instructions^.len;
-  if n == 0_u64 {
-    return 0_u64;
-  }
+fn execute(instructions: &[Instruction], initial_counter: u64) -> result: u64 reads(instructions) {
+  let accumulator = 0_u64;
+  let counter = initial_counter;
   let pc = 0_u64;
-  let acc = 0_u64;
-  let cur_counter = counter;
-  loop (
-    invariant bounds: pc < n
-  ) {
-    match instructions^[pc] {
-      Add(literal: value) => {
-        let literal_val = value^;
-        let next_pc = pc + 1_u64;
-        if next_pc < n {
-          set acc = acc +wrap literal_val;
-          set pc = next_pc;
-          continue;
-        } else {
-          return 0_u64;
-        }
+  loop {
+    let in_bounds = pc < instructions^.len;
+    if in_bounds {
+    } else {
+      return 0_u64;
+    }
+    let instruction = &instructions^[pc];
+    match instruction^ {
+      Add(value: v) => {
+        set accumulator = accumulator +wrap v;
+        set pc = pc + 1_u64;
       }
       Decrement() => {
-        let next_pc = pc + 1_u64;
-        if next_pc < n {
-          set cur_counter = cur_counter -wrap 1_u64;
-          set pc = next_pc;
-          continue;
-        } else {
-          return 0_u64;
-        }
+        set counter = counter -wrap 1_u64;
+        set pc = pc + 1_u64;
       }
-      JumpIfNonZero(target: target_ref) => {
-        let target_val = target_ref^;
-        if cur_counter != 0_u64 {
-          if target_val < n {
-            set pc = target_val;
-            continue;
-          } else {
-            return 0_u64;
-          }
+      JumpIfNonzero(position: pos) => {
+        let is_nonzero = counter != 0_u64;
+        if is_nonzero {
+          set pc = pos;
         } else {
-          let next_pc = pc + 1_u64;
-          if next_pc < n {
-            set pc = next_pc;
-            continue;
-          } else {
-            return 0_u64;
-          }
+          set pc = pc + 1_u64;
         }
       }
       Halt() => {
-        return acc;
+        return accumulator;
       }
     }
   }
 }
 
-fn write_le_u64(factory: &HandleFactory, output: &OutputStream, value: u64) -> result: Result<unit, IoError> writes(factory), writes(output) waits {
-  let bytes = array_filled::<u8, 8>(value: 0_u8);
-  set bytes[0_u64] = cvt.wrap::<u64, u8>(value);
-  let sh1 = ishr(value, 8_u32);
-  set bytes[1_u64] = cvt.wrap::<u64, u8>(sh1);
-  let sh2 = ishr(value, 16_u32);
-  set bytes[2_u64] = cvt.wrap::<u64, u8>(sh2);
-  let sh3 = ishr(value, 24_u32);
-  set bytes[3_u64] = cvt.wrap::<u64, u8>(sh3);
-  let sh4 = ishr(value, 32_u32);
-  set bytes[4_u64] = cvt.wrap::<u64, u8>(sh4);
-  let sh5 = ishr(value, 40_u32);
-  set bytes[5_u64] = cvt.wrap::<u64, u8>(sh5);
-  let sh6 = ishr(value, 48_u32);
-  set bytes[6_u64] = cvt.wrap::<u64, u8>(sh6);
-  let sh7 = ishr(value, 56_u32);
-  set bytes[7_u64] = cvt.wrap::<u64, u8>(sh7);
-  let view = &bytes[0_u64..8_u64];
+fn write_all(factory: &HandleFactory, output: &OutputStream, source: &[u8]) -> result: Result<unit, IoError> reads(source), writes(factory), writes(output) waits {
   let sent = 0_u64;
-  loop @sending {
-    if sent < 8_u64 {
+  let length = source^.len;
+  loop @publish {
+    let pending = sent < length;
+    if pending {
     } else {
-      break @sending;
+      break @publish;
     }
     let no_deadline = None<Instant>();
     let cancel = std::time::cancel_never();
-    let outcome = std::io::write_once(factory: factory, output: output, source: view, start: sent, end: 8_u64, deadline: no_deadline, cancel: &cancel);
+    let outcome = std::io::write_once(factory: factory, output: output, source: source, start: sent, end: length, deadline: no_deadline, cancel: &cancel);
     std::time::close_cancel_watch(watch: move cancel);
     match outcome {
       Ok(value: next) => {
@@ -113,32 +75,39 @@ fn write_le_u64(factory: &HandleFactory, output: &OutputStream, value: u64) -> r
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: stdout, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
-  let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
+  let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: output_stream, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
   std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
   std::fs::close_directory(factory: &factory, directory: move cwd_read);
   let instructions = slots_new::<Instruction, 4>();
-  let instr0 = Instruction::Add(literal: 3_u64);
-  place_back(window: &instructions, value: instr0);
-  let instr1 = Instruction::Decrement();
-  place_back(window: &instructions, value: instr1);
-  let instr2 = Instruction::JumpIfNonZero(target: 0_u64);
-  place_back(window: &instructions, value: instr2);
-  let instr3 = Instruction::Halt();
-  place_back(window: &instructions, value: instr3);
-  let view = &instructions[0_u64..instructions.len];
-  let result = run_machine(instructions: view, counter: 1000_u64);
-  let write_result = write_le_u64(factory: &factory, output: &stdout, value: result);
-  match write_result {
+  place_back(window: &instructions, value: Instruction::Add(value: 3_u64));
+  place_back(window: &instructions, value: Instruction::Decrement());
+  place_back(window: &instructions, value: Instruction::JumpIfNonzero(position: 0_u64));
+  place_back(window: &instructions, value: Instruction::Halt());
+  let result = execute(instructions: &instructions[0_u64..4_u64], initial_counter: 1000_u64);
+  let output_bytes = array_filled::<u8, 8>(value: 0_u8);
+  set output_bytes[0_u64] = cvt.wrap::<u64, u8>(result);
+  set output_bytes[1_u64] = cvt.wrap::<u64, u8>(ishr(result, 8_u32));
+  set output_bytes[2_u64] = cvt.wrap::<u64, u8>(ishr(result, 16_u32));
+  set output_bytes[3_u64] = cvt.wrap::<u64, u8>(ishr(result, 24_u32));
+  set output_bytes[4_u64] = cvt.wrap::<u64, u8>(ishr(result, 32_u32));
+  set output_bytes[5_u64] = cvt.wrap::<u64, u8>(ishr(result, 40_u32));
+  set output_bytes[6_u64] = cvt.wrap::<u64, u8>(ishr(result, 48_u32));
+  set output_bytes[7_u64] = cvt.wrap::<u64, u8>(ishr(result, 56_u32));
+  let output_view = &output_bytes[0_u64..8_u64];
+  let write_result = write_all(factory: &factory, output: &output_stream, source: output_view);
+  let status_code = if result == 3000_u64 {
+    give 0_u8;
+  } else {
+    give 1_u8;
+  }
+  let final_code = match write_result {
     Ok(value: unused_ok) => {
-      if result == 3000_u64 {
-        return exit_status(code: 0_u8);
-      } else {
-        return exit_status(code: 1_u8);
-      }
+      give status_code;
     }
     Err(error: unused_error) => {
-      return exit_status(code: 2_u8);
+      give 2_u8;
     }
   }
+  return exit_status(code: final_code);
 }
