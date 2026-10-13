@@ -359,7 +359,7 @@ pkg::client: [pkg::geometry, std::process];
 entry main = pkg::client::main;
 ```
 
-Public declarations belong in `module.wfm`; interface functions end with `doc "...";`, never a plain `;`. Definitions repeat the header without `public`. Aliases bind public declarations in direct dependencies and grant no graph edge. A qualified path is never an operand: bind a constant such as `pkg::limits::cap` with `alias cap = pkg::limits::cap;` and write `cap` [MOD-5]. These four files complete the graph above; check the graph as one module program, not each file as a source bundle. [MOD-4, MOD-5, MOD-6, MOD-7, MOD-8]
+Public declarations belong in `module.wfm`; interface functions end with `doc "...";`, never a plain `;`. Definitions repeat the header without `public`. Aliases bind public declarations in direct dependencies and grant no graph edge. A qualified path is never an operand: bind a constant such as `pkg::limits::cap` with `alias cap = pkg::limits::cap;` and write `cap`. A qualified path appears only as a type, callee, construction or destructuring target [MOD-4, MOD-5]. These four files complete the graph above; check the graph as one module program, not each file as a source bundle. [MOD-4, MOD-5, MOD-6, MOD-7, MOD-8]
 
 `geometry/module.wfm`:
 
@@ -499,7 +499,7 @@ Require heap independence with first-item `program no_heap;` or graph entry `no_
 
 Choose `&[T]` for contiguous consumers and `&Run<T>` for possibly paged logical access: the kind states the representation promise. `Run` is not an owned value type [TYPE-8, REF-4].
 
-`&a[lo..hi]` requires `lo <= hi <= a.len`; length is captured `hi - lo`, indexing is relative to lo. Alias with `let other = part;`; reslice with `&part^[a..b]`, preserving its kind [REF-1, REF-4]. When `part` is a range-reference variable, that `let` makes `other` a range alias identified through `part`: length, element and subrange facts proved on either hold on both, while neither is rebound by `set` anywhere in the body. A conditional initializer (a value `if` or `match`) or any rebinding makes `other` a separate reference with no shared facts, and a write through either kills the facts of both [ENT-2].
+`&a[lo..hi]` requires `lo <= hi <= a.len`; length is captured `hi - lo`, indexing is relative to lo. Alias with `let other = part;`; reslice with `&part^[a..b]`, preserving its kind [REF-1, REF-4]. When `part` is a range-reference variable, that `let` makes `other` a range alias identified through `part`'s identifying variable: facts proved on either hold on both, while neither is rebound by `set` anywhere in the body. A conditional initializer (a value `if` or `match`) or any rebinding makes `other` a separate reference with no shared facts, and a write through either kills the facts of both [ENT-2].
 
 ```whitefoot
 alias ExitStatus = std::process::ExitStatus;
@@ -1659,7 +1659,7 @@ Prepare independent inputs first; validate current state and apply the transitio
 
 ### How do I export one held observation?
 
-A contract's `requires held(a, b);` requires reference arguments from data held by the caller's same atomic statement, with their regions unwritten throughout its whole block. Name distinct reference parameters; the function must be nonwaiting and `pure` or reads-only. Protection includes owned descendants. A wrapper forwards by declaring the same contract. Aliases and checked projections preserve held origin; copied values do not. Call in the block, never its guard. Borrowed output references are unsupported in this version. [HOLD-1, GRAM-2, REF-3]
+A contract, of a function or a function-kind formal, may carry one `requires held(a, b);` clause. It requires reference arguments from data held by the caller's same atomic statement, with their regions unwritten throughout its whole block. Name distinct reference parameters; the function must be nonwaiting and `pure` or reads-only. Protection includes owned descendants. A wrapper forwards by declaring the same contract. Aliases and checked projections preserve held origin; copied values do not. Call in the block, never its guard. [HOLD-1, GRAM-2, REF-3]
 
 **Known conservative check:** a block that may write a protected region counts as writing it, even on another possible path, before or after the call, through aliases, callees or cleanup. Proved disjoint writes are admitted. [HOLD-1]
 
