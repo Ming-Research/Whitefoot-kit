@@ -1572,7 +1572,7 @@ Each `continue` proves `pc < n` again. Guard a decoded jump target unless a veri
 
 **Cost and check:** Current compiler: eligible dispatch loops split into one function per arm with guaranteed tail transfers and no source `musttail`. Excess register demand or unsupported control flow keeps the loop whole. Inspect `whitefootc --dispatch-ledger program.wf` for the decision and `--stack-ledger` for frame/growth costs. Keep carried state compact. Invariants prove safety, not eventual `Halt` or instruction semantics; test results against the interpreted instruction specification.
 
-Use `return musttail` for a direct self call whose stack must remain bounded [FN-10]. Reference arguments must descend from reference parameters, not owned locals or owned parameters whose activation disappears. Unreferenced affine locals are released before transfer; a live reference into a local with nonempty release prevents it. Current compiler also optimizes eligible unmarked self calls; the marker requires a compile-time error if the transfer cannot be guaranteed. It adds no termination proof.
+Use `return musttail` for a direct self call whose stack must remain bounded [FN-10]. Reference arguments must descend from reference parameters, not owned locals or owned parameters whose activation disappears. Unreferenced affine locals are released before transfer; a live reference into a local with nonempty release prevents it. Nonempty release: `Box`, `Paged`, `Shared`, `SharedRead`, `Frozen`, `ConcurrentHashMap`, `KeySet` and `DecisionCell`; a struct or enum owning one; a storage shape of such elements unless its constant extent is zero; a type parameter whose bound lacks `copy` [PROV-6, STOR-3]. End such references before the call, or call without `musttail`. Current compiler also optimizes eligible unmarked self calls; the marker requires a compile-time error if the transfer cannot be guaranteed. It adds no termination proof.
 ```whitefoot
 fn countdown(n: u64) -> result: u64 pure {
   if n == 0_u64 {
@@ -1580,6 +1580,16 @@ fn countdown(n: u64) -> result: u64 pure {
   }
   let next = n - 1_u64;
   return musttail countdown(n: next);
+}
+```
+
+Rejected: `view` borrows a `KeySet` released before the transfer.
+
+```text
+fn walk(n: u64) -> result: u64 pure {
+  let keys = key_set_new(capacity: 2_u64);
+  let view = &keys;
+  return musttail walk(n: n);
 }
 ```
 
