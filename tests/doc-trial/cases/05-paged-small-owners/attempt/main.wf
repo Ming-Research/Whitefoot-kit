@@ -50,12 +50,12 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let baseline = std::process::heap_in_use(meter: &meter);
   let pool0 = box_paged_new::<u64>(capacity: 0_u64);
   let heap0 = std::process::heap_in_use(meter: &meter);
-  let diff0 = heap0 - baseline;
+  let diff0 = heap0 -wrap baseline;
   free_empty(window: move pool0);
   let pool0b = box_paged_new::<u64>(capacity: 0_u64);
   grow_paged(cell: &pool0b, capacity: 0_u64);
   let heap0b = std::process::heap_in_use(meter: &meter);
-  let diff0b = heap0b - baseline;
+  let diff0b = heap0b -wrap baseline;
   free_empty(window: move pool0b);
   let pool0c = box_paged_new::<u64>(capacity: 0_u64);
   let heap0c = std::process::heap_in_use(meter: &meter);
@@ -63,28 +63,28 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let pool1 = box_paged_new::<u64>(capacity: 1_u64);
   place_back(window: &pool1.inner, value: 73_u64);
   let heap1 = std::process::heap_in_use(meter: &meter);
-  let diff1 = heap1 - baseline;
+  let diff1 = heap1 -wrap baseline;
   grow_paged(cell: &pool1, capacity: 2_u64);
   place_back(window: &pool1.inner, value: 1_u64);
   let heap2 = std::process::heap_in_use(meter: &meter);
-  let diff2 = heap2 - baseline;
+  let diff2 = heap2 -wrap baseline;
   grow_paged(cell: &pool1, capacity: 3_u64);
   place_back(window: &pool1.inner, value: 2_u64);
   let heap3 = std::process::heap_in_use(meter: &meter);
-  let diff3 = heap3 - baseline;
+  let diff3 = heap3 -wrap baseline;
   let cap3_actual = pool1.inner.len;
   grow_paged(cell: &pool1, capacity: 4_u64);
   let heap4 = std::process::heap_in_use(meter: &meter);
-  let diff4 = heap4 - baseline;
+  let diff4 = heap4 -wrap baseline;
   for (i in 3_u64..512_u64) {
     place_back(window: &pool1.inner, value: i);
   }
   let heap512 = std::process::heap_in_use(meter: &meter);
-  let diff512 = heap512 - baseline;
+  let diff512 = heap512 -wrap baseline;
   grow_paged(cell: &pool1, capacity: 513_u64);
   place_back(window: &pool1.inner, value: 512_u64);
   let heap513 = std::process::heap_in_use(meter: &meter);
-  let diff513 = heap513 - baseline;
+  let diff513 = heap513 -wrap baseline;
   let sum = 0_u64;
   for (i in 0_u64..pool1.inner.len) {
     let val = pool1.inner[i];
@@ -99,21 +99,21 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   }
   free_empty(window: move pool1);
   let heap_after = std::process::heap_in_use(meter: &meter);
-  let diff_after = heap_after - baseline;
+  let diff_after = heap_after -wrap baseline;
   let pool5 = box_paged_new::<u64>(capacity: 3_u64);
   place_back(window: &pool5.inner, value: 19_u64);
   let heap5 = std::process::heap_in_use(meter: &meter);
-  let diff5 = heap5 - baseline;
+  let diff5 = heap5 -wrap baseline;
   let val5 = pool5.inner[0_u64];
   free_empty(window: move pool5);
   let heap5_after = std::process::heap_in_use(meter: &meter);
-  let diff5_after = heap5_after - baseline;
+  let diff5_after = heap5_after -wrap baseline;
   let pool6 = box_paged_new::<Array<u8, 0>>(capacity: 1_u64);
   let zero_array = array_filled::<u8, 0>(value: 0_u8);
   place_back(window: &pool6.inner, value: zero_array);
   grow_paged(cell: &pool6, capacity: 3_u64);
   let heap6_grown = std::process::heap_in_use(meter: &meter);
-  let diff6_grown = heap6_grown - baseline;
+  let diff6_grown = heap6_grown -wrap baseline;
   loop {
     if pool6.inner.len == 0_u64 {
       break;
@@ -122,11 +122,11 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   }
   free_empty(window: move pool6);
   let heap6_after = std::process::heap_in_use(meter: &meter);
-  let diff6_after = heap6_after - baseline;
+  let diff6_after = heap6_after -wrap baseline;
   let results = array_filled::<u64, 18>(value: 0_u64);
   set results[0_u64] = diff0;
   set results[1_u64] = diff0b;
-  set results[2_u64] = heap0c - baseline;
+  set results[2_u64] = heap0c -wrap baseline;
   set results[3_u64] = diff1;
   set results[4_u64] = diff2;
   set results[5_u64] = diff3;

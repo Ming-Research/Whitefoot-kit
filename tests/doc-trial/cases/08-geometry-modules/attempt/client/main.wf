@@ -24,14 +24,21 @@ alias close_cancel_watch = std::time::close_cancel_watch;
 alias IoError = std::io::IoError;
 
 fn write_i64_le(buffer: &[u8], offset: u64, value: i64) -> result: unit writes(buffer) {
+  let s1 = ishr(value, 8_u32);
+  let b1 = cvt.wrap::<i64, u8>(s1);
+  let s2 = ishr(value, 16_u32);
+  let b2 = cvt.wrap::<i64, u8>(s2);
+  let s3 = ishr(value, 24_u32);
+  let b3 = cvt.wrap::<i64, u8>(s3);
+  let s4 = ishr(value, 32_u32);
+  let b4 = cvt.wrap::<i64, u8>(s4);
+  let s5 = ishr(value, 40_u32);
+  let b5 = cvt.wrap::<i64, u8>(s5);
+  let s6 = ishr(value, 48_u32);
+  let b6 = cvt.wrap::<i64, u8>(s6);
+  let s7 = ishr(value, 56_u32);
+  let b7 = cvt.wrap::<i64, u8>(s7);
   let b0 = cvt.wrap::<i64, u8>(value);
-  let b1 = cvt.wrap::<i64, u8>(ishr(value, 8_u32));
-  let b2 = cvt.wrap::<i64, u8>(ishr(value, 16_u32));
-  let b3 = cvt.wrap::<i64, u8>(ishr(value, 24_u32));
-  let b4 = cvt.wrap::<i64, u8>(ishr(value, 32_u32));
-  let b5 = cvt.wrap::<i64, u8>(ishr(value, 40_u32));
-  let b6 = cvt.wrap::<i64, u8>(ishr(value, 48_u32));
-  let b7 = cvt.wrap::<i64, u8>(ishr(value, 56_u32));
   set buffer^[offset] = b0;
   set buffer^[offset + 1_u64] = b1;
   set buffer^[offset + 2_u64] = b2;
@@ -49,14 +56,21 @@ fn write_f64_le(buffer: &[u8], offset: u64, value: f64) -> result: unit writes(b
 }
 
 fn write_u64_le(buffer: &[u8], offset: u64, value: u64) -> result: unit writes(buffer) {
+  let s1 = ishr(value, 8_u32);
+  let b1 = cvt.wrap::<u64, u8>(s1);
+  let s2 = ishr(value, 16_u32);
+  let b2 = cvt.wrap::<u64, u8>(s2);
+  let s3 = ishr(value, 24_u32);
+  let b3 = cvt.wrap::<u64, u8>(s3);
+  let s4 = ishr(value, 32_u32);
+  let b4 = cvt.wrap::<u64, u8>(s4);
+  let s5 = ishr(value, 40_u32);
+  let b5 = cvt.wrap::<u64, u8>(s5);
+  let s6 = ishr(value, 48_u32);
+  let b6 = cvt.wrap::<u64, u8>(s6);
+  let s7 = ishr(value, 56_u32);
+  let b7 = cvt.wrap::<u64, u8>(s7);
   let b0 = cvt.wrap::<u64, u8>(value);
-  let b1 = cvt.wrap::<u64, u8>(ishr(value, 8_u32));
-  let b2 = cvt.wrap::<u64, u8>(ishr(value, 16_u32));
-  let b3 = cvt.wrap::<u64, u8>(ishr(value, 24_u32));
-  let b4 = cvt.wrap::<u64, u8>(ishr(value, 32_u32));
-  let b5 = cvt.wrap::<u64, u8>(ishr(value, 40_u32));
-  let b6 = cvt.wrap::<u64, u8>(ishr(value, 48_u32));
-  let b7 = cvt.wrap::<u64, u8>(ishr(value, 56_u32));
   set buffer^[offset] = b0;
   set buffer^[offset + 1_u64] = b1;
   set buffer^[offset + 2_u64] = b2;

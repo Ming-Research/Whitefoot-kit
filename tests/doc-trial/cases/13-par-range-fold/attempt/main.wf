@@ -45,7 +45,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     Err(error: unused_err2) => {
     }
   }
-
   let a = fold_range(lo: 0_u64, hi: 100000_u64);
   let b = fold_range(lo: 100000_u64, hi: 200000_u64);
   let c = fold_range(lo: 200000_u64, hi: 300000_u64);

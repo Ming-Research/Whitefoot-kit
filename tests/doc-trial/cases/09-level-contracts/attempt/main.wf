@@ -32,16 +32,16 @@ fn write_u64_le(factory: &HandleFactory, output: &OutputStream, value: u64) -> r
     let end_pos = 8_u64 - sent;
     let no_deadline = None<std::time::Instant>();
     let cancel = std::time::cancel_never();
-    let outcome = std::io::write_once(factory: factory, output: output, source: &bytes[sent..8_u64], start: 0_u64, end: end_pos, deadline: no_deadline, cancel: &cancel);
-    std::time::close_cancel_watch(watch: move cancel);
-    match outcome {
+    match std::io::write_once(factory: factory, output: output, source: &bytes[sent..8_u64], start: 0_u64, end: end_pos, deadline: no_deadline, cancel: &cancel) {
       Ok(value: next) => {
         set sent = sent + next;
       }
       Err(error: problem) => {
+        std::time::close_cancel_watch(watch: move cancel);
         return Err<unit, IoError>(error: problem);
       }
     }
+    std::time::close_cancel_watch(watch: move cancel);
   }
   return Ok<unit, IoError>(value: unit);
 }
@@ -110,8 +110,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   set depths[5_u64] = 2_u32;
   let accept = validate(parents: &parents[0_u64..6_u64], depths: &depths[0_u64..6_u64]);
   let accept_u64 = cvt::<u8, u64>(accept);
-  let outcome = write_u64_le(factory: &factory, output: &output, value: accept_u64);
-  match outcome {
+  match write_u64_le(factory: &factory, output: &output, value: accept_u64) {
     Ok(value: unused) => {
     }
     Err(error: problem) => {
@@ -128,8 +127,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     }
     let max_depth_converted = cvt::<u32, u64>(max_depth);
     let max_depth_u64 = max_depth_converted + 1_u64;
-    let outcome = write_u64_le(factory: &factory, output: &output, value: max_depth_u64);
-    match outcome {
+    match write_u64_le(factory: &factory, output: &output, value: max_depth_u64) {
       Ok(value: unused) => {
       }
       Err(error: problem) => {
@@ -147,8 +145,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
           set count = count + 1_u64;
         }
       }
-      let outcome = write_u64_le(factory: &factory, output: &output, value: count);
-      match outcome {
+      match write_u64_le(factory: &factory, output: &output, value: count) {
         Ok(value: unused) => {
         }
         Err(error: problem) => {
@@ -158,8 +155,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
       for (i in 0_u64..6_u64) {
         let depth_converted = cvt::<u32, u64>(depths[i]);
         if depth_converted == d {
-          let outcome = write_u64_le(factory: &factory, output: &output, value: i);
-          match outcome {
+          match write_u64_le(factory: &factory, output: &output, value: i) {
             Ok(value: unused) => {
             }
             Err(error: problem) => {
@@ -169,8 +165,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
         }
       }
     }
-    let outcome = write_u64_le(factory: &factory, output: &output, value: 6_u64);
-    match outcome {
+    match write_u64_le(factory: &factory, output: &output, value: 6_u64) {
       Ok(value: unused) => {
       }
       Err(error: problem) => {
@@ -184,8 +179,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
           set position = position + 1_u64;
         }
       }
-      let outcome = write_u64_le(factory: &factory, output: &output, value: position);
-      match outcome {
+      match write_u64_le(factory: &factory, output: &output, value: position) {
         Ok(value: unused) => {
         }
         Err(error: problem) => {
@@ -203,8 +197,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   set parents1[5_u64] = 2_u32;
   let accept1 = validate(parents: &parents1[0_u64..6_u64], depths: &depths[0_u64..6_u64]);
   let accept1_u64 = cvt::<u8, u64>(accept1);
-  let outcome = write_u64_le(factory: &factory, output: &output, value: accept1_u64);
-  match outcome {
+  match write_u64_le(factory: &factory, output: &output, value: accept1_u64) {
     Ok(value: unused) => {
     }
     Err(error: problem) => {
@@ -220,8 +213,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   set depths2[5_u64] = 2_u32;
   let accept2 = validate(parents: &parents[0_u64..6_u64], depths: &depths2[0_u64..6_u64]);
   let accept2_u64 = cvt::<u8, u64>(accept2);
-  let outcome = write_u64_le(factory: &factory, output: &output, value: accept2_u64);
-  match outcome {
+  match write_u64_le(factory: &factory, output: &output, value: accept2_u64) {
     Ok(value: unused) => {
     }
     Err(error: problem) => {
@@ -237,8 +229,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   set depths3[5_u64] = 2_u32;
   let accept3 = validate(parents: &parents[0_u64..6_u64], depths: &depths3[0_u64..6_u64]);
   let accept3_u64 = cvt::<u8, u64>(accept3);
-  let outcome = write_u64_le(factory: &factory, output: &output, value: accept3_u64);
-  match outcome {
+  match write_u64_le(factory: &factory, output: &output, value: accept3_u64) {
     Ok(value: unused) => {
     }
     Err(error: problem) => {

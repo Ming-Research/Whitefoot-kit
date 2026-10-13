@@ -14,10 +14,10 @@ fn create_pool() -> result: BlockPool pure {
   return BlockPool(free_count: 8_u64);
 }
 
-fn take_lease(pool: BlockPool) -> result: (pool: BlockPool, lease: Option<BlockLease>) pure {
+fn take_lease(pool: BlockPool) -> (pool: BlockPool, lease: Option<BlockLease>) pure {
   if pool.free_count > 0_u64 {
     let index = pool.free_count - 1_u64;
-    let new_pool = BlockPool(blocks: move pool.blocks, free_count: index);
+    let new_pool = BlockPool(free_count: index);
     let lease = Some<BlockLease>(value: BlockLease(index: index));
     return move new_pool, move lease;
   }
@@ -25,10 +25,10 @@ fn take_lease(pool: BlockPool) -> result: (pool: BlockPool, lease: Option<BlockL
   return move pool, move no_lease;
 }
 
-fn return_lease(pool: BlockPool, lease: BlockLease) -> result: (pool: BlockPool, success: Bool) pure {
+fn return_lease(pool: BlockPool, lease: BlockLease) -> (pool: BlockPool, success: Bool) pure {
   if pool.free_count < 8_u64 {
     let new_count = pool.free_count + 1_u64;
-    let new_pool = BlockPool(blocks: move pool.blocks, free_count: new_count);
+    let new_pool = BlockPool(free_count: new_count);
     return move new_pool, True();
   }
   return move pool, False();

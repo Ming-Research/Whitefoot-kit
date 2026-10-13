@@ -19,7 +19,7 @@ fn parse_port(args: &Args) -> result: Result<u16, unit> reads(args) {
       }
       let buf = array_filled::<u8, 5>(value: 0_u8);
       let copy_result = std::text::host_copy_bytes(value: &arg_string, destination: &buf[0_u64..5_u64], start: 0_u64, end: len);
-      match move copy_result {
+      match copy_result {
         Ok(value: copied_len) => {
           let port = 0_u16;
           let i = 0_u64;

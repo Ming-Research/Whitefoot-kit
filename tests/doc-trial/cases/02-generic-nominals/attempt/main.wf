@@ -74,7 +74,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     Err(error: unused_err_read) => {
     }
   }
-
   let byte_pair = Pair<u8>(left: 7_u8, right: 7_u8);
   let signed_pair = Pair<i64>(left: -9_i64, right: -9_i64);
 

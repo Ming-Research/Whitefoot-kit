@@ -168,7 +168,8 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let sum_first = sum_list(head: &head);
   let sum_second = sum_list(head: &head);
   let sum_third = sum_list(head: &head);
-  let total_three_reads = sum_first +wrap sum_second +wrap sum_third;
+  let sum_1_2 = sum_first +wrap sum_second;
+  let total_three_reads = sum_1_2 +wrap sum_third;
   if total_three_reads != 3168_u64 {
     return exit_status(code: 3_u8);
   }

@@ -48,7 +48,9 @@ fn echo_loop(factory: &HandleFactory, input: &InputStream, output: &OutputStream
   }
 }
 
-fn write_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], end: u64) -> written: u64 reads(source), writes(factory), writes(output) waits {
+fn write_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], end: u64) -> written: u64 reads(source), writes(factory), writes(output) waits contract {
+  requires end <= source^.len;
+} {
   let offset = 0_u64;
   loop {
     let pending = offset < end;
