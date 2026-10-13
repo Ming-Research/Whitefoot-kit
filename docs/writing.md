@@ -1761,11 +1761,20 @@ The four limits of this compiler policy are:
 metadata, or a target-free `when held` can make an optional object a lock on
 every request. Finishing with an object early does not release it early.
 
-**Check:** audit uses and helper footprints against those limits.
-`--lock-ledger` is **not yet available** in this release. In CI, compile with
-`whitefootc --emit-llvm program.wf -o program.ll` and inspect acquisition paths;
-measure contention with logging/timing off and on. Result checks establish
-state transitions, not lock timing; `--par-ledger` is not a substitute.
+**Check:** compile with `whitefootc --lock-ledger main.wf -o main`. It
+prints one line per target group of every atomic statement:
+
+```text
+LOCK <function>  <file:line:col of the atomic>  targets(<names>): <state type>  <when>[; first use <sites>][; taken with targets(<names>) at <site>]
+```
+
+`<when>` is `before the guard`, `on every path`, `on some paths` or `never`.
+An object you meant to take only on some requests must read `on some paths`;
+`on every path` or `before the guard` means a use, a helper's footprint, a
+guard or an earlier-ordered group takes it on every execution, and
+`taken with` names the later group whose first use pulled it in. Result
+checks establish state transitions, not lock timing, and `--par-ledger` is
+not a substitute.
 
 ### Where must children finish, and what lets them finish?
 
