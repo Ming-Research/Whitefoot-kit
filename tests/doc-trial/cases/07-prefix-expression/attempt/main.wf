@@ -77,7 +77,7 @@ fn u64_to_le_bytes(value: u64) -> result: Array<u8, 8> pure {
   let shifted7 = ishr(value, 56_u32);
   let byte7 = iand(shifted7, mask);
   set bytes[7_u64] = cvt::<u64, u8>(byte7);
-  return move bytes;
+  return bytes;
 }
 
 fn write_all(factory: &HandleFactory, output: &OutputStream, bytes: &[u8]) -> result: Result<unit, unit> reads(bytes), writes(factory), writes(output) waits {

@@ -99,7 +99,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
       let return_result = return_lease(pool: &pool, lease: move lease);
       let final_count = pool.free_count;
       match return_result {
-        Ok(value: unused_ok) => {
+        Ok(value: unused_return) => {
           if final_count != 8_u64 {
             return exit_status(code: 4_u8);
           }
@@ -134,7 +134,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
           let view = &output[0_u64..24_u64];
           let write_result = write_all(factory: &factory, output: &stdout_stream, source: view);
           match write_result {
-            Ok(value: unused_ok) => {
+            Ok(value: unused_write) => {
               return exit_status(code: 0_u8);
             }
             Err(error: unused_error) => {

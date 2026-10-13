@@ -94,7 +94,7 @@ fn process_and_output(factory: &HandleFactory, output: &OutputStream, parents: &
     give 1_u64;
   } else {
     give 0_u64;
-  };
+  }
   match write_u64_le(factory: factory, output: output, value: tag) {
     Ok(value: unit_val) => {
     }

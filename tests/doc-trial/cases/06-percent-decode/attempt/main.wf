@@ -51,7 +51,9 @@ fn decode_percent(input: &[u8], destination: &[u8]) -> result: u64 reads(input),
     if is_percent {
       let next1 = in_pos +wrap 1_u64;
       let next2 = in_pos +wrap 2_u64;
-      let has_room = next2 < in_len;
+      let next1_ok = next1 < in_len;
+      let next2_ok = next2 < in_len;
+      let has_room = band(next1_ok, next2_ok);
       if has_room {
         let first_byte = input^[next1];
         let second_byte = input^[next2];

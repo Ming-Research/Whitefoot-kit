@@ -61,11 +61,11 @@ fn filter_list(node: &LinkNode) -> result: Option<Box<LinkNode>> reads(node) {
     let next_list = match &node^.next {
       Some(value: next_box) => {
         let filtered = filter_list(node: &next_box^.inner);
-        move filtered
+        give move filtered;
       }
       None() => {
         let empty = None<Box<LinkNode>>();
-        move empty
+        give move empty;
       }
     };
     let new_node = LinkNode(value: node^.value, next: move next_list);
@@ -80,11 +80,11 @@ fn increment_list(node: &LinkNode) -> result: Option<Box<LinkNode>> reads(node) 
   let next_list = match &node^.next {
     Some(value: next_box) => {
       let inc = increment_list(node: &next_box^.inner);
-      move inc
+      give move inc;
     }
     None() => {
       let empty = None<Box<LinkNode>>();
-      move empty
+      give move empty;
     }
   };
   let new_node = LinkNode(value: incremented, next: move next_list);

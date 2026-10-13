@@ -69,7 +69,8 @@ fn write_u64_le(factory: &HandleFactory, output: &OutputStream, value: u64) -> r
   set bytes[7_u64] = byte7;
   let buffer = &bytes[0_u64..8_u64];
   let cancel = std::time::cancel_never();
-  let outcome = std::io::write_once(factory: factory, output: output, source: buffer, start: 0_u64, end: 8_u64, deadline: None<std::time::Instant>(), cancel: &cancel);
+  let no_deadline = None<std::time::Instant>();
+  let outcome = std::io::write_once(factory: factory, output: output, source: buffer, start: 0_u64, end: 8_u64, deadline: no_deadline, cancel: &cancel);
   std::time::close_cancel_watch(watch: move cancel);
   match outcome {
     Ok(value: next) => {

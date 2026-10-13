@@ -105,7 +105,9 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     place_back(window: &outputs, value: sum);
     set total_sum = fadd.strict(total_sum, sum);
     let rotate_idx = 7_u64;
-    loop @rotate {
+    loop @rotate (
+      invariant rotate_valid: rotate_idx < 8_u64
+    ) {
       if rotate_idx > 0_u64 {
       } else {
         break @rotate;

@@ -49,8 +49,9 @@ fn parse_bulk_string(buffer: &[u8], start: u64) -> result: Result<BulkStringPars
       return Err<BulkStringParsed, u64>(error: 1_u64);
     }
     let digit = byte - 48_u8;
+    let digit_u64 = cvt::<u8, u64>(digit);
     set len_value = len_value *wrap 10_u64;
-    set len_value = len_value +wrap cvt::<u8, u64>(digit);
+    set len_value = len_value +wrap digit_u64;
   }
   let data_start = len_end +wrap 2_u64;
   let data_end = data_start +wrap len_value;
@@ -103,8 +104,9 @@ fn parse_command(buffer: &[u8]) -> result: Result<CommandParsed, u64> reads(buff
       return Err<CommandParsed, u64>(error: 1_u64);
     }
     let digit = byte - 48_u8;
+    let digit_u64 = cvt::<u8, u64>(digit);
     set count = count *wrap 10_u64;
-    set count = count +wrap cvt::<u8, u64>(digit);
+    set count = count +wrap digit_u64;
   }
   let elements = slots_new::<Slots<u8>, 16>();
   set pos = count_end +wrap 2_u64;
@@ -154,8 +156,9 @@ fn bytes_to_i64(bytes: &Slots<u8>) -> result: Result<i64, unit> reads(bytes) {
       return Err<i64, unit>(error: unit);
     }
     let digit = byte - 48_u8;
+    let digit_i64 = cvt::<u8, i64>(digit);
     set value = value *wrap 10_i64;
-    set value = value +wrap cvt::<u8, i64>(digit);
+    set value = value +wrap digit_i64;
   }
   if negative {
     set value = 0_i64 - value;
@@ -237,7 +240,8 @@ fn handle_connection(store: Shared<unit>, send: TcpSend, receive: TcpReceive, fa
                             break @digit_loop;
                           }
                           let digit = working % 10_i64;
-                          let byte = cvt::<i64, u8>(digit) +wrap 48_u8;
+                          let digit_u8 = cvt::<i64, u8>(digit);
+                          let byte = digit_u8 +wrap 48_u8;
                           place_back(window: &digits, value: byte);
                           set working = working / 10_i64;
                           continue @digit_loop;
@@ -348,8 +352,9 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
               return std::process::exit_status(code: 1_u8);
             }
             let digit = byte - 48_u8;
+            let digit_u16 = cvt::<u8, u16>(digit);
             set port_parsed = port_parsed *wrap 10_u16;
-            set port_parsed = port_parsed +wrap cvt::<u8, u16>(digit);
+            set port_parsed = port_parsed +wrap digit_u16;
           }
           set port_value = port_parsed;
         }

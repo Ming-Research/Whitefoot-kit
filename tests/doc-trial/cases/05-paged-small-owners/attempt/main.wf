@@ -58,6 +58,10 @@ fn sum_range(run: &Run<u64>) -> result: u64 reads(run) {
   return sum;
 }
 
+fn measure_after_release(pool: Box<Paged<u64>>, meter: &std::process::MemoryMeter) -> result: u64 pure {
+  return std::process::heap_in_use(meter: meter);
+}
+
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let Inputs(args: unused_args, drivers: unused_drivers, cwd: directory, stdout: output, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: meter) = move inputs;
   let std::fs::Directory(read: directory_read, write: directory_write) = move directory;
@@ -139,10 +143,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   place_back(window: &results, value: diff_cap_513);
   let run = &pool.inner[0_u64..pool.inner.len];
   let sum_before_release = sum_range(run: run);
-  if True() {
-    let released_pool = move pool;
-  }
-  let heap_after_release = heap_in_use(meter: &meter);
+  let heap_after_release = measure_after_release(pool: move pool, meter: &meter);
   let diff_after_release = 0_u64;
   if heap_after_release >= baseline {
     set diff_after_release = heap_after_release - baseline;

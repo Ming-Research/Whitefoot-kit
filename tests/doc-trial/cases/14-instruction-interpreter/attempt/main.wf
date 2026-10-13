@@ -89,7 +89,6 @@ fn write_le_u64(factory: &HandleFactory, output: &OutputStream, value: u64) -> r
   set bytes[6_u64] = cvt.wrap::<u64, u8>(sh6);
   let sh7 = ishr(value, 56_u32);
   set bytes[7_u64] = cvt.wrap::<u64, u8>(sh7);
-
   let view = &bytes[0_u64..8_u64];
   let sent = 0_u64;
   loop @sending {
@@ -118,7 +117,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
   std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
   std::fs::close_directory(factory: &factory, directory: move cwd_read);
-
   let instructions = slots_new::<Instruction, 4>();
   let instr0 = Instruction::Add(literal: 3_u64);
   place_back(window: &instructions, value: instr0);
@@ -128,12 +126,9 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   place_back(window: &instructions, value: instr2);
   let instr3 = Instruction::Halt();
   place_back(window: &instructions, value: instr3);
-
   let view = &instructions[0_u64..instructions.len];
   let result = run_machine(instructions: view, counter: 1000_u64);
-
   let write_result = write_le_u64(factory: &factory, output: &stdout, value: result);
-
   match write_result {
     Ok(value: unused_ok) => {
       if result == 3000_u64 {

@@ -53,7 +53,8 @@ fn parse_port_bytes(bytes: &[u8]) -> result: Option<u16> reads(bytes) {
   if value > 65535_u32 {
     return None<u16>();
   }
-  return Some<u16>(value: cvt::<u32, u16>(value));
+  let converted = cvt::<u32, u16>(value);
+  return Some<u16>(value: converted);
 }
 
 fn parse_port(args: &Args) -> result: Option<u16> reads(args) {
@@ -70,7 +71,8 @@ fn parse_port(args: &Args) -> result: Option<u16> reads(args) {
       match copy_result {
         Ok(value: bytes_copied) => {
           let port_bytes = &buffer[0_u64..bytes_copied];
-          return parse_port_bytes(bytes: port_bytes);
+          let parsed = parse_port_bytes(bytes: port_bytes);
+          return parsed;
         }
         Err(error: err) => {
           return None<u16>();
