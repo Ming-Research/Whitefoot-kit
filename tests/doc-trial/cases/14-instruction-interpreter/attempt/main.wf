@@ -61,6 +61,7 @@ fn write_all(factory: &HandleFactory, output: &OutputStream, source: &[u8]) -> r
     let no_deadline = None<Instant>();
     let cancel = std::time::cancel_never();
     let outcome = std::io::write_once(factory: factory, output: output, source: source, start: sent, end: length, deadline: no_deadline, cancel: &cancel);
+
     std::time::close_cancel_watch(watch: move cancel);
     match outcome {
       Ok(value: next) => {
@@ -80,20 +81,39 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
   std::fs::close_directory(factory: &factory, directory: move cwd_read);
   let instructions = slots_new::<Instruction, 4>();
-  place_back(window: &instructions, value: Instruction::Add(value: 3_u64));
-  place_back(window: &instructions, value: Instruction::Decrement());
-  place_back(window: &instructions, value: Instruction::JumpIfNonzero(position: 0_u64));
-  place_back(window: &instructions, value: Instruction::Halt());
+  let instr_add = Instruction::Add(value: 3_u64);
+  place_back(window: &instructions, value: instr_add);
+  let instr_dec = Instruction::Decrement();
+  place_back(window: &instructions, value: instr_dec);
+  let instr_jump = Instruction::JumpIfNonzero(position: 0_u64);
+  place_back(window: &instructions, value: instr_jump);
+  let instr_halt = Instruction::Halt();
+  place_back(window: &instructions, value: instr_halt);
   let result = execute(instructions: &instructions[0_u64..4_u64], initial_counter: 1000_u64);
   let output_bytes = array_filled::<u8, 8>(value: 0_u8);
-  set output_bytes[0_u64] = cvt.wrap::<u64, u8>(result);
-  set output_bytes[1_u64] = cvt.wrap::<u64, u8>(ishr(result, 8_u32));
-  set output_bytes[2_u64] = cvt.wrap::<u64, u8>(ishr(result, 16_u32));
-  set output_bytes[3_u64] = cvt.wrap::<u64, u8>(ishr(result, 24_u32));
-  set output_bytes[4_u64] = cvt.wrap::<u64, u8>(ishr(result, 32_u32));
-  set output_bytes[5_u64] = cvt.wrap::<u64, u8>(ishr(result, 40_u32));
-  set output_bytes[6_u64] = cvt.wrap::<u64, u8>(ishr(result, 48_u32));
-  set output_bytes[7_u64] = cvt.wrap::<u64, u8>(ishr(result, 56_u32));
+  let byte0 = cvt.wrap::<u64, u8>(result);
+  set output_bytes[0_u64] = byte0;
+  let shifted1 = ishr(result, 8_u32);
+  let byte1 = cvt.wrap::<u64, u8>(shifted1);
+  set output_bytes[1_u64] = byte1;
+  let shifted2 = ishr(result, 16_u32);
+  let byte2 = cvt.wrap::<u64, u8>(shifted2);
+  set output_bytes[2_u64] = byte2;
+  let shifted3 = ishr(result, 24_u32);
+  let byte3 = cvt.wrap::<u64, u8>(shifted3);
+  set output_bytes[3_u64] = byte3;
+  let shifted4 = ishr(result, 32_u32);
+  let byte4 = cvt.wrap::<u64, u8>(shifted4);
+  set output_bytes[4_u64] = byte4;
+  let shifted5 = ishr(result, 40_u32);
+  let byte5 = cvt.wrap::<u64, u8>(shifted5);
+  set output_bytes[5_u64] = byte5;
+  let shifted6 = ishr(result, 48_u32);
+  let byte6 = cvt.wrap::<u64, u8>(shifted6);
+  set output_bytes[6_u64] = byte6;
+  let shifted7 = ishr(result, 56_u32);
+  let byte7 = cvt.wrap::<u64, u8>(shifted7);
+  set output_bytes[7_u64] = byte7;
   let output_view = &output_bytes[0_u64..8_u64];
   let write_result = write_all(factory: &factory, output: &output_stream, source: output_view);
   let status_code = if result == 3000_u64 {

@@ -71,7 +71,7 @@ fn pool_take(pool: BlockPool) -> result: Result<Lease, TakeError> pure {
       break;
     }
     match &pool.blocks[idx] {
-      Some(value: _) => {
+      Some(value: unused_block) => {
         if bnot(found) {
           set found = True();
           set taken_index = idx;
@@ -116,7 +116,7 @@ fn lease_return(lease: Lease) -> result: Result<BlockPool, ReturnError> pure {
       break;
     }
     match &pool.blocks[idx] {
-      Some(value: _) => {
+      Some(value: unused_block) => {
       }
       None() => {
         if bnot(found) {
@@ -134,7 +134,7 @@ fn lease_return(lease: Lease) -> result: Result<BlockPool, ReturnError> pure {
     set pool.free_count = next_free;
     return Ok<BlockPool, ReturnError>(value: move pool);
   }
-  let _ = move block;
+  let unused_block = move block;
   return Err<BlockPool, ReturnError>(error: ReturnError::NoRoom());
 }
 
@@ -166,15 +166,15 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let write_close_result = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
   let read_close_result = std::fs::close_directory(factory: &factory, directory: move cwd_read);
   match move write_close_result {
-    Ok(value: _) => {
+    Ok(value: unused_write_ok) => {
     }
-    Err(error: _) => {
+    Err(error: unused_write_error) => {
     }
   }
   match move read_close_result {
-    Ok(value: _) => {
+    Ok(value: unused_read_ok) => {
     }
-    Err(error: _) => {
+    Err(error: unused_read_error) => {
     }
   }
   let pool = block_pool_new();
@@ -191,7 +191,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
         Ok(value: returned_pool) => {
           let final_count = returned_pool.free_count;
           if final_count != 8_u64 {
-            let _ = move returned_pool;
+            let unused_pool = move returned_pool;
             return exit_status(code: 4_u8);
           }
           let output_buffer = array_filled::<u8, 24>(value: 0_u8);
@@ -209,17 +209,17 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
               }
               return exit_status(code: 250_u8);
             }
-            Err(error: _) => {
+            Err(error: unused_write_error) => {
               return exit_status(code: 250_u8);
             }
           }
         }
-        Err(error: _) => {
+        Err(error: unused_return_error) => {
           return exit_status(code: 5_u8);
         }
       }
     }
-    Err(error: _) => {
+    Err(error: unused_take_error) => {
       return exit_status(code: 3_u8);
     }
   }

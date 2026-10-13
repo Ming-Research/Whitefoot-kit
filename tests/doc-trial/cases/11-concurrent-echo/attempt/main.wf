@@ -14,7 +14,9 @@ fn decimal_to_u16(bytes: &[u8]) -> result: u16 pure {
       break;
     }
     let byte = bytes^[i];
-    let is_digit = band(byte >= 48_u8, byte <= 57_u8);
+    let check_low = byte >= 48_u8;
+    let check_high = byte <= 57_u8;
+    let is_digit = band(check_low, check_high);
     if is_digit {
       let digit = byte - 48_u8;
       let port_times_10 = port * 10_u64;

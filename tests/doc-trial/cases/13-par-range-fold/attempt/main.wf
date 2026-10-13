@@ -33,13 +33,20 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
 
   let output_bytes = array_filled::<u8, 8>(value: 0_u8);
   set output_bytes[0_u64] = cvt.wrap::<u64, u8>(total);
-  set output_bytes[1_u64] = cvt.wrap::<u64, u8>(ishr(total, 8_u32));
-  set output_bytes[2_u64] = cvt.wrap::<u64, u8>(ishr(total, 16_u32));
-  set output_bytes[3_u64] = cvt.wrap::<u64, u8>(ishr(total, 24_u32));
-  set output_bytes[4_u64] = cvt.wrap::<u64, u8>(ishr(total, 32_u32));
-  set output_bytes[5_u64] = cvt.wrap::<u64, u8>(ishr(total, 40_u32));
-  set output_bytes[6_u64] = cvt.wrap::<u64, u8>(ishr(total, 48_u32));
-  set output_bytes[7_u64] = cvt.wrap::<u64, u8>(ishr(total, 56_u32));
+  let byte1_shifted = ishr(total, 8_u32);
+  set output_bytes[1_u64] = cvt.wrap::<u64, u8>(byte1_shifted);
+  let byte2_shifted = ishr(total, 16_u32);
+  set output_bytes[2_u64] = cvt.wrap::<u64, u8>(byte2_shifted);
+  let byte3_shifted = ishr(total, 24_u32);
+  set output_bytes[3_u64] = cvt.wrap::<u64, u8>(byte3_shifted);
+  let byte4_shifted = ishr(total, 32_u32);
+  set output_bytes[4_u64] = cvt.wrap::<u64, u8>(byte4_shifted);
+  let byte5_shifted = ishr(total, 40_u32);
+  set output_bytes[5_u64] = cvt.wrap::<u64, u8>(byte5_shifted);
+  let byte6_shifted = ishr(total, 48_u32);
+  set output_bytes[6_u64] = cvt.wrap::<u64, u8>(byte6_shifted);
+  let byte7_shifted = ishr(total, 56_u32);
+  set output_bytes[7_u64] = cvt.wrap::<u64, u8>(byte7_shifted);
 
   let buffer = &output_bytes[0_u64..8_u64];
   let sent = 0_u64;

@@ -33,13 +33,20 @@ fn write_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], leng
 fn write_u64_le(factory: &HandleFactory, output: &OutputStream, value: u64) -> result: Result<unit, IoError> reads(output), writes(factory), writes(output) waits {
   let bytes = array_filled::<u8, 8>(value: 0_u8);
   let b0 = cvt.wrap::<u64, u8>(value);
-  let b1 = cvt.wrap::<u64, u8>(ishr(value, 8_u32));
-  let b2 = cvt.wrap::<u64, u8>(ishr(value, 16_u32));
-  let b3 = cvt.wrap::<u64, u8>(ishr(value, 24_u32));
-  let b4 = cvt.wrap::<u64, u8>(ishr(value, 32_u32));
-  let b5 = cvt.wrap::<u64, u8>(ishr(value, 40_u32));
-  let b6 = cvt.wrap::<u64, u8>(ishr(value, 48_u32));
-  let b7 = cvt.wrap::<u64, u8>(ishr(value, 56_u32));
+  let v1 = ishr(value, 8_u32);
+  let b1 = cvt.wrap::<u64, u8>(v1);
+  let v2 = ishr(value, 16_u32);
+  let b2 = cvt.wrap::<u64, u8>(v2);
+  let v3 = ishr(value, 24_u32);
+  let b3 = cvt.wrap::<u64, u8>(v3);
+  let v4 = ishr(value, 32_u32);
+  let b4 = cvt.wrap::<u64, u8>(v4);
+  let v5 = ishr(value, 40_u32);
+  let b5 = cvt.wrap::<u64, u8>(v5);
+  let v6 = ishr(value, 48_u32);
+  let b6 = cvt.wrap::<u64, u8>(v6);
+  let v7 = ishr(value, 56_u32);
+  let b7 = cvt.wrap::<u64, u8>(v7);
   set bytes[0_u64] = b0;
   set bytes[1_u64] = b1;
   set bytes[2_u64] = b2;

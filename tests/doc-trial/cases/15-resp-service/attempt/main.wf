@@ -226,10 +226,25 @@ fn i64_to_bytes(value: i64) -> result: Box<Slots<u8>> pure {
       if temp == 0_i64 {
         break @count_digits;
       }
-      let remainder = temp %wrap 10_i64;
-      let digit_byte = cvt::<i64, u8>(remainder) + 48_u8;
-      place_back(window: &digits, value: digit_byte);
-      set temp = temp /wrap 10_i64;
+      let remainder_result = temp %checked 10_i64;
+      match remainder_result {
+        Ok(value: remainder) => {
+          let digit_byte = cvt::<i64, u8>(remainder) + 48_u8;
+          place_back(window: &digits, value: digit_byte);
+          let div_result = temp /checked 10_i64;
+          match div_result {
+            Ok(value: quotient) => {
+              set temp = quotient;
+            }
+            Err(error: e) => {
+              break @count_digits;
+            }
+          }
+        }
+        Err(error: e) => {
+          break @count_digits;
+        }
+      }
     }
   }
   if is_negative {

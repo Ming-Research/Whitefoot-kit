@@ -13,23 +13,28 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let close_write_result = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
   let close_read_result = std::fs::close_directory(factory: &factory, directory: move cwd_read);
 
-  let exit_code = match close_write_result {
+  let code = 0_u8;
+  match close_write_result {
     Ok(value: unused_ok) => {
-      match close_read_result {
-        Ok(value: unused_ok2) => {
-          run_echo(factory: &factory, input: &input, output: &output)
-        }
-        Err(error: unused_err2) => {
-          1_u8
-        }
-      }
     }
     Err(error: unused_err) => {
-      1_u8
+      set code = 1_u8;
     }
-  };
+  }
+  match close_read_result {
+    Ok(value: unused_ok2) => {
+    }
+    Err(error: unused_err2) => {
+      set code = 1_u8;
+    }
+  }
 
-  return exit_status(code: exit_code);
+  if code == 0_u8 {
+    let exit_code = run_echo(factory: &factory, input: &input, output: &output);
+    return exit_status(code: exit_code);
+  }
+
+  return exit_status(code: code);
 }
 
 fn run_echo(factory: &HandleFactory, input: &InputStream, output: &OutputStream) -> result: u8 reads(input), reads(output), writes(factory) waits {

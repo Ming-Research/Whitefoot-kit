@@ -26,7 +26,8 @@ fn parse(bytes: &[u8], pos: u64) -> result: ParseResult reads(bytes) contract {
   requires pos <= bytes^.len;
 } {
   if pos >= bytes^.len {
-    return ParseResult::Error(error: ParseError::Truncated());
+    let truncated_error = ParseError::Truncated();
+    return ParseResult::Error(error: truncated_error);
   }
   let byte = bytes^[pos];
   let plus = 43_u8;
@@ -61,7 +62,8 @@ fn parse(bytes: &[u8], pos: u64) -> result: ParseResult reads(bytes) contract {
       let digit_expr = Expression::Digit(value: digit_value);
       return ParseResult::Success(expr: digit_expr, next: pos + 1_u64);
     } else {
-      return ParseResult::Error(error: ParseError::InvalidToken());
+      let invalid_error = ParseError::InvalidToken();
+      return ParseResult::Error(error: invalid_error);
     }
   }
 }

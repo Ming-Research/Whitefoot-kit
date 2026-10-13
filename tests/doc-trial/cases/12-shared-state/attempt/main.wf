@@ -38,21 +38,21 @@ fn consume(queue: Shared<Ring<u64, 8>>, total: Shared<u64>) -> result: unit pure
 
 fn encode_u64_le(value: u64) -> result: Array<u8, 8> pure {
   let bytes = array_filled::<u8, 8>(value: 0_u8);
-  let b0 = cvt.wrap::<u64, u8>(iand(value, 0xFF_u64));
+  let b0 = cvt.wrap::<u64, u8>(iand(value, 255_u64));
   let shifted1 = ishr(value, 8_u32);
-  let b1 = cvt.wrap::<u64, u8>(iand(shifted1, 0xFF_u64));
+  let b1 = cvt.wrap::<u64, u8>(iand(shifted1, 255_u64));
   let shifted2 = ishr(value, 16_u32);
-  let b2 = cvt.wrap::<u64, u8>(iand(shifted2, 0xFF_u64));
+  let b2 = cvt.wrap::<u64, u8>(iand(shifted2, 255_u64));
   let shifted3 = ishr(value, 24_u32);
-  let b3 = cvt.wrap::<u64, u8>(iand(shifted3, 0xFF_u64));
+  let b3 = cvt.wrap::<u64, u8>(iand(shifted3, 255_u64));
   let shifted4 = ishr(value, 32_u32);
-  let b4 = cvt.wrap::<u64, u8>(iand(shifted4, 0xFF_u64));
+  let b4 = cvt.wrap::<u64, u8>(iand(shifted4, 255_u64));
   let shifted5 = ishr(value, 40_u32);
-  let b5 = cvt.wrap::<u64, u8>(iand(shifted5, 0xFF_u64));
+  let b5 = cvt.wrap::<u64, u8>(iand(shifted5, 255_u64));
   let shifted6 = ishr(value, 48_u32);
-  let b6 = cvt.wrap::<u64, u8>(iand(shifted6, 0xFF_u64));
+  let b6 = cvt.wrap::<u64, u8>(iand(shifted6, 255_u64));
   let shifted7 = ishr(value, 56_u32);
-  let b7 = cvt.wrap::<u64, u8>(iand(shifted7, 0xFF_u64));
+  let b7 = cvt.wrap::<u64, u8>(iand(shifted7, 255_u64));
   set bytes[0_u64] = b0;
   set bytes[1_u64] = b1;
   set bytes[2_u64] = b2;

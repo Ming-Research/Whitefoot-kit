@@ -30,9 +30,12 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
       give sum;
     }
     Err(error: unused) => {
-      return exit_status(code: 1_u8);
+      give 0_u8;
     }
   };
+  if byte_sum != 3_u8 {
+    return exit_status(code: 1_u8);
+  }
 
   let overflow_result = 255_u8 +checked 1_u8;
   let overflow_marker = match overflow_result {
@@ -43,6 +46,9 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
       give 1_u64;
     }
   };
+  if overflow_marker != 1_u64 {
+    return exit_status(code: 1_u8);
+  }
 
   let signed_sum_result = -4_i64 +checked 9_i64;
   let signed_sum = match signed_sum_result {
@@ -50,9 +56,12 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
       give sum;
     }
     Err(error: unused) => {
-      return exit_status(code: 1_u8);
+      give 0_i64;
     }
   };
+  if signed_sum != 5_i64 {
+    return exit_status(code: 1_u8);
+  }
 
   let optional_byte = Some<u8>(value: 19_u8);
   let recovered_byte = match optional_byte {
@@ -60,14 +69,20 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
       give b;
     }
     None() => {
-      return exit_status(code: 1_u8);
+      give 0_u8;
     }
   };
+  if recovered_byte != 19_u8 {
+    return exit_status(code: 1_u8);
+  }
 
   let packet = array_filled::<u8, 2>(value: 11_u8);
   let cell = box_new::<Array<u8, 2>>(value: move packet);
   let packet_inner = cell.inner;
   let packet_byte = packet_inner[1_u64];
+  if packet_byte != 11_u8 {
+    return exit_status(code: 1_u8);
+  }
 
   let buffer = array_filled::<u8, 72>(value: 0_u8);
 

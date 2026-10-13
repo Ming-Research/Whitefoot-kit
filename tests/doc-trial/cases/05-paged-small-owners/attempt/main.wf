@@ -163,7 +163,8 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let heap11 = heap_in_use(meter: &meter);
   let diff11 = heap11 - baseline;
   let pool_empty = box_paged_new::<Array<u8, 0>>(capacity: 1_u64);
-  place_back(window: &pool_empty.inner, value: array_filled::<u8, 0>(value: 0_u8));
+  let empty_array = array_filled::<u8, 0>(value: 0_u8);
+  place_back(window: &pool_empty.inner, value: empty_array);
   grow_paged(cell: &pool_empty, capacity: 3_u64);
   let logical_cap = pool_empty.inner.pages.len;
   let heap12 = heap_in_use(meter: &meter);

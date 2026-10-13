@@ -54,7 +54,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
       give 8.0_f64;
     } else {
       give 0.0_f64;
-    };
+    }
 
     let out_val = fmul.strict(current, 0.125_f64);
 
