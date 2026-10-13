@@ -2,15 +2,15 @@ alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
 alias exit_status = std::process::exit_status;
 
-const MIX_MULTIPLIER: u64 = 6364136223846793005_u64;
-const MIX_ADDEND: u64 = 1442695040888963407_u64;
-const MIX_ROUNDS: u64 = 24_u64;
+const mix_multiplier: u64 = 6364136223846793005_u64;
+const mix_addend: u64 = 1442695040888963407_u64;
+const mix_rounds: u64 = 24_u64;
 
 fn mix_one(state: u64) -> result: u64 pure {
   let rotated = irotl(state, 27_u32);
-  let multiplied = state *wrap MIX_MULTIPLIER;
+  let multiplied = state *wrap mix_multiplier;
   let xored = ixor(rotated, multiplied);
-  let result = xored +wrap MIX_ADDEND;
+  let result = xored +wrap mix_addend;
   return result;
 }
 
@@ -18,7 +18,7 @@ fn fold_range(lo: u64, hi: u64) -> result: u64 pure {
   let total = 0_u64;
   for (seed in lo..hi) {
     let state = seed;
-    for (round in 0_u64..MIX_ROUNDS) {
+    for (round in 0_u64..mix_rounds) {
       set state = mix_one(state: state);
     }
     set total = total +wrap state;

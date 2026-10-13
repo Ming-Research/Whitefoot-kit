@@ -31,8 +31,10 @@ fn parse_int(data: &[u8]) -> result: Option<i64> reads(data) {
       } else {
         return None<i64>();
       }
-      let d = cvt::<u8, i64>(b - 48_u8);
-      set val = val *wrap 10_i64 +wrap d;
+      let digit_val = b - 48_u8;
+      let d = cvt::<u8, i64>(digit_val);
+      let temp_val = val *wrap 10_i64;
+      set val = temp_val +wrap d;
       set i = i + 1_u64;
     } else {
       break;
@@ -93,7 +95,8 @@ fn handle_client(factory: &std::io::HandleFactory, conn: std::net::TcpConnection
     if rpos >= 16384_u64 {
       break @client_loop;
     }
-    let remaining_cap = 16384_u64 - rpos;
+    let temp_cap = 16384_u64 - rpos;
+    let remaining_cap = temp_cap;
     let window = &rbuf[rpos..16384_u64];
     let no_deadline = None<std::time::Instant>();
     let cancel = std::time::cancel_never();
@@ -118,21 +121,24 @@ fn handle_client(factory: &std::io::HandleFactory, conn: std::net::TcpConnection
       if rbuf[pos] != 42_u8 {
         break @process_requests;
       }
-      let crlf_res = crlf_pos(buf: &rbuf, from: pos + 1_u64);
+      let pos_plus = pos + 1_u64;
+      let crlf_res = crlf_pos(buf: &rbuf, from: pos_plus);
       match crlf_res {
         None() => {
           break @process_requests;
         }
         Some(value: crlf) => {
-          let count_part = &rbuf[pos + 1_u64..crlf];
+          let count_part = &rbuf[pos_plus..crlf];
           let count_res = parse_int(count_part);
           match count_res {
             None() => {
-              set pos = crlf + 2_u64;
+              let next_pos = crlf + 2_u64;
+              set pos = next_pos;
             }
             Some(value: cnt) => {
               if cnt < 1_i64 {
-                set pos = crlf + 2_u64;
+                let next_pos = crlf + 2_u64;
+                set pos = next_pos;
               } else {
                 let count = cvt::<i64, u64>(cnt);
                 let offset = crlf + 2_u64;
@@ -149,14 +155,15 @@ fn handle_client(factory: &std::io::HandleFactory, conn: std::net::TcpConnection
                       set req_valid = False();
                       break @scan_args;
                     }
-                    let arg_crlf_res = crlf_pos(buf: &rbuf, from: offset + 1_u64);
+                    let offset_plus = offset + 1_u64;
+                    let arg_crlf_res = crlf_pos(buf: &rbuf, from: offset_plus);
                     match arg_crlf_res {
                       None() => {
                         set req_valid = False();
                         break @scan_args;
                       }
                       Some(value: arg_crlf) => {
-                        let len_part = &rbuf[offset + 1_u64..arg_crlf];
+                        let len_part = &rbuf[offset_plus..arg_crlf];
                         let len_res = parse_int(len_part);
                         match len_res {
                           None() => {
@@ -165,19 +172,22 @@ fn handle_client(factory: &std::io::HandleFactory, conn: std::net::TcpConnection
                           }
                           Some(value: alen) => {
                             if alen < 0_i64 {
-                              set offset = arg_crlf + 2_u64;
+                              let arg_crlf_plus = arg_crlf + 2_u64;
+                              set offset = arg_crlf_plus;
                             } else {
                               let alen_u64 = cvt::<i64, u64>(alen);
                               let arg_data_start = arg_crlf + 2_u64;
                               let arg_data_end = arg_data_start +wrap alen_u64;
-                              if arg_data_end + 2_u64 > rpos {
+                              let check_end = arg_data_end + 2_u64;
+                              if check_end > rpos {
                                 set req_valid = False();
                                 break @scan_args;
                               }
                               if arg_idx == 0_u64 {
                                 set first_arg_offset = offset;
                               }
-                              set offset = arg_data_end + 2_u64;
+                              let next_offset = arg_data_end + 2_u64;
+                              set offset = next_offset;
                             }
                             set arg_idx = arg_idx + 1_u64;
                           }
@@ -189,7 +199,8 @@ fn handle_client(factory: &std::io::HandleFactory, conn: std::net::TcpConnection
                   }
                 }
                 if req_valid {
-                  let arg_crlf_2 = crlf_pos(buf: &rbuf, from: first_arg_offset + 1_u64);
+                  let first_arg_offset_plus = first_arg_offset + 1_u64;
+                  let arg_crlf_2 = crlf_pos(buf: &rbuf, from: first_arg_offset_plus);
                   match arg_crlf_2 {
                     None() => {
                       set pos = offset;
@@ -226,12 +237,14 @@ fn handle_client(factory: &std::io::HandleFactory, conn: std::net::TcpConnection
       }
     }
     if pos > 0_u64 {
-      let remaining_data = rpos - pos;
+      let temp_rd = rpos - pos;
+      let remaining_data = temp_rd;
       if remaining_data > 0_u64 {
         let i = 0_u64;
         loop {
           if i < remaining_data {
-            set rbuf[i] = rbuf[pos +wrap i];
+            let source_idx = pos +wrap i;
+            set rbuf[i] = rbuf[source_idx];
             set i = i + 1_u64;
           } else {
             break;

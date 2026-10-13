@@ -64,7 +64,7 @@ fn parse_expr(input: &[u8], pos: u64) -> result: ParseResult reads(input) contra
   return ParseResult::InvalidToken();
 }
 
-fn write_u64_le(factory: &std::io::HandleFactory, output: &std::io::OutputStream, value: u64) -> result: Result<unit, std::io::IoError> reads(factory), writes(factory), writes(output) waits {
+fn write_u64_le(factory: &std::io::HandleFactory, output: &std::io::OutputStream, value: u64) -> result: Result<unit, std::io::IoError> writes(factory), writes(output) waits {
   let bytes = array_filled::<u8, 8>(value: 0_u8);
   let b0 = cvt.wrap::<u64, u8>(value);
   set bytes[0_u64] = b0;

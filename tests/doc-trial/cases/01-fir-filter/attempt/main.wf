@@ -32,17 +32,17 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let read_close = std::fs::close_directory(factory: &factory, directory: move cwd_read);
 
   match write_close {
-    Ok(value: _) => {
+    Ok(value: unused_write_ok) => {
     }
-    Err(error: _) => {
+    Err(error: unused_write_error) => {
       return exit_status(code: 1_u8);
     }
   }
 
   match read_close {
-    Ok(value: _) => {
+    Ok(value: unused_read_ok) => {
     }
-    Err(error: _) => {
+    Err(error: unused_read_error) => {
       return exit_status(code: 1_u8);
     }
   }
@@ -116,7 +116,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
         return exit_status(code: 250_u8);
       }
     }
-    Err(error: _) => {
+    Err(error: unused_write_error) => {
       return exit_status(code: 250_u8);
     }
   }

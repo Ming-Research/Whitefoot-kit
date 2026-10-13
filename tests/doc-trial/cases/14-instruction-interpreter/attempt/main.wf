@@ -109,7 +109,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     Ok(value: written) => {
       give written;
     }
-    Err(error: _) => {
+    Err(error: write_error) => {
       give 0_u64;
     }
   }
@@ -131,7 +131,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
         }
         set final_sent = next;
       }
-      Err(error: _) => {
+      Err(error: retry_error) => {
         break @finish_write;
       }
     }

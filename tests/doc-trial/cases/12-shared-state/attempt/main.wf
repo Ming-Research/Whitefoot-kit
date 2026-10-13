@@ -34,13 +34,20 @@ fn consume(queue: Shared<Ring<u64, 8>>, total: Shared<u64>) -> result: unit pure
 fn write_u64(factory: &HandleFactory, output: &OutputStream, value: u64) -> result: Result<unit, std::io::IoError> reads(factory), writes(factory), writes(output) waits {
   let bytes = array_filled::<u8, 8>(value: 0_u8);
   set bytes[0_u64] = cvt.wrap::<u64, u8>(value);
-  set bytes[1_u64] = cvt.wrap::<u64, u8>(ishr(value, 8_u32));
-  set bytes[2_u64] = cvt.wrap::<u64, u8>(ishr(value, 16_u32));
-  set bytes[3_u64] = cvt.wrap::<u64, u8>(ishr(value, 24_u32));
-  set bytes[4_u64] = cvt.wrap::<u64, u8>(ishr(value, 32_u32));
-  set bytes[5_u64] = cvt.wrap::<u64, u8>(ishr(value, 40_u32));
-  set bytes[6_u64] = cvt.wrap::<u64, u8>(ishr(value, 48_u32));
-  set bytes[7_u64] = cvt.wrap::<u64, u8>(ishr(value, 56_u32));
+  let shifted_1 = ishr(value, 8_u32);
+  set bytes[1_u64] = cvt.wrap::<u64, u8>(shifted_1);
+  let shifted_2 = ishr(value, 16_u32);
+  set bytes[2_u64] = cvt.wrap::<u64, u8>(shifted_2);
+  let shifted_3 = ishr(value, 24_u32);
+  set bytes[3_u64] = cvt.wrap::<u64, u8>(shifted_3);
+  let shifted_4 = ishr(value, 32_u32);
+  set bytes[4_u64] = cvt.wrap::<u64, u8>(shifted_4);
+  let shifted_5 = ishr(value, 40_u32);
+  set bytes[5_u64] = cvt.wrap::<u64, u8>(shifted_5);
+  let shifted_6 = ishr(value, 48_u32);
+  set bytes[6_u64] = cvt.wrap::<u64, u8>(shifted_6);
+  let shifted_7 = ishr(value, 56_u32);
+  set bytes[7_u64] = cvt.wrap::<u64, u8>(shifted_7);
   let buffer = &bytes[0_u64..8_u64];
   let sent = 0_u64;
   loop @sending {

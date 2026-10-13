@@ -36,7 +36,8 @@ fn echo_loop(factory: &HandleFactory, input: &InputStream, output: &OutputStream
   let buf_len = buffer^.len;
   loop {
     let cancel = std::time::cancel_never();
-    let read_result = std::io::read_next(factory: factory, input: input, destination: buffer, start: 0_u64, end: buf_len, deadline: None<std::time::Instant>(), cancel: &cancel);
+    let no_deadline = None<std::time::Instant>();
+    let read_result = std::io::read_next(factory: factory, input: input, destination: buffer, start: 0_u64, end: buf_len, deadline: no_deadline, cancel: &cancel);
     std::time::close_cancel_watch(watch: move cancel);
     match read_result {
       Ok(value: bytes_read) => {
@@ -68,7 +69,8 @@ fn write_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], end:
       break;
     }
     let cancel = std::time::cancel_never();
-    let write_result = std::io::write_once(factory: factory, output: output, source: source, start: offset, end: end, deadline: None<std::time::Instant>(), cancel: &cancel);
+    let no_deadline = None<std::time::Instant>();
+    let write_result = std::io::write_once(factory: factory, output: output, source: source, start: offset, end: end, deadline: no_deadline, cancel: &cancel);
     std::time::close_cancel_watch(watch: move cancel);
     match write_result {
       Ok(value: next) => {

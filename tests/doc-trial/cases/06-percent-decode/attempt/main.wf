@@ -7,17 +7,23 @@ alias CancelWatch = std::time::CancelWatch;
 alias Instant = std::time::Instant;
 
 fn hex_digit_value(byte: u8) -> result: Option<u8> pure {
-  let is_decimal = byte >= 48_u8 band byte <= 57_u8;
+  let is_decimal_low = byte >= 48_u8;
+  let is_decimal_high = byte <= 57_u8;
+  let is_decimal = band(is_decimal_low, is_decimal_high);
   if is_decimal {
     let value = byte - 48_u8;
     return Some<u8>(value: value);
   }
-  let is_upper = byte >= 65_u8 band byte <= 70_u8;
+  let is_upper_low = byte >= 65_u8;
+  let is_upper_high = byte <= 70_u8;
+  let is_upper = band(is_upper_low, is_upper_high);
   if is_upper {
     let value = byte - 55_u8;
     return Some<u8>(value: value);
   }
-  let is_lower = byte >= 97_u8 band byte <= 102_u8;
+  let is_lower_low = byte >= 97_u8;
+  let is_lower_high = byte <= 102_u8;
+  let is_lower = band(is_lower_low, is_lower_high);
   if is_lower {
     let value = byte - 87_u8;
     return Some<u8>(value: value);

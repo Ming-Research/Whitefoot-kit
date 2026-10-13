@@ -33,7 +33,8 @@ fn parse_port(args: &Args) -> result: Result<u16, unit> reads(args) {
               if digit_char <= 57_u8 {
                 let digit = digit_char - 48_u8;
                 let digit_u16 = cvt::<u8, u16>(digit);
-                let new_port = port *wrap 10_u16 +wrap digit_u16;
+                let multiplied = port *wrap 10_u16;
+                let new_port = multiplied +wrap digit_u16;
                 set port = new_port;
                 set i = i + 1_u64;
               } else {
@@ -120,6 +121,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
           let i = 0_u64;
           let no_deadline = None<Instant>();
           let cancel = std::time::cancel_never();
+          let success = True();
           loop @accept_loop {
             if i < 12_u64 {
             } else {
@@ -136,15 +138,17 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
                 set i = i + 1_u64;
               }
               Err(error: problem) => {
-                std::time::close_cancel_watch(watch: move cancel);
-                let close_listener_result = std::net::close_listener(factory: &handles, listener: move listener);
-                return std::process::exit_status(code: 1_u8);
+                set success = False();
+                break @accept_loop;
               }
             }
           }
           std::time::close_cancel_watch(watch: move cancel);
           let close_listener_result = std::net::close_listener(factory: &handles, listener: move listener);
-          return std::process::exit_status(code: 0_u8);
+          if success {
+            return std::process::exit_status(code: 0_u8);
+          }
+          return std::process::exit_status(code: 1_u8);
         }
         Err(error: problem) => {
           return std::process::exit_status(code: 1_u8);

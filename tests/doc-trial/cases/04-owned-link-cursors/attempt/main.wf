@@ -49,7 +49,16 @@ fn remove_even(head: &Option<Box<Node>>) -> result: unit writes(head) {
   loop @remove {
     match cursor_ref^ {
       Some(value: node) => {
-        let is_even = node^.inner.value % 2_u64 == 0_u64;
+        let modulo_result = node^.inner.value %checked 2_u64;
+        let mod_val = match modulo_result {
+          Ok(value: m) => {
+            give m;
+          }
+          Err(error: err) => {
+            give 1_u64;
+          }
+        };
+        let is_even = mod_val == 0_u64;
         if is_even {
           let next_node = &node^.inner.next;
           swap(first: cursor_ref, second: next_node);

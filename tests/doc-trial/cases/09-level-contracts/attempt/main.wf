@@ -29,9 +29,10 @@ fn write_u64_le(factory: &HandleFactory, output: &OutputStream, value: u64) -> r
     } else {
       break @write;
     }
+    let end_pos = 8_u64 - sent;
     let no_deadline = None<std::time::Instant>();
     let cancel = std::time::cancel_never();
-    let outcome = std::io::write_once(factory: factory, output: output, source: &bytes[sent..8_u64], start: 0_u64, end: 8_u64 - sent, deadline: no_deadline, cancel: &cancel);
+    let outcome = std::io::write_once(factory: factory, output: output, source: &bytes[sent..8_u64], start: 0_u64, end: end_pos, deadline: no_deadline, cancel: &cancel);
     std::time::close_cancel_watch(watch: move cancel);
     match outcome {
       Ok(value: next) => {
@@ -64,7 +65,8 @@ fn validate(parents: &[u32], depths: &[u32]) -> result: u8 reads(parents), reads
         set valid = False();
       } else {
         let parent_depth = depths^[parent_u64];
-        if parent_depth + 1_u32 != depth {
+        let expected_depth = parent_depth + 1_u32;
+        if expected_depth != depth {
           set valid = False();
         }
       }
@@ -130,7 +132,8 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
 
   let accept = validate(parents: &parents[0_u64..6_u64], depths: &depths[0_u64..6_u64]);
 
-  let outcome = write_u64_le(factory: &factory, output: &output, value: cvt::<u8, u64>(accept));
+  let accept_u64 = cvt::<u8, u64>(accept);
+  let outcome = write_u64_le(factory: &factory, output: &output, value: accept_u64);
   match outcome {
     Ok(value: unused) => {
     }
@@ -148,7 +151,8 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
       }
     }
 
-    let max_depth_u64 = cvt::<u32, u64>(max_depth) + 1_u64;
+    let max_depth_converted = cvt::<u32, u64>(max_depth);
+    let max_depth_u64 = max_depth_converted + 1_u64;
     let outcome = write_u64_le(factory: &factory, output: &output, value: max_depth_u64);
     match outcome {
       Ok(value: unused) => {
@@ -164,7 +168,8 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     ) {
       let count = 0_u64;
       for (i in 0_u64..6_u64) {
-        if cvt::<u32, u64>(depths[i]) == d {
+        let depth_converted = cvt::<u32, u64>(depths[i]);
+        if depth_converted == d {
           set count = count + 1_u64;
         }
       }
@@ -179,7 +184,8 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
       }
 
       for (i in 0_u64..6_u64) {
-        if cvt::<u32, u64>(depths[i]) == d {
+        let depth_converted = cvt::<u32, u64>(depths[i]);
+        if depth_converted == d {
           let outcome = write_u64_le(factory: &factory, output: &output, value: i);
           match outcome {
             Ok(value: unused) => {
@@ -229,7 +235,8 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   set parents1[5_u64] = 2_u32;
 
   let accept1 = validate(parents: &parents1[0_u64..6_u64], depths: &depths[0_u64..6_u64]);
-  let outcome = write_u64_le(factory: &factory, output: &output, value: cvt::<u8, u64>(accept1));
+  let accept1_u64 = cvt::<u8, u64>(accept1);
+  let outcome = write_u64_le(factory: &factory, output: &output, value: accept1_u64);
   match outcome {
     Ok(value: unused) => {
     }
@@ -247,7 +254,8 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   set depths2[5_u64] = 2_u32;
 
   let accept2 = validate(parents: &parents[0_u64..6_u64], depths: &depths2[0_u64..6_u64]);
-  let outcome = write_u64_le(factory: &factory, output: &output, value: cvt::<u8, u64>(accept2));
+  let accept2_u64 = cvt::<u8, u64>(accept2);
+  let outcome = write_u64_le(factory: &factory, output: &output, value: accept2_u64);
   match outcome {
     Ok(value: unused) => {
     }
@@ -265,7 +273,8 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   set depths3[5_u64] = 2_u32;
 
   let accept3 = validate(parents: &parents[0_u64..6_u64], depths: &depths3[0_u64..6_u64]);
-  let outcome = write_u64_le(factory: &factory, output: &output, value: cvt::<u8, u64>(accept3));
+  let accept3_u64 = cvt::<u8, u64>(accept3);
+  let outcome = write_u64_le(factory: &factory, output: &output, value: accept3_u64);
   match outcome {
     Ok(value: unused) => {
     }

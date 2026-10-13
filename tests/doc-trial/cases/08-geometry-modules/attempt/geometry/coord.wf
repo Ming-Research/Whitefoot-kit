@@ -54,8 +54,14 @@ fn coord_max(left: Coord, right: Coord) -> result: Coord pure {
 }
 
 fn point_in_rect(point: Point, rect: Rect) -> result: Bool pure {
-  let x_in = band(point.x.raw >= rect.x.raw, point.x.raw < rect.x.raw +sat rect.width.raw);
-  let y_in = band(point.y.raw >= rect.y.raw, point.y.raw < rect.y.raw +sat rect.height.raw);
+  let x_at_least = point.x.raw >= rect.x.raw;
+  let right_bound = rect.x.raw +sat rect.width.raw;
+  let x_before_right = point.x.raw < right_bound;
+  let x_in = band(x_at_least, x_before_right);
+  let y_at_least = point.y.raw >= rect.y.raw;
+  let bottom_bound = rect.y.raw +sat rect.height.raw;
+  let y_before_bottom = point.y.raw < bottom_bound;
+  let y_in = band(y_at_least, y_before_bottom);
   let contained = band(x_in, y_in);
   return contained;
 }
@@ -65,8 +71,12 @@ fn rects_intersect(a: Rect, b: Rect) -> result: Bool pure {
   let b_right = b.x.raw +sat b.width.raw;
   let a_bottom = a.y.raw +sat a.height.raw;
   let b_bottom = b.y.raw +sat b.height.raw;
-  let x_overlap = band(a.x.raw < b_right, b.x.raw < a_right);
-  let y_overlap = band(a.y.raw < b_bottom, b.y.raw < a_bottom);
+  let a_left_before_b_right = a.x.raw < b_right;
+  let b_left_before_a_right = b.x.raw < a_right;
+  let x_overlap = band(a_left_before_b_right, b_left_before_a_right);
+  let a_top_before_b_bottom = a.y.raw < b_bottom;
+  let b_top_before_a_bottom = b.y.raw < a_bottom;
+  let y_overlap = band(a_top_before_b_bottom, b_top_before_a_bottom);
   let intersect = band(x_overlap, y_overlap);
   return intersect;
 }
