@@ -44,9 +44,10 @@ fn sum_list(head: &Option<Box<Node>>) -> result: u64 reads(head) {
 }
 
 fn remove_even(head: &Option<Box<Node>>) -> result: unit writes(head) {
-  let cursor_ref = head;
-  loop @remove {
-    match cursor_ref^ {
+  let cursor = head;
+  loop @process {
+    let holder = None<Box<Node>>();
+    match cursor^ {
       Some(value: node) => {
         let modulo_result = node^.inner.value %checked 2_u64;
         let mod_val = match modulo_result {
@@ -59,11 +60,19 @@ fn remove_even(head: &Option<Box<Node>>) -> result: unit writes(head) {
         }
         let is_even = mod_val == 0_u64;
         if is_even {
-          let next_node = &node^.inner.next;
-          swap(first: cursor_ref, second: next_node);
-          continue @remove;
+          swap(first: cursor, second: &holder);
+          let removed = match move holder {
+            Some(value: removed_node) => {
+              give move removed_node;
+            }
+            None() => {
+              return unit;
+            }
+          }
+          swap(first: cursor, second: &removed.inner.next);
+          continue @process;
         } else {
-          set cursor_ref = &node^.inner.next;
+          set cursor = &node^.inner.next;
         }
       }
       None() => {

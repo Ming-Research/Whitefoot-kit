@@ -132,9 +132,9 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
             let accept_result = std::net::tcp_accept(factory: &handles, listener: &listener, deadline: no_deadline, cancel: &cancel);
             match move accept_result {
               Ok(value: accepted) => {
-                let connection = accepted.connection;
-                let receive = connection.receive;
-                let send = connection.send;
+                let connection = move accepted.connection;
+                let receive = move connection.receive;
+                let send = move connection.send;
                 let factory_share = std::io::factory_share(factory: &handles);
                 spawn echo_peer(factory: move factory_share, receive: move receive, send: move send);
                 set i = i + 1_u64;

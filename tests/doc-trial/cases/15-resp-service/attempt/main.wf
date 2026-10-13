@@ -91,6 +91,7 @@ fn send_response(factory: &std::io::HandleFactory, send: &std::net::TcpSend, dat
 }
 
 fn handle_client(factory: &std::io::HandleFactory, conn: std::net::TcpConnection) -> result: unit pure waits {
+  let std::net::TcpConnection(receive: recv_half, send: send_half) = move conn;
   let rbuf = array_filled::<u8, 16384>(value: 0_u8);
   let rpos = 0_u64;
   loop @client_loop {
@@ -102,7 +103,7 @@ fn handle_client(factory: &std::io::HandleFactory, conn: std::net::TcpConnection
     let window = &rbuf[rpos..16384_u64];
     let no_deadline = None<std::time::Instant>();
     let cancel = std::time::cancel_never();
-    let read_res = std::net::receive_next(receive: &conn.receive, destination: window, start: 0_u64, end: remaining_cap, deadline: no_deadline, cancel: &cancel);
+    let read_res = std::net::receive_next(receive: &recv_half, destination: window, start: 0_u64, end: remaining_cap, deadline: no_deadline, cancel: &cancel);
     std::time::close_cancel_watch(watch: move cancel);
     match read_res {
       Ok(value: nread) => {
@@ -221,7 +222,7 @@ fn handle_client(factory: &std::io::HandleFactory, conn: std::net::TcpConnection
                       set send_pong[5_u64] = 13_u8;
                       set send_pong[6_u64] = 10_u8;
                       let pong_view = &send_pong[0_u64..7_u64];
-                      let send_ok = send_response(factory: factory, send: &conn.send, data: pong_view);
+                      let send_ok = send_response(factory: factory, send: &send_half, data: pong_view);
                       match send_ok {
                         Ok(value: unused) => {
                         }
@@ -261,8 +262,8 @@ fn handle_client(factory: &std::io::HandleFactory, conn: std::net::TcpConnection
       }
     }
   }
-  let unused1 = std::net::close_receive(factory: factory, receive: move conn.receive);
-  let unused2 = std::net::close_send(factory: factory, send: move conn.send);
+  let unused1 = std::net::close_receive(factory: factory, receive: move recv_half);
+  let unused2 = std::net::close_send(factory: factory, send: move send_half);
   return unit;
 }
 

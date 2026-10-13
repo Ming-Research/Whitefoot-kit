@@ -31,7 +31,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
       return exit_status(code: 1_u8);
     }
   }
-
   let outputs = array_filled::<f64, 64>(value: 0.0_f64);
   let sum_var = 0.0_f64;
 

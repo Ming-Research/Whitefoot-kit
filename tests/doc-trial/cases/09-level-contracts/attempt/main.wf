@@ -46,7 +46,9 @@ fn write_u64_le(factory: &HandleFactory, output: &OutputStream, value: u64) -> r
   return Ok<unit, IoError>(value: unit);
 }
 
-fn validate(parents: &[u32], depths: &[u32]) -> result: u8 reads(parents), reads(depths) {
+fn validate(parents: &[u32], depths: &[u32]) -> result: u8 reads(parents), reads(depths) contract {
+  requires parents^.len == depths^.len;
+} {
   let n = parents^.len;
   let valid = True();
   for (i in 0_u64..n) {

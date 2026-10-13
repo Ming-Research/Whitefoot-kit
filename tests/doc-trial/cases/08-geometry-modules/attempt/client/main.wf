@@ -139,35 +139,36 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     }
   }
   let buffer = array_filled::<u8, 112>(value: 0_u8);
+  let buf_slice = &buffer[0_u64..112_u64];
   let obs1_coord = coord_from_whole(pixels: 2_i32);
   let obs1 = cvt::<i32, i64>(obs1_coord.raw);
-  write_i64_le(buffer: &buffer, offset: 0_u64, value: obs1);
+  write_i64_le(buffer: buf_slice, offset: 0_u64, value: obs1);
   let obs2_coord = coord_from_whole(pixels: 2147483647_i32);
   let obs2 = cvt::<i32, i64>(obs2_coord.raw);
-  write_i64_le(buffer: &buffer, offset: 8_u64, value: obs2);
+  write_i64_le(buffer: buf_slice, offset: 8_u64, value: obs2);
   let obs3_coord = coord_from_whole(pixels: -2147483648_i32);
   let obs3 = cvt::<i32, i64>(obs3_coord.raw);
-  write_i64_le(buffer: &buffer, offset: 16_u64, value: obs3);
+  write_i64_le(buffer: buf_slice, offset: 16_u64, value: obs3);
   let obs4_coord = coord_from_f64(pixels: 1.5_f64);
   let obs4 = cvt::<i32, i64>(obs4_coord.raw);
-  write_i64_le(buffer: &buffer, offset: 24_u64, value: obs4);
+  write_i64_le(buffer: buf_slice, offset: 24_u64, value: obs4);
   let obs5_f64 = coord_to_f64(coord: obs4_coord);
-  write_f64_le(buffer: &buffer, offset: 32_u64, value: obs5_f64);
+  write_f64_le(buffer: buf_slice, offset: 32_u64, value: obs5_f64);
   let obs6_coord = coord_from_f64(pixels: 0.0078125_f64);
   let obs6 = cvt::<i32, i64>(obs6_coord.raw);
-  write_i64_le(buffer: &buffer, offset: 40_u64, value: obs6);
+  write_i64_le(buffer: buf_slice, offset: 40_u64, value: obs6);
   let obs7_coord = coord_from_f64(pixels: 0.0234375_f64);
   let obs7 = cvt::<i32, i64>(obs7_coord.raw);
-  write_i64_le(buffer: &buffer, offset: 48_u64, value: obs7);
+  write_i64_le(buffer: buf_slice, offset: 48_u64, value: obs7);
   let max_coord = Coord(raw: 2147483647_i32);
   let one_pixel = coord_from_whole(pixels: 1_i32);
   let obs8_coord = coord_add_sat(left: max_coord, right: one_pixel);
   let obs8 = cvt::<i32, i64>(obs8_coord.raw);
-  write_i64_le(buffer: &buffer, offset: 56_u64, value: obs8);
+  write_i64_le(buffer: buf_slice, offset: 56_u64, value: obs8);
   let min_coord = Coord(raw: -2147483648_i32);
   let obs9_coord = coord_sub_sat(left: min_coord, right: one_pixel);
   let obs9 = cvt::<i32, i64>(obs9_coord.raw);
-  write_i64_le(buffer: &buffer, offset: 64_u64, value: obs9);
+  write_i64_le(buffer: buf_slice, offset: 64_u64, value: obs9);
   let c640 = Coord(raw: 640_i32);
   let c1280 = Coord(raw: 1280_i32);
   let c192 = Coord(raw: 192_i32);
@@ -180,7 +181,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   } else {
     give 0_u64;
   }
-  write_u64_le(buffer: &buffer, offset: 72_u64, value: obs10_val);
+  write_u64_le(buffer: buf_slice, offset: 72_u64, value: obs10_val);
   let c768 = Coord(raw: 768_i32);
   let c1472 = Coord(raw: 1472_i32);
   let pt2 = Point(x: c768, y: c1472);
@@ -190,7 +191,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   } else {
     give 0_u64;
   }
-  write_u64_le(buffer: &buffer, offset: 80_u64, value: obs11_val);
+  write_u64_le(buffer: buf_slice, offset: 80_u64, value: obs11_val);
   let c832 = Coord(raw: 832_i32);
   let pt3 = Point(x: c832, y: c1472);
   let obs12 = point_in_rect(point: pt3, rect: rect1);
@@ -199,7 +200,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   } else {
     give 0_u64;
   }
-  write_u64_le(buffer: &buffer, offset: 88_u64, value: obs12_val);
+  write_u64_le(buffer: buf_slice, offset: 88_u64, value: obs12_val);
   let c1536 = Coord(raw: 1536_i32);
   let pt4 = Point(x: c768, y: c1536);
   let obs13 = point_in_rect(point: pt4, rect: rect1);
@@ -208,7 +209,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   } else {
     give 0_u64;
   }
-  write_u64_le(buffer: &buffer, offset: 96_u64, value: obs13_val);
+  write_u64_le(buffer: buf_slice, offset: 96_u64, value: obs13_val);
   let rect2 = Rect(x: c832, y: c1280, width: c192, height: c256);
   let obs14 = rects_intersect(a: rect1, b: rect2);
   let obs14_val = if obs14 {
@@ -216,7 +217,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   } else {
     give 0_u64;
   }
-  write_u64_le(buffer: &buffer, offset: 104_u64, value: obs14_val);
-  let published = propagate publish_all(factory: &factory, output: &output, buffer: &buffer);
+  write_u64_le(buffer: buf_slice, offset: 104_u64, value: obs14_val);
+  let published = propagate publish_all(factory: &factory, output: &output, buffer: buf_slice);
   return exit_status(code: 0_u8);
 }

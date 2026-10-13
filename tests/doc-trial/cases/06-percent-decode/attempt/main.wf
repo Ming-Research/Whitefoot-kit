@@ -33,12 +33,15 @@ fn hex_digit_value(byte: u8) -> result: Option<u8> pure contract {
   return None<u8>();
 }
 
-fn decode_percent(input: &[u8], output: &[u8]) -> result: u64 reads(input), writes(output) {
+fn decode_percent(input: &[u8], output: &[u8]) -> result: u64 reads(input), writes(output) contract {
+  requires output^.len >= input^.len;
+} {
   let input_len = input^.len;
   let out_pos = 0_u64;
   let in_pos = 0_u64;
   loop (
-    invariant progress: out_pos <= in_pos
+    invariant progress: out_pos <= in_pos,
+    invariant input_bound: in_pos <= input^.len
   ) {
     if in_pos >= input_len {
       break;

@@ -73,7 +73,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let cancel = std::time::cancel_never();
   let outcome = std::io::write_once(factory: &factory, output: &output, source: window, start: 0_u64, end: 8_u64, deadline: no_deadline, cancel: &cancel);
   std::time::close_cancel_watch(watch: move cancel);
-
   match outcome {
     Ok(value: written) => {
       if written == 8_u64 {

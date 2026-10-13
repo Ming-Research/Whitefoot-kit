@@ -38,13 +38,20 @@ fn return_lease(pool: BlockPool, lease: BlockLease) -> (pool: BlockPool, success
 fn u64_to_bytes(value: u64) -> result: Array<u8, 8> pure {
   let bytes = array_filled::<u8, 8>(value: 0_u8);
   set bytes[0_u64] = cvt.wrap::<u64, u8>(value);
-  set bytes[1_u64] = cvt.wrap::<u64, u8>(ishr(value, 8_u32));
-  set bytes[2_u64] = cvt.wrap::<u64, u8>(ishr(value, 16_u32));
-  set bytes[3_u64] = cvt.wrap::<u64, u8>(ishr(value, 24_u32));
-  set bytes[4_u64] = cvt.wrap::<u64, u8>(ishr(value, 32_u32));
-  set bytes[5_u64] = cvt.wrap::<u64, u8>(ishr(value, 40_u32));
-  set bytes[6_u64] = cvt.wrap::<u64, u8>(ishr(value, 48_u32));
-  set bytes[7_u64] = cvt.wrap::<u64, u8>(ishr(value, 56_u32));
+  let shift1 = ishr(value, 8_u32);
+  set bytes[1_u64] = cvt.wrap::<u64, u8>(shift1);
+  let shift2 = ishr(value, 16_u32);
+  set bytes[2_u64] = cvt.wrap::<u64, u8>(shift2);
+  let shift3 = ishr(value, 24_u32);
+  set bytes[3_u64] = cvt.wrap::<u64, u8>(shift3);
+  let shift4 = ishr(value, 32_u32);
+  set bytes[4_u64] = cvt.wrap::<u64, u8>(shift4);
+  let shift5 = ishr(value, 40_u32);
+  set bytes[5_u64] = cvt.wrap::<u64, u8>(shift5);
+  let shift6 = ishr(value, 48_u32);
+  set bytes[6_u64] = cvt.wrap::<u64, u8>(shift6);
+  let shift7 = ishr(value, 56_u32);
+  set bytes[7_u64] = cvt.wrap::<u64, u8>(shift7);
   return move bytes;
 }
 

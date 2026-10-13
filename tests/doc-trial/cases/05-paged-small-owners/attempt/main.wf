@@ -76,6 +76,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   grow_paged(cell: &pool1, capacity: 4_u64);
   let heap4 = std::process::heap_in_use(meter: &meter);
   let diff4 = heap4 -wrap baseline;
+  grow_paged(cell: &pool1, capacity: 512_u64);
   for (i in 3_u64..512_u64) {
     if pool1.inner.len < pool1.inner.cap {
       place_back(window: &pool1.inner, value: i);

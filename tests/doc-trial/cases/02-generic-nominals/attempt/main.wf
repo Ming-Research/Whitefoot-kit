@@ -87,10 +87,8 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let buffer = array_filled::<u8, 72>(value: 0_u8);
   let word1 = cvt::<u8, u64>(byte_pair.left);
   write_u64_le(buffer: &buffer, offset: 0_u64, value: word1);
-
   let signed_right_as_u64 = cvt.wrap::<i64, u64>(signed_pair.right);
   write_u64_le(buffer: &buffer, offset: 8_u64, value: signed_right_as_u64);
-
   let word3 = match choice_present_3 {
     Present(value: choice_val) => {
       give choice_val;
@@ -100,7 +98,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     }
   }
   write_u64_le(buffer: &buffer, offset: 16_u64, value: word3);
-
   let word4_raw = match choice_present_neg5 {
     Present(value: choice_val) => {
       give choice_val;
@@ -111,7 +108,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   }
   let word4_as_u64 = cvt.wrap::<i64, u64>(word4_raw);
   write_u64_le(buffer: &buffer, offset: 24_u64, value: word4_as_u64);
-
   let word5 = match byte_add_result {
     Ok(value: sum_value) => {
       give cvt::<u8, u64>(sum_value);
@@ -121,7 +117,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     }
   }
   write_u64_le(buffer: &buffer, offset: 32_u64, value: word5);
-
   let word6 = match overflow_result {
     Ok(value: sum_value) => {
       return exit_status(code: 1_u8);
@@ -131,7 +126,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     }
   }
   write_u64_le(buffer: &buffer, offset: 40_u64, value: word6);
-
   let word7 = match signed_add_result {
     Ok(value: sum_value) => {
       give cvt::<i64, u64>(sum_value);
@@ -141,7 +135,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     }
   }
   write_u64_le(buffer: &buffer, offset: 48_u64, value: word7);
-
   let word8 = match optional_byte {
     Some(value: byte_value) => {
       give cvt::<u8, u64>(byte_value);
@@ -151,7 +144,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     }
   }
   write_u64_le(buffer: &buffer, offset: 56_u64, value: word8);
-
   let word9 = cvt::<u8, u64>(boxed_packet.inner.second);
   write_u64_le(buffer: &buffer, offset: 64_u64, value: word9);
   let buffer_slice = &buffer[0_u64..72_u64];

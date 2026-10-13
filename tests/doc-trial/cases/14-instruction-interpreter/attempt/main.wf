@@ -95,13 +95,13 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let default_instr = Instruction::Halt();
   let instructions = array_filled::<Instruction, 4>(value: default_instr);
   let add_instr = Instruction::Add(value: 3_u64);
-  set instructions[0_u64] = move add_instr;
+  set instructions[0_u64] = add_instr;
   let dec_instr = Instruction::Decrement();
-  set instructions[1_u64] = move dec_instr;
+  set instructions[1_u64] = dec_instr;
   let jump_instr = Instruction::Jump(position: 0_u64);
-  set instructions[2_u64] = move jump_instr;
+  set instructions[2_u64] = jump_instr;
   let halt_instr = Instruction::Halt();
-  set instructions[3_u64] = move halt_instr;
+  set instructions[3_u64] = halt_instr;
   let instr_slice = &instructions[0_u64..4_u64];
   let result = run(instructions: instr_slice, initial_counter: 1000_u64);
   let bytes = u64_to_little_endian(value: result);
