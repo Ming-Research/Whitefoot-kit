@@ -948,7 +948,7 @@ Silent cost and check: Bool dataflow does not promise branchless machine code; i
 
 Declare the narrowest truthful reference effect row and state only genuine caller requirements and proved result/state relations. Reason: a call invalidates facts from its declared writes and publishes its declared guarantees, rather than reading its implementation [EFF-1, EFF-2, FN-8, FN-9].
 
-When a long call chain decides changes to shared state, compute the changes as owned values in `pure` or read-only helpers, and apply them in one shallow writer near the state's owner. Only that writer's row carries `writes`, so the facts and independence the deciding helpers rely on survive their calls, and the mutation boundary stays visible in signatures. [EFF-1, EFF-2]
+When a long call chain decides changes to state reached through reference parameters, compute the changes as owned values in `pure` or read-only helpers, and apply them in one shallow writer near the state's owner. The deciding helpers then carry no `writes` for that state, so the facts and independence their callers rely on survive the calls, and the mutation boundary stays visible in signatures; callers of the writer still inherit its projected writes. [EFF-1, EFF-2] This concerns ordinary state only: a shared object's state is outside the row, a `pure waits` function can change it, and its accesses follow the atomic-statement rules of Part 3. [SHARE-2]
 
 ```whitefoot
 struct Counter {
