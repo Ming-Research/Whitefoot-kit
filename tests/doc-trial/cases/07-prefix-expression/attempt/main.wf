@@ -12,12 +12,17 @@ enum Expression {
   Plus(left: Box<Expression>, right: Box<Expression>);
 }
 
-fn parse_digit_or_plus(bytes: &Array<u8, 5>, pos: u64) -> result: Result<(Expression, u64), ParseError> pure;
-fn parse_plus_args(bytes: &Array<u8, 5>, pos: u64) -> result: Result<(Expression, u64), ParseError> pure;
+struct ParseResult {
+  expr: Expression;
+  next_pos: u64;
+}
 
-fn parse_digit_or_plus(bytes: &Array<u8, 5>, pos: u64) -> result: Result<(Expression, u64), ParseError> pure {
+fn parse_digit_or_plus(bytes: &Array<u8, 5>, pos: u64) -> result: Result<ParseResult, ParseError> pure;
+fn parse_plus_args(bytes: &Array<u8, 5>, pos: u64) -> result: Result<ParseResult, ParseError> pure;
+
+fn parse_digit_or_plus(bytes: &Array<u8, 5>, pos: u64) -> result: Result<ParseResult, ParseError> pure {
   if pos >= 5_u64 {
-    return Err<(Expression, u64), ParseError>(ParseError::Truncated());
+    return Err<ParseResult, ParseError>(ParseError::Truncated());
   }
 
   let byte = bytes^[pos];
@@ -27,35 +32,35 @@ fn parse_digit_or_plus(bytes: &Array<u8, 5>, pos: u64) -> result: Result<(Expres
   } else if byte >= '0'_u8 && byte <= '9'_u8 {
     let digit_val = byte - '0'_u8;
     let expr = Expression::Digit(value: digit_val);
-    return Ok<(Expression, u64), ParseError>((expr, pos + 1_u64));
+    return Ok<ParseResult, ParseError>(ParseResult(expr: move expr, next_pos: pos + 1_u64));
   } else {
-    return Err<(Expression, u64), ParseError>(ParseError::InvalidToken());
+    return Err<ParseResult, ParseError>(ParseError::InvalidToken());
   }
 }
 
-fn parse_plus_args(bytes: &Array<u8, 5>, pos: u64) -> result: Result<(Expression, u64), ParseError> pure {
+fn parse_plus_args(bytes: &Array<u8, 5>, pos: u64) -> result: Result<ParseResult, ParseError> pure {
   let left_result = parse_digit_or_plus(bytes: bytes, pos: pos);
   match left_result {
-    Ok(left_pair) => {
-      let left_expr = left_pair.0;
-      let next_pos = left_pair.1;
+    Ok(left_result_struct) => {
+      let left_expr = left_result_struct.expr;
+      let next_pos = left_result_struct.next_pos;
       let right_result = parse_digit_or_plus(bytes: bytes, pos: next_pos);
       match right_result {
-        Ok(right_pair) => {
-          let right_expr = right_pair.0;
-          let final_pos = right_pair.1;
+        Ok(right_result_struct) => {
+          let right_expr = right_result_struct.expr;
+          let final_pos = right_result_struct.next_pos;
           let left_box = box_new::<Expression>(value: move left_expr);
           let right_box = box_new::<Expression>(value: move right_expr);
           let expr = Expression::Plus(left: move left_box, right: move right_box);
-          return Ok<(Expression, u64), ParseError>((expr, final_pos));
+          return Ok<ParseResult, ParseError>(ParseResult(expr: move expr, next_pos: final_pos));
         }
         Err(e) => {
-          return Err<(Expression, u64), ParseError>(move e);
+          return Err<ParseResult, ParseError>(move e);
         }
       }
     }
     Err(e) => {
-      return Err<(Expression, u64), ParseError>(move e);
+      return Err<ParseResult, ParseError>(move e);
     }
   }
 }
@@ -94,12 +99,12 @@ fn evaluate(expr: Expression) -> result: Result<u64, EvalError> pure {
   }
 }
 
-fn parse_digit_or_plus_2(bytes: &Array<u8, 2>, pos: u64) -> result: Result<(Expression, u64), ParseError> pure;
-fn parse_plus_args_2(bytes: &Array<u8, 2>, pos: u64) -> result: Result<(Expression, u64), ParseError> pure;
+fn parse_digit_or_plus_2(bytes: &Array<u8, 2>, pos: u64) -> result: Result<ParseResult, ParseError> pure;
+fn parse_plus_args_2(bytes: &Array<u8, 2>, pos: u64) -> result: Result<ParseResult, ParseError> pure;
 
-fn parse_digit_or_plus_2(bytes: &Array<u8, 2>, pos: u64) -> result: Result<(Expression, u64), ParseError> pure {
+fn parse_digit_or_plus_2(bytes: &Array<u8, 2>, pos: u64) -> result: Result<ParseResult, ParseError> pure {
   if pos >= 2_u64 {
-    return Err<(Expression, u64), ParseError>(ParseError::Truncated());
+    return Err<ParseResult, ParseError>(ParseError::Truncated());
   }
 
   let byte = bytes^[pos];
@@ -109,35 +114,35 @@ fn parse_digit_or_plus_2(bytes: &Array<u8, 2>, pos: u64) -> result: Result<(Expr
   } else if byte >= '0'_u8 && byte <= '9'_u8 {
     let digit_val = byte - '0'_u8;
     let expr = Expression::Digit(value: digit_val);
-    return Ok<(Expression, u64), ParseError>((expr, pos + 1_u64));
+    return Ok<ParseResult, ParseError>(ParseResult(expr: move expr, next_pos: pos + 1_u64));
   } else {
-    return Err<(Expression, u64), ParseError>(ParseError::InvalidToken());
+    return Err<ParseResult, ParseError>(ParseError::InvalidToken());
   }
 }
 
-fn parse_plus_args_2(bytes: &Array<u8, 2>, pos: u64) -> result: Result<(Expression, u64), ParseError> pure {
+fn parse_plus_args_2(bytes: &Array<u8, 2>, pos: u64) -> result: Result<ParseResult, ParseError> pure {
   let left_result = parse_digit_or_plus_2(bytes: bytes, pos: pos);
   match left_result {
-    Ok(left_pair) => {
-      let left_expr = left_pair.0;
-      let next_pos = left_pair.1;
+    Ok(left_result_struct) => {
+      let left_expr = left_result_struct.expr;
+      let next_pos = left_result_struct.next_pos;
       let right_result = parse_digit_or_plus_2(bytes: bytes, pos: next_pos);
       match right_result {
-        Ok(right_pair) => {
-          let right_expr = right_pair.0;
-          let final_pos = right_pair.1;
+        Ok(right_result_struct) => {
+          let right_expr = right_result_struct.expr;
+          let final_pos = right_result_struct.next_pos;
           let left_box = box_new::<Expression>(value: move left_expr);
           let right_box = box_new::<Expression>(value: move right_expr);
           let expr = Expression::Plus(left: move left_box, right: move right_box);
-          return Ok<(Expression, u64), ParseError>((expr, final_pos));
+          return Ok<ParseResult, ParseError>(ParseResult(expr: move expr, next_pos: final_pos));
         }
         Err(e) => {
-          return Err<(Expression, u64), ParseError>(move e);
+          return Err<ParseResult, ParseError>(move e);
         }
       }
     }
     Err(e) => {
-      return Err<(Expression, u64), ParseError>(move e);
+      return Err<ParseResult, ParseError>(move e);
     }
   }
 }
@@ -177,8 +182,8 @@ fn main(inputs: std::process::Inputs) -> result: std::process::ExitCode waits {
 
   match move parse_result1 {
     Ok(result) => {
-      let expr = result.0;
-      let next_pos = result.1;
+      let expr = result.expr;
+      let next_pos = result.next_pos;
 
       if next_pos != 5_u64 {
         return std::process::exit(code: 1_u8);

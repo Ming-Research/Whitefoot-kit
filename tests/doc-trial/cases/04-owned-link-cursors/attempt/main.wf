@@ -28,7 +28,7 @@ fn sum_list(head: &Option<Box<Node>>) -> result: u64 reads(head) {
   }
 }
 
-fn remove_evens(head: &mut Option<Box<Node>>) -> result: unit writes(head) {
+fn remove_evens(head: &Option<Box<Node>>) -> result: unit writes(head) {
   loop () {
     match move head^ {
       None() => {
@@ -44,7 +44,7 @@ fn remove_evens(head: &mut Option<Box<Node>>) -> result: unit writes(head) {
           match head {
             None() => return unit;
             Some(value: next_node) => {
-              remove_evens(head: &mut next_node^.inner.next);
+              remove_evens(head: &next_node^.inner.next);
               return unit;
             }
           }
@@ -54,7 +54,7 @@ fn remove_evens(head: &mut Option<Box<Node>>) -> result: unit writes(head) {
   }
 }
 
-fn increment_list(head: &mut Option<Box<Node>>) -> result: unit writes(head) {
+fn increment_list(head: &Option<Box<Node>>) -> result: unit writes(head) {
   match head {
     None() => {
       return unit;
@@ -62,13 +62,13 @@ fn increment_list(head: &mut Option<Box<Node>>) -> result: unit writes(head) {
     Some(value: node_ref) => {
       let new_value = node_ref^.inner.value +wrap 1_u64;
       set node_ref^.inner.value = new_value;
-      increment_list(head: &mut node_ref^.inner.next);
+      increment_list(head: &node_ref^.inner.next);
       return unit;
     }
   }
 }
 
-fn write_u64_le(output: &mut [u8], offset: u64, value: u64) -> result: unit writes(output) contract {
+fn write_u64_le(output: &[u8], offset: u64, value: u64) -> result: unit writes(output) contract {
   requires offset + 8_u64 <= output^.len;
 } {
   let b0 = cvt.wrap::<u64, u8>(value);
@@ -109,14 +109,14 @@ fn main(inputs: std::process::Inputs) -> result: std::process::ExitStatus {
   }
 
   let mut mutable_list = move list;
-  remove_evens(head: &mut mutable_list);
+  remove_evens(head: &mutable_list);
 
   let sum_after_removal = sum_list(head: &mutable_list);
   if sum_after_removal != 1024_u64 {
     return std::process::exit_status(code: 2_u8);
   }
 
-  increment_list(head: &mut mutable_list);
+  increment_list(head: &mutable_list);
 
   let read1 = sum_list(head: &mutable_list);
   let read2 = sum_list(head: &mutable_list);

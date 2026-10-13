@@ -1,4 +1,4 @@
-fn main(inputs: std::process::Inputs) -> result: unit {
+fn main(inputs: std::process::Inputs) -> result: unit pure {
   let std::process::Inputs(
     args: unused_args,
     drivers: unused_drivers,

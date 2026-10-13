@@ -28,13 +28,20 @@ fn main(inputs: std::process::Inputs) -> result: std::process::ExitStatus pure {
   }
 
   let byte0 = cvt.wrap::<u64, u8>(total_sum);
-  let byte1 = cvt.wrap::<u64, u8>(ishr(total_sum, 8_u32));
-  let byte2 = cvt.wrap::<u64, u8>(ishr(total_sum, 16_u32));
-  let byte3 = cvt.wrap::<u64, u8>(ishr(total_sum, 24_u32));
-  let byte4 = cvt.wrap::<u64, u8>(ishr(total_sum, 32_u32));
-  let byte5 = cvt.wrap::<u64, u8>(ishr(total_sum, 40_u32));
-  let byte6 = cvt.wrap::<u64, u8>(ishr(total_sum, 48_u32));
-  let byte7 = cvt.wrap::<u64, u8>(ishr(total_sum, 56_u32));
+  let shifted1 = ishr(total_sum, 8_u32);
+  let byte1 = cvt.wrap::<u64, u8>(shifted1);
+  let shifted2 = ishr(total_sum, 16_u32);
+  let byte2 = cvt.wrap::<u64, u8>(shifted2);
+  let shifted3 = ishr(total_sum, 24_u32);
+  let byte3 = cvt.wrap::<u64, u8>(shifted3);
+  let shifted4 = ishr(total_sum, 32_u32);
+  let byte4 = cvt.wrap::<u64, u8>(shifted4);
+  let shifted5 = ishr(total_sum, 40_u32);
+  let byte5 = cvt.wrap::<u64, u8>(shifted5);
+  let shifted6 = ishr(total_sum, 48_u32);
+  let byte6 = cvt.wrap::<u64, u8>(shifted6);
+  let shifted7 = ishr(total_sum, 56_u32);
+  let byte7 = cvt.wrap::<u64, u8>(shifted7);
 
   let bytes = Array<u8, 8>[byte0, byte1, byte2, byte3, byte4, byte5, byte6, byte7];
 

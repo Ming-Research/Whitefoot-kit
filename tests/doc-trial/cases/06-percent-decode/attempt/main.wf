@@ -7,13 +7,15 @@ fn hex_digit_value(byte: u8) -> result: Option<u8> pure {
   }
   if byte >= 'A'_u8 {
     if byte <= 'F'_u8 {
-      let value = byte - 'A'_u8 + 10_u8;
+      let offset = byte - 'A'_u8;
+      let value = offset + 10_u8;
       return Some<u8>(value: value);
     }
   }
   if byte >= 'a'_u8 {
     if byte <= 'f'_u8 {
-      let value = byte - 'a'_u8 + 10_u8;
+      let offset = byte - 'a'_u8;
+      let value = offset + 10_u8;
       return Some<u8>(value: value);
     }
   }
@@ -43,7 +45,8 @@ fn percent_decode(input: &[u8], output: &Slots<u8, 11>) -> result: u64 pure {
           Some(value: fv) => {
             match move second_val {
               Some(value: sv) => {
-                let decoded = fv * 16_u8 + sv;
+                let high = fv * 16_u8;
+                let decoded = high + sv;
                 if len < output.cap {
                   set output^[len] = decoded;
                   set len = len + 1_u64;

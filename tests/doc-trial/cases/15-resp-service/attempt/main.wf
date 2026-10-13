@@ -290,7 +290,7 @@ fn parse_resp_request(data: &Slots<u8>, filled: u64) -> result: Result<ParsedReq
       match move count_parsed {
         None() => return Err<ParsedRequest, unit>(error: unit),
         Some(value: count) => {
-          if count == 0_u64 || count > 5_u64 {
+          if bor(count == 0_u64, count > 5_u64) {
             return Err<ParsedRequest, unit>(error: unit);
           }
 
@@ -355,7 +355,7 @@ fn copy_slice_to_vector(src: &[u8], dst: &GrowVector<u8, 1024>) -> result: unit 
 fn find_crlf(data: &Slots<u8>, start: u64, filled: u64) -> result: Option<u64> reads(data) pure {
   for (i in start..filled) {
     if i + 1_u64 < filled {
-      if data^[i] == 13_u8 && data^[i + 1_u64] == 10_u8 {
+      if band(data^[i] == 13_u8, data^[i + 1_u64] == 10_u8) {
         return Some<u64>(value: i);
       }
     }
