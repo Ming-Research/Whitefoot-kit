@@ -1,6 +1,6 @@
 # Writing Whitefoot
 
-This guide is for agents that write Whitefoot programs and is 2129 lines long. Read all of it before writing code. If a file reader shows only part, read the rest in numbered ranges until the final section is received. Before writing concurrent code, read all of Part 3, including child completion and its examples.
+This guide is for agents that write Whitefoot programs and is 2217 lines long. Read all of it before writing code. If a file reader shows only part, read the rest in numbered ranges until the final section is received. Before writing concurrent code, read all of Part 3, including child completion and its examples.
 
 - Part 1, syntax, holds the forms every program needs. Most first rejections come from these forms; write them as shown, not as another language would.
 - Parts 2 and 3 say how to design a sequential and a concurrent program: where data lives, who owns it, what the checker must be told, how contexts share state. Rejections cannot teach these.
@@ -221,7 +221,52 @@ For an invariant-bearing uncounted loop, begin with `loop (` or `loop @scan (` a
 
 ### 9. How do I match an enum?
 
-List every declared variant exactly once, using unqualified variant names in arms. Each payload binding is `declared_field: fresh_binder`, in declaration order; the binder must differ from its field label and all competing names live on arm entry. A final `..` may cover omitted fields, but a consuming match cannot discard linear payloads. There is no wildcard arm. Use `if` for Bool. [ERR-2, GRAM-6, GRAM-10, OWN-13, WIN-3]
+List every declared variant exactly once, using unqualified variant names in arms. Each payload binding is `declared_field: fresh_binder`, in declaration order; the binder must differ from its field label and all competing names live on arm entry. A final `..` may cover omitted fields, but a consuming match cannot discard linear payloads. There is no wildcard arm on an enum. Use `if` for Bool. [ERR-2, GRAM-6, GRAM-10, OWN-13, WIN-3]
+
+Dispatch on an integer code (a command, opcode or status) with one integer `match`, not a chain of `if code == a { ... }` tests. Each arm header is a literal or named constant of the scrutinee's type, all distinct, and a final `else =>` arm is required unless the arms cover every value of the type. An arm knows the scrutinee equals its value; `else` knows it equals none of them. A long `if` chain checks more slowly, because each test carries every earlier "not equal" fact, and the redundant-test check grows with the square of its length. The scrutinee must be an owned integer value, not a reference or Bool. [GRAM-12, ENT-3, ERR-2]
+
+```whitefoot
+const code_ping: u64 = 10_u64;
+
+const code_echo: u64 = 20_u64;
+
+fn dispatch(code: u64) -> result: u8 pure {
+  match code {
+    code_ping => {
+      return 1_u8;
+    }
+    code_echo => {
+      return 2_u8;
+    }
+    30_u64 => {
+      return 3_u8;
+    }
+    else => {
+      return 0_u8;
+    }
+  }
+}
+
+fn main() -> status: std::process::ExitStatus pure {
+  let ping = dispatch(code: code_ping);
+  let echo = dispatch(code: code_echo);
+  let literal = dispatch(code: 30_u64);
+  let other = dispatch(code: 40_u64);
+  if ping != 1_u8 {
+    return std::process::exit_status(code: 1_u8);
+  }
+  if echo != 2_u8 {
+    return std::process::exit_status(code: 2_u8);
+  }
+  if literal != 3_u8 {
+    return std::process::exit_status(code: 3_u8);
+  }
+  if other != 0_u8 {
+    return std::process::exit_status(code: 4_u8);
+  }
+  return std::process::exit_status(code: 0_u8);
+}
+```
 
 ```whitefoot
 alias ExitStatus = std::process::ExitStatus;
@@ -1024,6 +1069,48 @@ Effect paths begin at the formal without `^`. Write covers reads/writes below it
 
 `entry(window)` denotes entry storage; bare written-reference terms denote exit storage. Requirements permit larger arithmetic than published `ensures`, whose relation sides admit one supported datum displaced by a constant, plus at most one bare integer parameter with coefficient one on one side, as in `ensures after <= base + limit;`. Pass a scalar final total when publishing a relation to a larger sum [FN-9, MSR-3].
 
+A subscript inside an `ensures` must be in bounds wherever the clause applies: at every return it covers, and for a routed clause only at returns of its variant. Bound a formal used as an index with a requirement, such as `requires i < 4_u64;`; without it the clause is rejected. A formal in a postcondition means its entry value, so rebinding it in the body changes nothing, and the caller substitutes the actual: after `width(rows: rows, i: 2_u64)` the caller holds `r <= rows^[2_u64].len`, and facts of calls with different actuals stay apart. An `entry(rows)^[i]` place is bounded by the entry length, so elements the body appends cannot justify it. [FN-9, ENT-2]
+
+```whitefoot
+alias ExitStatus = std::process::ExitStatus;
+alias exit_status = std::process::exit_status;
+
+fn width(rows: &Array<Slots<u8, 8>, 4>, i: u64) -> r: u64 reads(rows) contract {
+  requires i < 4_u64;
+  ensures r <= rows^[i].len;
+} {
+  doc "Returns a bound on the length of element i.";
+  if rows^[i].len > 9_u64 {
+    return 0_u64;
+  }
+  return rows^[i].len;
+}
+
+fn need(rows: &Array<Slots<u8, 8>, 4>, w: u64) -> r: u64 reads(rows) contract {
+  requires w <= rows^[2_u64].len;
+} {
+  doc "Requires a bound on the length of element two.";
+  if rows^[2_u64].len > 9_u64 {
+    return 0_u64;
+  }
+  return w;
+}
+
+fn second(rows: &Array<Slots<u8, 8>, 4>) -> r: u64 reads(rows) contract {
+  ensures r <= rows^[2_u64].len;
+} {
+  doc "The call at offset two publishes its relation over element two.";
+  let w = width(rows: rows, i: 2_u64);
+  let needed = need(rows: rows, w: w);
+  return w;
+}
+
+fn main() -> status: ExitStatus pure {
+  doc "The declarations alone are judged.";
+  return exit_status(code: 0_u8);
+}
+```
+
 A call inside a recursive cycle, to the function itself or to another function of the same call-graph cycle, receives the callee's postconditions, written `ensures` included, as induction hypotheses. A body never assumes its own `ensures` at entry, every exit still proves them, and writes to a reference argument after the call kill its facts as for any call. Split recursion can therefore bound its combination directly instead of using a loop or `+sat`: [DIAG-2, FN-9]
 
 ```whitefoot
@@ -1445,7 +1532,7 @@ Advance `read_at`'s file offset by the byte count independently of the buffer en
 
 ### How should an interpreter dispatch each operation?
 
-Use a loop whose header ends in one exhaustive `match` over the current operation, and make every looping arm finish with `continue`. This keeps each state transition and its next-header proof visible to the checker and the dispatcher [INV-1].
+Use a loop whose header ends in one exhaustive `match` over the current operation (an enum, or an integer opcode with an integer `match`), and make every looping arm finish with `continue`. This keeps each state transition and its next-header proof visible to the checker and the dispatcher [INV-1].
 ```whitefoot
 enum Op {
   Add(k: u64);
