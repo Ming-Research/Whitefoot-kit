@@ -300,13 +300,13 @@ fn parse_request(buffer: &[u8], avail: u64) -> result: Parse reads(buffer) contr
   }
   let header = read_number(buffer: buffer, avail: avail, from: 1_u64);
   match header {
-    Number::Incomplete() => {
+    Incomplete() => {
       return Parse::Incomplete();
     }
-    Number::Invalid() => {
+    Invalid() => {
       return Parse::Invalid();
     }
-    Number::Found(value: count, next: body) => {
+    Found(value: count, next: body) => {
       if count <= 3_u64 {
       } else {
         return Parse::Invalid();
@@ -331,13 +331,13 @@ fn parse_request(buffer: &[u8], avail: u64) -> result: Parse reads(buffer) contr
         let after_marker = position +sat 1_u64;
         let length_header = read_number(buffer: buffer, avail: avail, from: after_marker);
         match length_header {
-          Number::Incomplete() => {
+          Incomplete() => {
             return Parse::Incomplete();
           }
-          Number::Invalid() => {
+          Invalid() => {
             return Parse::Invalid();
           }
-          Number::Found(value: length, next: data_start) => {
+          Found(value: length, next: data_start) => {
             let data_end = data_start +sat length;
             let after_data = data_end +sat 1_u64;
             if after_data < avail {
@@ -789,15 +789,15 @@ fn serve(connection: TcpConnection, factory: HandleFactory, store: Shared<Array<
           let remaining = avail -sat start;
           let parsed = parse_request(buffer: &pending[start..avail], avail: remaining);
           match parsed {
-            Parse::Incomplete() => {
+            Incomplete() => {
               break @frames;
             }
-            Parse::Invalid() => {
+            Invalid() => {
               set reply_end = put_text(out: &out, at: reply_end, text: &reply_protocol[0_u64..21_u64]);
               set open = False();
               break @frames;
             }
-            Parse::Complete(command: request) => {
+            Complete(command: request) => {
               let consumed = request.consumed;
               atomic entries = &store {
                 set reply_end = run_command(buffer: &pending[start..avail], request: request, table: entries, out: &out, at: reply_end);

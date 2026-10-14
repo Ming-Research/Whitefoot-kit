@@ -24,10 +24,8 @@ fn accept(parents: &Array<u32, 6>, depths: &Array<u32, 6>) -> result: Bool reads
       } else {
         set ok = False();
       }
-    } else {
-      if parent != 6_u64 {
-        set ok = False();
-      }
+    } else if parent != 6_u64 {
+      set ok = False();
     }
   }
   return ok;

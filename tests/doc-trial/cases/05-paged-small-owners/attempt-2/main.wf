@@ -151,7 +151,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     return exit_status(code: 17_u8);
   }
   release::<Box<Paged<u64>>>(value: move zero_owner);
-
   let chain = box_paged_new::<u64>(capacity: 1_u64);
   place_back(window: &chain.inner, value: 73_u64);
   let fourth = heap_difference(meter: &meter, baseline: baseline);
@@ -216,7 +215,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   if tenth != 0_u64 {
     return exit_status(code: 11_u8);
   }
-
   let separate = box_paged_new::<u64>(capacity: 3_u64);
   place_back(window: &separate.inner, value: 19_u64);
   let eleventh = heap_difference(meter: &meter, baseline: baseline);
@@ -232,7 +230,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   if twelfth != 0_u64 {
     return exit_status(code: 13_u8);
   }
-
   let zero_size = box_paged_new::<Array<u8, 0>>(capacity: 1_u64);
   let empty = array_filled::<u8, 0>(value: 0_u8);
   place_back(window: &zero_size.inner, value: empty);
@@ -246,7 +243,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   if fourteenth != 0_u64 {
     return exit_status(code: 16_u8);
   }
-
   let words = array_filled::<u64, 18>(value: 0_u64);
   set words[0_u64] = first;
   set words[1_u64] = second;

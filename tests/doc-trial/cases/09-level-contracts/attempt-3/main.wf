@@ -16,6 +16,9 @@ fn accepts(parents: &[u32], depths: &[u32]) -> result: Bool reads(parents), read
     return False();
   }
   for (i in 0_u64..count) {
+    if i >= depths^.len {
+      return False();
+    }
     let depth = cvt::<u32, u64>(depths^[i]);
     if depth > 4096_u64 {
       return False();
@@ -25,6 +28,9 @@ fn accepts(parents: &[u32], depths: &[u32]) -> result: Bool reads(parents), read
       continue;
     }
     if parent >= i {
+      return False();
+    }
+    if parent >= depths^.len {
       return False();
     }
     let parent_depth = cvt::<u32, u64>(depths^[parent]);
@@ -47,12 +53,14 @@ fn max_depth(depths: &[u32]) -> result: u64 reads(depths) {
   return best;
 }
 
-fn place_all(depths: &[u32], groups: u64, counts: &Box<Array<u64>>, places: &Box<Array<u64>>) -> result: unit reads(depths), writes(counts), writes(places) {
+fn place_all(depths: &[u32], counts: &Box<Array<u64>>, places: &Box<Array<u64>>) -> result: unit reads(depths), writes(counts), writes(places) {
   for (i in 0_u64..depths^.len) {
     let depth = cvt::<u32, u64>(depths^[i]);
-    if depth < groups {
+    if depth < counts^.inner.len {
       let seen = counts^.inner[depth];
-      set places^.inner[i] = seen;
+      if i < places^.inner.len {
+        set places^.inner[i] = seen;
+      }
       set counts^.inner[depth] = seen +wrap 1_u64;
     }
   }
@@ -128,12 +136,12 @@ fn emit_groups(factory: &HandleFactory, output: &OutputStream, depths: &[u32]) -
   let groups = deepest +wrap 1_u64;
   let counts = box_array_filled::<u64>(count: groups, value: 0_u64);
   let places = box_array_filled::<u64>(count: n, value: 0_u64);
-  let placed = place_all(depths: depths, groups: groups, counts: &counts, places: &places);
+  place_all(depths: depths, counts: &counts, places: &places);
   let step_groups = emit_word(factory: factory, output: output, value: groups);
   if step_groups {
     return True();
   }
-  for (d in 0_u64..groups) {
+  for (d in 0_u64..counts.inner.len) {
     let length = counts.inner[d];
     let step_length = emit_word(factory: factory, output: output, value: length);
     if step_length {
@@ -153,7 +161,7 @@ fn emit_groups(factory: &HandleFactory, output: &OutputStream, depths: &[u32]) -
   if step_count {
     return True();
   }
-  for (i in 0_u64..n) {
+  for (i in 0_u64..places.inner.len) {
     let position = places.inner[i];
     let step_position = emit_word(factory: factory, output: output, value: position);
     if step_position {

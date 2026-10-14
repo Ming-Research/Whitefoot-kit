@@ -88,7 +88,9 @@ fn accepted(parents: &[u32], depths: &[u32]) -> result: Bool reads(parents), rea
   return True();
 }
 
-fn emit_layout(factory: &HandleFactory, output: &OutputStream, parents: &[u32], depths: &[u32]) -> result: Result<unit, IoError> reads(parents), reads(depths), writes(factory), writes(output) waits {
+fn emit_layout(factory: &HandleFactory, output: &OutputStream, parents: &[u32], depths: &[u32]) -> result: Result<unit, IoError> reads(parents), reads(depths), writes(factory), writes(output) waits contract {
+  requires depths^.len == parents^.len;
+} {
   let count = parents^.len;
   let maximum = 0_u64;
   for (i in 0_u64..count) {
@@ -140,7 +142,9 @@ fn emit_layout(factory: &HandleFactory, output: &OutputStream, parents: &[u32], 
   return Ok<unit, IoError>(value: unit);
 }
 
-fn emit_report(factory: &HandleFactory, output: &OutputStream, parents: &[u32], depths: &[u32], valid_ok: Bool, first_ok: Bool, second_ok: Bool, third_ok: Bool) -> result: Result<unit, IoError> reads(parents), reads(depths), writes(factory), writes(output) waits {
+fn emit_report(factory: &HandleFactory, output: &OutputStream, parents: &[u32], depths: &[u32], valid_ok: Bool, first_ok: Bool, second_ok: Bool, third_ok: Bool) -> result: Result<unit, IoError> reads(parents), reads(depths), writes(factory), writes(output) waits contract {
+  requires depths^.len == parents^.len;
+} {
   let valid_word = flag_word(value: valid_ok);
   let written_valid = propagate emit_word(factory: factory, output: output, value: valid_word);
   let written_layout = propagate emit_layout(factory: factory, output: output, parents: parents, depths: depths);

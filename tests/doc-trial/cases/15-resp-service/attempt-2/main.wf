@@ -46,7 +46,7 @@ fn accept_clients(factory: &HandleFactory, listener: &TcpListener) -> result: Bo
     let deadline = None<Instant>();
     let accepted = tcp_accept(factory: factory, listener: listener, deadline: deadline, cancel: &cancel);
     std::time::close_cancel_watch(watch: move cancel);
-    match accepted {
+    match move accepted {
       Ok(value: pair) => {
         let AcceptedConnection(connection: conn, peer: unused_peer) = move pair;
         let TcpConnection(receive: receive_half, send: send_half) = move conn;
@@ -82,7 +82,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     }
   }
   let port_text = arg_get(args: &program_args, position: 0_u64);
-  match port_text {
+  match move port_text {
     Ok(value: text) => {
       let port_value = parse_digits(text: &text);
       let narrowed = cvt.checked::<u64, u16>(port_value);
@@ -90,7 +90,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
         Ok(value: port) => {
           let address = socket_address_v4(a: 127_u8, b: 0_u8, c: 0_u8, d: 1_u8, port: port);
           let listened = tcp_listen(factory: &factory, address: &address);
-          match listened {
+          match move listened {
             Ok(value: listener) => {
               let failed = accept_clients(factory: &factory, listener: &listener);
               let listener_closed = close_listener(factory: &factory, listener: move listener);

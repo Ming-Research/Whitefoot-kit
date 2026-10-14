@@ -12,7 +12,8 @@ fn digit_value(byte: u8) -> result: Option<u64> pure {
   let valid = band(low, high);
   if valid {
     let digit = byte - 48_u8;
-    return Some<u64>(value: cvt::<u8, u64>(digit));
+    let widened = cvt::<u8, u64>(digit);
+    return Some<u64>(value: widened);
   }
   return None<u64>();
 }

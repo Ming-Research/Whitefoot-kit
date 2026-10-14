@@ -66,7 +66,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     }
   }
   let base = heap_in_use(meter: &meter);
-
   let zero_owner = box_paged_new::<u64>(capacity: 0_u64);
   grow_paged(cell: &zero_owner, capacity: 0_u64);
   if check_delta(meter: &meter, base: base, expected: 0_u64) {
@@ -78,7 +77,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   } else {
     return exit_status(code: 2_u8);
   }
-
   let pool = box_paged_new::<u64>(capacity: 1_u64);
   place_back(window: &pool.inner, value: 73_u64);
   if check_delta(meter: &meter, base: base, expected: 40_u64) {
@@ -146,7 +144,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   } else {
     return exit_status(code: 11_u8);
   }
-
   let separate = box_paged_new::<u64>(capacity: 3_u64);
   place_back(window: &separate.inner, value: 19_u64);
   if check_delta(meter: &meter, base: base, expected: 64_u64) {
@@ -162,7 +159,6 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   } else {
     return exit_status(code: 13_u8);
   }
-
   let zero_size = box_paged_new::<Array<u8, 0>>(capacity: 1_u64);
   let empty_element = array_filled::<u8, 0>(value: 0_u8);
   place_back(window: &zero_size.inner, value: move empty_element);
@@ -176,14 +172,12 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   } else {
     return exit_status(code: 16_u8);
   }
-
   let last_zero = box_paged_new::<u64>(capacity: 0_u64);
   release_pool(pool: move last_zero);
   if check_delta(meter: &meter, base: base, expected: 0_u64) {
   } else {
     return exit_status(code: 17_u8);
   }
-
   let words = array_filled::<u64, 18>(value: 0_u64);
   set words[0_u64] = 0_u64;
   set words[1_u64] = 0_u64;

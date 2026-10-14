@@ -10,22 +10,22 @@ alias TcpConnection = std::net::TcpConnection;
 alias exit_status = std::process::exit_status;
 
 fn parse_port(args: &Args) -> result: Option<u16> reads(args) {
-  let count = args_count(args: args);
+  let count = std::text::args_count(args: args);
   if count == 1_u64 {
   } else {
     return None<u16>();
   }
-  let first = arg_get(args: args, position: 0_u64);
+  let first = std::text::arg_get(args: args, position: 0_u64);
   match move first {
     Ok(value: text) => {
-      let length = host_bytes_len(value: &text);
+      let length = std::text::host_bytes_len(value: &text);
       if length < 9_u64 {
       } else {
         return None<u16>();
       }
       let digits = array_filled::<u8, 8>(value: 0_u8);
       let window = &digits[0_u64..8_u64];
-      let copied = host_copy_bytes(value: &text, destination: window, start: 0_u64, end: length);
+      let copied = std::text::host_copy_bytes(value: &text, destination: window, start: 0_u64, end: length);
       match copied {
         Ok(value: copied_length) => {
         }
@@ -77,7 +77,7 @@ fn echo_peer(receive: TcpReceive, send: TcpSend, factory: HandleFactory) -> resu
   loop @echoing {
     let window = &buffer[0_u64..64_u64];
     let no_deadline = None<std::time::Instant>();
-    let received = receive_next(receive: &receive, destination: window, start: 0_u64, end: 64_u64, deadline: no_deadline, cancel: &watch);
+    let received = std::net::receive_next(receive: &receive, destination: window, start: 0_u64, end: 64_u64, deadline: no_deadline, cancel: &watch);
     match received {
       Ok(value: count) => {
         let sent = 0_u64;
@@ -89,7 +89,7 @@ fn echo_peer(receive: TcpReceive, send: TcpSend, factory: HandleFactory) -> resu
           }
           let rest = &buffer[0_u64..64_u64];
           let send_deadline = None<std::time::Instant>();
-          let sent_result = send_once(send: &send, source: rest, start: sent, end: count, deadline: send_deadline, cancel: &watch);
+          let sent_result = std::net::send_once(send: &send, source: rest, start: sent, end: count, deadline: send_deadline, cancel: &watch);
           match sent_result {
             Ok(value: next) => {
               set sent = next;
@@ -109,14 +109,14 @@ fn echo_peer(receive: TcpReceive, send: TcpSend, factory: HandleFactory) -> resu
       }
     }
   }
-  let closed_receive = close_receive(factory: &factory, receive: move receive);
+  let closed_receive = std::net::close_receive(factory: &factory, receive: move receive);
   match closed_receive {
     Ok(value: unused_receive_closed) => {
     }
     Err(error: unused_receive_error) => {
     }
   }
-  let closed_send = close_send(factory: &factory, send: move send);
+  let closed_send = std::net::close_send(factory: &factory, send: move send);
   match closed_send {
     Ok(value: unused_send_closed) => {
     }
