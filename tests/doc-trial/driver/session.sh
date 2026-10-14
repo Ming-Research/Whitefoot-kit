@@ -9,7 +9,7 @@ dir=$1 round=$2 prompt=$3
 cd "$dir"
 resume=()
 [ "$round" != 1 ] && resume=(--resume "$(cat session)")
-claude -p --model haiku --restricted --tools "Read,Write,Edit,Glob" --strict-mcp-config \
+"$HOME/dev/claude-haiku" -p --model haiku --restricted --tools "Read,Write,Edit,Glob" --strict-mcp-config \
   --permission-mode acceptEdits --output-format stream-json --verbose \
   ${resume[@]+"${resume[@]}"} < "$prompt" > "log-$round.jsonl" 2> "err-$round.txt"
 python3 -I -c '
