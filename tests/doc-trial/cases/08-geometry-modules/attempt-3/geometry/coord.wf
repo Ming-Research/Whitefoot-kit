@@ -1,0 +1,56 @@
+fn coord_from_pixels(pixels: i32) -> result: Coord pure {
+  let scaled = pixels *sat 64_i32;
+  return Coord(raw: scaled);
+}
+
+fn coord_from_binary64(pixels: f64) -> result: Coord pure {
+  let number = feq(pixels, pixels);
+  if number {
+  } else {
+    return Coord(raw: 0_i32);
+  }
+  let scaled = fmul.strict(pixels, 64.0_f64);
+  let rounded = froundeven(scaled);
+  let high = fge(rounded, 2147483647.0_f64);
+  if high {
+    return Coord(raw: 2147483647_i32);
+  }
+  let low = fle(rounded, -2147483648.0_f64);
+  if low {
+    return Coord(raw: -2147483648_i32);
+  }
+  let narrowed = cvt.checked::<f64, i32>(rounded);
+  match narrowed {
+    Ok(value: raw) => {
+      return Coord(raw: raw);
+    }
+    Err(error: problem) => {
+      return Coord(raw: 0_i32);
+    }
+  }
+}
+
+fn coord_to_binary64(coord: Coord) -> result: f64 pure {
+  let wide = cvt.nearest::<i32, f64>(coord.raw);
+  return fdiv.strict(wide, 64.0_f64);
+}
+
+fn coord_add(left: Coord, right: Coord) -> result: Coord pure {
+  let total = left.raw +sat right.raw;
+  return Coord(raw: total);
+}
+
+fn coord_sub(left: Coord, right: Coord) -> result: Coord pure {
+  let difference = left.raw -sat right.raw;
+  return Coord(raw: difference);
+}
+
+fn coord_min(left: Coord, right: Coord) -> result: Coord pure {
+  let low = imin(left.raw, right.raw);
+  return Coord(raw: low);
+}
+
+fn coord_max(left: Coord, right: Coord) -> result: Coord pure {
+  let high = imax(left.raw, right.raw);
+  return Coord(raw: high);
+}

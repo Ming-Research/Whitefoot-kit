@@ -1,9 +1,0 @@
-fn max(left: Coordinate, right: Coordinate) -> result: Coordinate pure {
-  let is_left_greater = left.value > right.value;
-  let result = if is_left_greater {
-    give left;
-  } else {
-    give right;
-  }
-  return result;
-}

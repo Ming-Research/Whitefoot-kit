@@ -1,36 +1,30 @@
-public struct Coordinate {
+public struct Coord {
   public raw: i32;
 }
 
-public struct Point {
-  public x: Coordinate;
-  public y: Coordinate;
+public struct Rect {
+  left: Coord;
+  top: Coord;
+  right: Coord;
+  bottom: Coord;
 }
 
-public struct Rectangle {
-  public left: Coordinate;
-  public top: Coordinate;
-  public width: Coordinate;
-  public height: Coordinate;
-}
+public fn coord_from_pixels(pixels: i32) -> result: Coord pure doc "Converts whole pixels to coordinate units, saturating at the signed 32-bit limits.";
 
-public fn coordinate_from_whole_pixels(pixels: i32) -> result: Coordinate pure contract {
-  requires pixels >= -33554432_i32;
-  requires pixels <= 33554431_i32;
-} doc "Creates a coordinate from whole pixels, saturating at signed 32-bit limits.";
+public fn coord_from_binary64(pixels: f64) -> result: Coord pure doc "Converts binary64 pixels to coordinate units, rounding ties to even and saturating by sign; NaN becomes zero.";
 
-public fn coordinate_from_f64(value: f64) -> result: Coordinate pure doc "Creates a coordinate from binary64 pixels using strict multiplication and rounding.";
+public fn coord_to_binary64(value: Coord) -> result: f64 pure doc "Converts a coordinate back to binary64 pixels exactly.";
 
-public fn coordinate_to_f64(coord: Coordinate) -> result: f64 pure doc "Converts a coordinate to binary64 pixels by exact division by 64.";
+public fn coord_add(left: Coord, right: Coord) -> result: Coord pure doc "Adds two coordinates with saturation.";
 
-public fn coordinate_saturating_add(left: Coordinate, right: Coordinate) -> result: Coordinate pure doc "Saturating addition of two coordinates.";
+public fn coord_sub(left: Coord, right: Coord) -> result: Coord pure doc "Subtracts right from left with saturation.";
 
-public fn coordinate_saturating_sub(left: Coordinate, right: Coordinate) -> result: Coordinate pure doc "Saturating subtraction of two coordinates.";
+public fn coord_min(left: Coord, right: Coord) -> result: Coord pure doc "Returns the smaller coordinate.";
 
-public fn coordinate_min(left: Coordinate, right: Coordinate) -> result: Coordinate pure doc "Returns the minimum of two coordinates.";
+public fn coord_max(left: Coord, right: Coord) -> result: Coord pure doc "Returns the larger coordinate.";
 
-public fn coordinate_max(left: Coordinate, right: Coordinate) -> result: Coordinate pure doc "Returns the maximum of two coordinates.";
+public fn rect_from_pixels(x: i32, y: i32, width: i32, height: i32) -> result: Rect pure doc "Builds a rectangle from whole-pixel origin and size, with saturating far edges.";
 
-public fn point_contains(point: Point, rect: Rectangle) -> result: Bool pure doc "Returns true if the point is contained in the rectangle.";
+public fn rect_contains(rect: Rect, x: Coord, y: Coord) -> result: Bool pure doc "Returns whether the point lies in the rectangle, including its top and left edges and excluding its bottom and right edges.";
 
-public fn rectangles_intersect(rect1: Rectangle, rect2: Rectangle) -> result: Bool pure doc "Returns true if two rectangles intersect.";
+public fn rect_intersects(first: Rect, second: Rect) -> result: Bool pure doc "Returns whether two rectangles overlap on both axes; touching edges do not count.";

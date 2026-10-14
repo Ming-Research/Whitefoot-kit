@@ -1,0 +1,66 @@
+fn coord_from_pixels(pixels: i32) -> result: Coord pure {
+  let scale = 64_i32;
+  let raw = pixels *sat scale;
+  return Coord(raw: raw);
+}
+
+fn coord_from_binary64(pixels: f64) -> result: Coord pure {
+  let scale = 64.0_f64;
+  let is_number = feq(pixels, pixels);
+  if is_number {
+    let scaled = fmul.strict(pixels, scale);
+    let rounded = froundeven(scaled);
+    let too_large = fge(rounded, 2147483647.0_f64);
+    if too_large {
+      return Coord(raw: 2147483647_i32);
+    }
+    let too_small = flt(rounded, -2147483648.0_f64);
+    if too_small {
+      return Coord(raw: -2147483648_i32);
+    }
+    let exact = cvt.checked::<f64, i32>(rounded);
+    match exact {
+      Ok(value: raw) => {
+        return Coord(raw: raw);
+      }
+      Err(error: problem) => {
+        return Coord(raw: 0_i32);
+      }
+    }
+  }
+  return Coord(raw: 0_i32);
+}
+
+fn coord_to_binary64(coord: Coord) -> result: f64 pure {
+  let raw = coord.raw;
+  let wide = cvt::<i32, f64>(raw);
+  return fdiv.strict(wide, 64.0_f64);
+}
+
+fn coord_add(left: Coord, right: Coord) -> result: Coord pure {
+  let a = left.raw;
+  let b = right.raw;
+  let sum = a +sat b;
+  return Coord(raw: sum);
+}
+
+fn coord_sub(left: Coord, right: Coord) -> result: Coord pure {
+  let a = left.raw;
+  let b = right.raw;
+  let difference = a -sat b;
+  return Coord(raw: difference);
+}
+
+fn coord_min(left: Coord, right: Coord) -> result: Coord pure {
+  let a = left.raw;
+  let b = right.raw;
+  let least = imin(a, b);
+  return Coord(raw: least);
+}
+
+fn coord_max(left: Coord, right: Coord) -> result: Coord pure {
+  let a = left.raw;
+  let b = right.raw;
+  let greatest = imax(a, b);
+  return Coord(raw: greatest);
+}

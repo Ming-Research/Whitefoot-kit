@@ -1,23 +1,70 @@
 alias ExitStatus = std::process::ExitStatus;
-alias exit_status = std::process::exit_status;
 alias Inputs = std::process::Inputs;
 alias HandleFactory = std::io::HandleFactory;
-alias OutputStream = std::io::OutputStream;
 alias IoError = std::io::IoError;
-alias Instant = std::time::Instant;
-alias CancelWatch = std::time::CancelWatch;
+alias OutputStream = std::io::OutputStream;
 
-fn write_all(factory: &HandleFactory, output: &OutputStream, source: &[u8]) -> result: Result<unit, IoError> reads(source), writes(factory), writes(output) waits {
-  let length = source^.len;
+fn fir_outputs() -> result: Array<f64, 64> pure {
+  let input = array_filled::<f64, 64>(value: 0.0_f64);
+  set input[0_u64] = 8.0_f64;
+  let outputs = array_filled::<f64, 64>(value: 0.0_f64);
+  let coefficient = 0.125_f64;
+  let h0 = 0.0_f64;
+  let h1 = 0.0_f64;
+  let h2 = 0.0_f64;
+  let h3 = 0.0_f64;
+  let h4 = 0.0_f64;
+  let h5 = 0.0_f64;
+  let h6 = 0.0_f64;
+  let h7 = 0.0_f64;
+  for (n in 0_u64..64_u64) {
+    set h7 = h6;
+    set h6 = h5;
+    set h5 = h4;
+    set h4 = h3;
+    set h3 = h2;
+    set h2 = h1;
+    set h1 = h0;
+    set h0 = input[n];
+    let p0 = fmul.strict(coefficient, h0);
+    let p1 = fmul.strict(coefficient, h1);
+    let p2 = fmul.strict(coefficient, h2);
+    let p3 = fmul.strict(coefficient, h3);
+    let p4 = fmul.strict(coefficient, h4);
+    let p5 = fmul.strict(coefficient, h5);
+    let p6 = fmul.strict(coefficient, h6);
+    let p7 = fmul.strict(coefficient, h7);
+    let s1 = fadd.strict(p0, p1);
+    let s2 = fadd.strict(s1, p2);
+    let s3 = fadd.strict(s2, p3);
+    let s4 = fadd.strict(s3, p4);
+    let s5 = fadd.strict(s4, p5);
+    let s6 = fadd.strict(s5, p6);
+    let s7 = fadd.strict(s6, p7);
+    set outputs[n] = s7;
+  }
+  return outputs;
+}
+
+fn publish_word(factory: &HandleFactory, output: &OutputStream, value: f64) -> result: Result<unit, IoError> writes(factory), writes(output) waits {
+  let word = reinterpret::<f64, u64>(value);
+  let chunk = array_filled::<u8, 8>(value: 0_u8);
+  let rest = word;
+  for (b in 0_u64..8_u64) {
+    set chunk[b] = cvt.wrap::<u64, u8>(rest);
+    set rest = ishr(rest, 8_u32);
+  }
+  let window = &chunk[0_u64..8_u64];
   let sent = 0_u64;
   loop @publish {
-    if sent < length {
+    let pending = sent < 8_u64;
+    if pending {
     } else {
       break @publish;
     }
-    let no_deadline = None<Instant>();
+    let no_deadline = None<std::time::Instant>();
     let cancel = std::time::cancel_never();
-    let outcome = std::io::write_once(factory: factory, output: output, source: source, start: sent, end: length, deadline: no_deadline, cancel: &cancel);
+    let outcome = std::io::write_once(factory: factory, output: output, source: window, start: sent, end: 8_u64, deadline: no_deadline, cancel: &cancel);
     std::time::close_cancel_watch(watch: move cancel);
     match outcome {
       Ok(value: next) => {
@@ -31,102 +78,72 @@ fn write_all(factory: &HandleFactory, output: &OutputStream, source: &[u8]) -> r
   return Ok<unit, IoError>(value: unit);
 }
 
-fn f64_to_bytes(value: f64) -> result: Array<u8, 8> pure {
-  let bits = reinterpret::<f64, u64>(value);
-  let b0 = cvt.wrap::<u64, u8>(bits);
-  let shifted1 = ishr(bits, 8_u32);
-  let b1 = cvt.wrap::<u64, u8>(shifted1);
-  let shifted2 = ishr(bits, 16_u32);
-  let b2 = cvt.wrap::<u64, u8>(shifted2);
-  let shifted3 = ishr(bits, 24_u32);
-  let b3 = cvt.wrap::<u64, u8>(shifted3);
-  let shifted4 = ishr(bits, 32_u32);
-  let b4 = cvt.wrap::<u64, u8>(shifted4);
-  let shifted5 = ishr(bits, 40_u32);
-  let b5 = cvt.wrap::<u64, u8>(shifted5);
-  let shifted6 = ishr(bits, 48_u32);
-  let b6 = cvt.wrap::<u64, u8>(shifted6);
-  let shifted7 = ishr(bits, 56_u32);
-  let b7 = cvt.wrap::<u64, u8>(shifted7);
-  let bytes = array_filled::<u8, 8>(value: 0_u8);
-  set bytes[0_u64] = b0;
-  set bytes[1_u64] = b1;
-  set bytes[2_u64] = b2;
-  set bytes[3_u64] = b3;
-  set bytes[4_u64] = b4;
-  set bytes[5_u64] = b5;
-  set bytes[6_u64] = b6;
-  set bytes[7_u64] = b7;
-  return bytes;
+fn publish_outputs(factory: &HandleFactory, output: &OutputStream, outputs: &Array<f64, 64>, total: f64) -> result: Result<unit, IoError> writes(factory), writes(output) waits {
+  for (k in 0_u64..64_u64) {
+    let published = publish_word(factory: factory, output: output, value: outputs^[k]);
+    match published {
+      Ok(value: unused_word) => {
+      }
+      Err(error: problem) => {
+        return Err<unit, IoError>(error: problem);
+      }
+    }
+  }
+  let last = publish_word(factory: factory, output: output, value: total);
+  match last {
+    Ok(value: unused_last) => {
+    }
+    Err(error: problem) => {
+      return Err<unit, IoError>(error: problem);
+    }
+  }
+  return Ok<unit, IoError>(value: unit);
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: output, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
-  let std::fs::Directory(read: directory, write: directory_write) = move cwd_directory;
-  std::fs::close_directory_write(factory: &factory, directory: move directory_write);
-  std::fs::close_directory(factory: &factory, directory: move directory);
-  let output_buffer = array_filled::<u8, 520>(value: 0_u8);
-  let history = array_filled::<f64, 8>(value: 0.0_f64);
-  let coefficient = 0.125_f64;
-  let total_sum = 0.0_f64;
-  for (sample_index in 0_u64..64_u64) {
-    let current_sample = if sample_index == 0_u64 {
-      give 8.0_f64;
-    } else {
-      give 0.0_f64;
-    };
-    set history[7_u64] = history[6_u64];
-    set history[6_u64] = history[5_u64];
-    set history[5_u64] = history[4_u64];
-    set history[4_u64] = history[3_u64];
-    set history[3_u64] = history[2_u64];
-    set history[2_u64] = history[1_u64];
-    set history[1_u64] = history[0_u64];
-    set history[0_u64] = current_sample;
-    let sum = history[0_u64];
-    let sum = sum +fadd.strict history[1_u64];
-    let sum = sum +fadd.strict history[2_u64];
-    let sum = sum +fadd.strict history[3_u64];
-    let sum = sum +fadd.strict history[4_u64];
-    let sum = sum +fadd.strict history[5_u64];
-    let sum = sum +fadd.strict history[6_u64];
-    let sum = sum +fadd.strict history[7_u64];
-    let output_value = fmul.strict(sum, coefficient);
-    set total_sum = total_sum +fadd.strict output_value;
-    let output_bytes = f64_to_bytes(value: output_value);
-    let byte_offset = sample_index * 8_u64;
-    set output_buffer[byte_offset] = output_bytes[0_u64];
-    set output_buffer[byte_offset + 1_u64] = output_bytes[1_u64];
-    set output_buffer[byte_offset + 2_u64] = output_bytes[2_u64];
-    set output_buffer[byte_offset + 3_u64] = output_bytes[3_u64];
-    set output_buffer[byte_offset + 4_u64] = output_bytes[4_u64];
-    set output_buffer[byte_offset + 5_u64] = output_bytes[5_u64];
-    set output_buffer[byte_offset + 6_u64] = output_bytes[6_u64];
-    set output_buffer[byte_offset + 7_u64] = output_bytes[7_u64];
+  let std::fs::Directory(read: directory_read, write: directory_write) = move cwd_directory;
+  let write_closed = std::fs::close_directory_write(factory: &factory, directory: move directory_write);
+  let read_closed = std::fs::close_directory(factory: &factory, directory: move directory_read);
+  let code = 0_u8;
+  match write_closed {
+    Ok(value: unused_write_closed) => {
+    }
+    Err(error: unused_write_error) => {
+      set code = 1_u8;
+    }
   }
-  let expected_sum = 8.0_f64;
-  let sum_matches = feq(total_sum, expected_sum);
-  if sum_matches {
+  match read_closed {
+    Ok(value: unused_read_closed) => {
+    }
+    Err(error: unused_read_error) => {
+      set code = 1_u8;
+    }
+  }
+  let outputs = fir_outputs();
+  let bounded = True();
+  let total = 0.0_f64;
+  for (k in 0_u64..64_u64) {
+    let sample_value = outputs[k];
+    let above = fge(sample_value, -8.0_f64);
+    let below = fle(sample_value, 8.0_f64);
+    let inside = band(above, below);
+    set bounded = band(bounded, inside);
+    set total = fadd.strict(total, sample_value);
+  }
+  let sum_ok = feq(total, 8.0_f64);
+  let checks = band(bounded, sum_ok);
+  if checks {
   } else {
-    return exit_status(code: 1_u8);
+    return std::process::exit_status(code: 1_u8);
   }
-  let sum_bytes = f64_to_bytes(value: total_sum);
-  set output_buffer[512_u64] = sum_bytes[0_u64];
-  set output_buffer[513_u64] = sum_bytes[1_u64];
-  set output_buffer[514_u64] = sum_bytes[2_u64];
-  set output_buffer[515_u64] = sum_bytes[3_u64];
-  set output_buffer[516_u64] = sum_bytes[4_u64];
-  set output_buffer[517_u64] = sum_bytes[5_u64];
-  set output_buffer[518_u64] = sum_bytes[6_u64];
-  set output_buffer[519_u64] = sum_bytes[7_u64];
-  let output_view = &output_buffer[0_u64..520_u64];
-  let write_result = write_all(factory: &factory, output: &output, source: output_view);
-  match write_result {
-    Ok(value: unused_unit) => {
-      return exit_status(code: 0_u8);
+  let published = publish_outputs(factory: &factory, output: &output, outputs: &outputs, total: total);
+  match published {
+    Ok(value: unused_published) => {
     }
-    Err(error: unused_error) => {
-      return exit_status(code: 250_u8);
+    Err(error: unused_publish_error) => {
+      return std::process::exit_status(code: 250_u8);
     }
   }
+  return std::process::exit_status(code: code);
 }

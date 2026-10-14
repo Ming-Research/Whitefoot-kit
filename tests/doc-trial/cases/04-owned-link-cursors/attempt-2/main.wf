@@ -1,27 +1,65 @@
 alias ExitStatus = std::process::ExitStatus;
-alias exit_status = std::process::exit_status;
 alias Inputs = std::process::Inputs;
-alias Directory = std::fs::Directory;
+alias exit_status = std::process::exit_status;
+alias HandleFactory = std::io::HandleFactory;
+alias OutputStream = std::io::OutputStream;
+alias IoError = std::io::IoError;
 
-struct Node {
+struct Link {
   value: u64;
-  next: Option<Box<Node>>;
+  next: Option<Box<Link>>;
 }
 
-fn create_list(from: u64, to: u64) -> result: Option<Box<Node>> pure {
-  if from == to {
-    return None<Box<Node>>();
-  } else {
-    let next = create_list(from: from +wrap 1_u64, to: to);
-    let node = Node(value: from, next: move next);
-    let boxed = box_new::<Node>(value: move node);
-    return Some<Box<Node>>(value: move boxed);
+fn byte_of(number: u64, shift: u32) -> result: u8 pure {
+  let shifted = ishr.wrap(number, shift);
+  return cvt.wrap::<u64, u8>(shifted);
+}
+
+fn encode(first: u64, second: u64, third: u64) -> result: Array<u8, 24> pure {
+  let bytes = array_filled::<u8, 24>(value: 0_u8);
+  set bytes[0_u64] = byte_of(number: first, shift: 0_u32);
+  set bytes[1_u64] = byte_of(number: first, shift: 8_u32);
+  set bytes[2_u64] = byte_of(number: first, shift: 16_u32);
+  set bytes[3_u64] = byte_of(number: first, shift: 24_u32);
+  set bytes[4_u64] = byte_of(number: first, shift: 32_u32);
+  set bytes[5_u64] = byte_of(number: first, shift: 40_u32);
+  set bytes[6_u64] = byte_of(number: first, shift: 48_u32);
+  set bytes[7_u64] = byte_of(number: first, shift: 56_u32);
+  set bytes[8_u64] = byte_of(number: second, shift: 0_u32);
+  set bytes[9_u64] = byte_of(number: second, shift: 8_u32);
+  set bytes[10_u64] = byte_of(number: second, shift: 16_u32);
+  set bytes[11_u64] = byte_of(number: second, shift: 24_u32);
+  set bytes[12_u64] = byte_of(number: second, shift: 32_u32);
+  set bytes[13_u64] = byte_of(number: second, shift: 40_u32);
+  set bytes[14_u64] = byte_of(number: second, shift: 48_u32);
+  set bytes[15_u64] = byte_of(number: second, shift: 56_u32);
+  set bytes[16_u64] = byte_of(number: third, shift: 0_u32);
+  set bytes[17_u64] = byte_of(number: third, shift: 8_u32);
+  set bytes[18_u64] = byte_of(number: third, shift: 16_u32);
+  set bytes[19_u64] = byte_of(number: third, shift: 24_u32);
+  set bytes[20_u64] = byte_of(number: third, shift: 32_u32);
+  set bytes[21_u64] = byte_of(number: third, shift: 40_u32);
+  set bytes[22_u64] = byte_of(number: third, shift: 48_u32);
+  set bytes[23_u64] = byte_of(number: third, shift: 56_u32);
+  return bytes;
+}
+
+fn verdict(first: u64, second: u64, third: u64) -> result: u8 pure {
+  if first != 2016_u64 {
+    return 1_u8;
   }
+  if second != 1024_u64 {
+    return 2_u8;
+  }
+  if third != 3168_u64 {
+    return 3_u8;
+  }
+  return 0_u8;
 }
 
-fn sum_list(head: &Option<Box<Node>>) -> result: u64 reads(head) {
-  let total = 0_u64;
+fn read_sum(head: &Option<Box<Link>>) -> result: u64 reads(head) {
   let cursor = head;
+  let total = 0_u64;
   loop {
     match cursor^ {
       Some(value: node) => {
@@ -35,57 +73,65 @@ fn sum_list(head: &Option<Box<Node>>) -> result: u64 reads(head) {
   }
 }
 
-fn remove_evens_and_sum(current: Option<Box<Node>>) -> r: (Option<Box<Node>>, u64) pure {
-  match move current {
+fn remove_evens(list: Option<Box<Link>>) -> result: Option<Box<Link>> pure {
+  match move list {
+    Some(value: cell) => {
+      let low = iand(cell.inner.value, 1_u64);
+      let odd = low == 1_u64;
+      if odd {
+        let odd_rest = None<Box<Link>>();
+        swap(first: &cell.inner.next, second: &odd_rest);
+        let odd_tail = remove_evens(list: move odd_rest);
+        set cell.inner.next = move odd_tail;
+        return Some<Box<Link>>(value: move cell);
+      }
+      let even_rest = None<Box<Link>>();
+      swap(first: &cell.inner.next, second: &even_rest);
+      return remove_evens(list: move even_rest);
+    }
     None() => {
-      return (None<Box<Node>>(), 0_u64);
-    }
-    Some(value: boxed) => {
-      let inner_node = move boxed.inner;
-      let Node(value: val, next: remaining) = move inner_node;
-      let is_even = iand(val, 1_u64) == 0_u64;
-      if is_even {
-        return remove_evens_and_sum(current: move remaining);
-      } else {
-        let (new_next, next_sum) = remove_evens_and_sum(current: move remaining);
-        let new_node = Node(value: val, next: move new_next);
-        let new_box = box_new::<Node>(value: move new_node);
-        let result = Some<Box<Node>>(value: move new_box);
-        let total_sum = val +wrap next_sum;
-        return (move result, total_sum);
-      }
+      return None<Box<Link>>();
     }
   }
 }
 
-fn increment_all(head: &Option<Box<Node>>) -> result: unit writes(head) {
-  let cursor = head;
-  loop {
-    match cursor^ {
-      Some(value: node) => {
-        set node^.inner.value = node^.inner.value +wrap 1_u64;
-        set cursor = &node^.inner.next;
-      }
-      None() => {
-        return unit;
-      }
+fn bump_all(list: Option<Box<Link>>) -> result: Option<Box<Link>> pure {
+  match move list {
+    Some(value: cell) => {
+      set cell.inner.value = cell.inner.value +wrap 1_u64;
+      let rest = None<Box<Link>>();
+      swap(first: &cell.inner.next, second: &rest);
+      let tail = bump_all(list: move rest);
+      set cell.inner.next = move tail;
+      return Some<Box<Link>>(value: move cell);
+    }
+    None() => {
+      return None<Box<Link>>();
     }
   }
 }
 
-fn u8_from_u64(val: u64, shift: u32) -> result: u8 pure {
-  let shifted = ishr(val, shift);
-  let masked = iand(shifted, 255_u64);
-  return cvt::<u64, u8>(masked);
+fn build_list() -> result: Option<Box<Link>> pure {
+  let head = None<Box<Link>>();
+  for (i in 0_u64..64_u64) {
+    let number = 63_u64 -wrap i;
+    let node = Link(value: number, next: move head);
+    let cell = box_new::<Link>(value: move node);
+    set head = Some<Box<Link>>(value: move cell);
+  }
+  return move head;
 }
 
-fn write_all(factory: &std::io::HandleFactory, output: &std::io::OutputStream, source: &[u8]) -> result: Result<unit, std::io::IoError> reads(source), writes(factory), writes(output) waits {
-  let length = source^.len;
+fn publish_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], length: u64) -> result: Result<unit, IoError> reads(source), writes(factory), writes(output) waits contract {
+  define source_length = source^.len;
+  requires length <= source_length;
+} {
   let sent = 0_u64;
-  loop @sending {
-    if sent < length {
+  loop @publish {
+    let pending = sent < length;
+    if pending {
     } else {
-      break @sending;
+      break @publish;
     }
     let no_deadline = None<std::time::Instant>();
     let cancel = std::time::cancel_never();
@@ -96,86 +142,57 @@ fn write_all(factory: &std::io::HandleFactory, output: &std::io::OutputStream, s
         set sent = next;
       }
       Err(error: problem) => {
-        return Err<unit, std::io::IoError>(error: problem);
+        return Err<unit, IoError>(error: problem);
       }
     }
   }
-  return Ok<unit, std::io::IoError>(value: unit);
+  return Ok<unit, IoError>(value: unit);
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(cwd: cwd_input, handles: factory, stdout: output, ..) = move inputs;
-  let Directory(read: cwd_read, write: cwd_write) = move cwd_input;
-  let close_write_result = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
-  let close_read_result = std::fs::close_directory(factory: &factory, directory: move cwd_read);
+  let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: output, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let std::fs::Directory(read: directory_read, write: directory_write) = move cwd_directory;
+  let write_closed = std::fs::close_directory_write(factory: &factory, directory: move directory_write);
+  let read_closed = std::fs::close_directory(factory: &factory, directory: move directory_read);
   let code = 0_u8;
-  match close_write_result {
-    Ok(value: unused) => {
+  match write_closed {
+    Ok(value: unused_write_closed) => {
     }
-    Err(error: unused) => {
+    Err(error: unused_write_error) => {
       set code = 250_u8;
     }
   }
-  match close_read_result {
-    Ok(value: unused) => {
+  match read_closed {
+    Ok(value: unused_read_closed) => {
     }
-    Err(error: unused) => {
+    Err(error: unused_read_error) => {
+      set code = 250_u8;
+    }
+  }
+  let head = build_list();
+  let first_sum = read_sum(head: &head);
+  set head = remove_evens(list: move head);
+  let second_sum = read_sum(head: &head);
+  set head = bump_all(list: move head);
+  let read_a = read_sum(head: &head);
+  let read_b = read_sum(head: &head);
+  let read_c = read_sum(head: &head);
+  let partial = read_a +wrap read_b;
+  let third_sum = partial +wrap read_c;
+  let verdict_code = verdict(first: first_sum, second: second_sum, third: third_sum);
+  let encoded = encode(first: first_sum, second: second_sum, third: third_sum);
+  let view = &encoded[0_u64..24_u64];
+  let length = view^.len;
+  let published = publish_all(factory: &factory, output: &output, source: view, length: length);
+  match published {
+    Ok(value: unused_published) => {
+    }
+    Err(error: unused_publish_error) => {
       set code = 250_u8;
     }
   }
   if code != 0_u8 {
     return exit_status(code: code);
   }
-  let head = create_list(from: 0_u64, to: 64_u64);
-  let sum_before = sum_list(head: &head);
-  let valid_before = sum_before == 2016_u64;
-  if bnot(valid_before) {
-    return exit_status(code: 1_u8);
-  }
-  let (head, sum_after) = remove_evens_and_sum(current: move head);
-  let valid_after = sum_after == 1024_u64;
-  if bnot(valid_after) {
-    return exit_status(code: 2_u8);
-  }
-  increment_all(head: &head);
-  let sum_final = sum_list(head: &head);
-  let valid_final = sum_final == 3168_u64;
-  if bnot(valid_final) {
-    return exit_status(code: 3_u8);
-  }
-  let bytes = array_filled::<u8, 24>(value: 0_u8);
-  set bytes[0_u64] = u8_from_u64(val: sum_before, shift: 0_u32);
-  set bytes[1_u64] = u8_from_u64(val: sum_before, shift: 8_u32);
-  set bytes[2_u64] = u8_from_u64(val: sum_before, shift: 16_u32);
-  set bytes[3_u64] = u8_from_u64(val: sum_before, shift: 24_u32);
-  set bytes[4_u64] = u8_from_u64(val: sum_before, shift: 32_u32);
-  set bytes[5_u64] = u8_from_u64(val: sum_before, shift: 40_u32);
-  set bytes[6_u64] = u8_from_u64(val: sum_before, shift: 48_u32);
-  set bytes[7_u64] = u8_from_u64(val: sum_before, shift: 56_u32);
-  set bytes[8_u64] = u8_from_u64(val: sum_after, shift: 0_u32);
-  set bytes[9_u64] = u8_from_u64(val: sum_after, shift: 8_u32);
-  set bytes[10_u64] = u8_from_u64(val: sum_after, shift: 16_u32);
-  set bytes[11_u64] = u8_from_u64(val: sum_after, shift: 24_u32);
-  set bytes[12_u64] = u8_from_u64(val: sum_after, shift: 32_u32);
-  set bytes[13_u64] = u8_from_u64(val: sum_after, shift: 40_u32);
-  set bytes[14_u64] = u8_from_u64(val: sum_after, shift: 48_u32);
-  set bytes[15_u64] = u8_from_u64(val: sum_after, shift: 56_u32);
-  set bytes[16_u64] = u8_from_u64(val: sum_final, shift: 0_u32);
-  set bytes[17_u64] = u8_from_u64(val: sum_final, shift: 8_u32);
-  set bytes[18_u64] = u8_from_u64(val: sum_final, shift: 16_u32);
-  set bytes[19_u64] = u8_from_u64(val: sum_final, shift: 24_u32);
-  set bytes[20_u64] = u8_from_u64(val: sum_final, shift: 32_u32);
-  set bytes[21_u64] = u8_from_u64(val: sum_final, shift: 40_u32);
-  set bytes[22_u64] = u8_from_u64(val: sum_final, shift: 48_u32);
-  set bytes[23_u64] = u8_from_u64(val: sum_final, shift: 56_u32);
-  let window = &bytes[0_u64..24_u64];
-  let write_result = write_all(factory: &factory, output: &output, source: window);
-  match write_result {
-    Ok(value: unused) => {
-      return exit_status(code: 0_u8);
-    }
-    Err(error: unused) => {
-      return exit_status(code: 250_u8);
-    }
-  }
+  return exit_status(code: verdict_code);
 }

@@ -1,4 +1,4 @@
 pkg::geometry: [];
-pkg::client: [pkg::geometry, std::process, std::io];
+pkg::client: [pkg::geometry, std::process, std::io, std::fs, std::time];
 
 entry main = pkg::client::main;

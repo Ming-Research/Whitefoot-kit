@@ -1,161 +1,218 @@
 alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
+alias HandleFactory = std::io::HandleFactory;
+alias IoError = std::io::IoError;
+alias OutputStream = std::io::OutputStream;
 alias exit_status = std::process::exit_status;
-alias Instant = std::time::Instant;
 
-const input_bytes: Array<u8, 11> = "A%42%4a%zz%";
+const sample: Array<u8, 11> = "A%42%4a%zz%";
 
-fn is_hex_digit(byte: u8) -> result: Bool pure {
-  let is_digit = band(byte >= 48_u8, byte <= 57_u8);
-  let is_lower = band(byte >= 97_u8, byte <= 102_u8);
-  let is_upper = band(byte >= 65_u8, byte <= 70_u8);
-  let is_any = bor(is_digit, bor(is_lower, is_upper));
-  return is_any;
+const expected: Array<u8, 7> = "ABJ%zz%";
+
+enum DecodeError {
+  Short();
 }
 
-fn hex_to_value(byte: u8) -> result: u8 pure {
-  let is_digit = band(byte >= 48_u8, byte <= 57_u8);
-  let value = if is_digit {
-    give byte - 48_u8;
-  } else {
-    let is_lower = band(byte >= 97_u8, byte <= 102_u8);
-    if is_lower {
-      give byte - 97_u8 + 10_u8;
-    } else {
-      give byte - 65_u8 + 10_u8;
-    }
+fn hex_value(byte: u8) -> result: Option<u8> pure {
+  let low_decimal = byte >= 48_u8;
+  let high_decimal = byte <= 57_u8;
+  let decimal = band(low_decimal, high_decimal);
+  if decimal {
+    let decimal_value = byte - 48_u8;
+    return Some<u8>(value: decimal_value);
   }
-  return value;
+  let low_upper = byte >= 65_u8;
+  let high_upper = byte <= 70_u8;
+  let upper = band(low_upper, high_upper);
+  if upper {
+    let upper_value = byte - 55_u8;
+    return Some<u8>(value: upper_value);
+  }
+  let low_lower = byte >= 97_u8;
+  let high_lower = byte <= 102_u8;
+  let lower = band(low_lower, high_lower);
+  if lower {
+    let lower_value = byte - 87_u8;
+    return Some<u8>(value: lower_value);
+  }
+  return None<u8>();
 }
 
-fn decode_percent(input: &[u8], destination: &[u8]) -> produced: u64 reads(input), writes(destination) {
-  let input_len = input^.len;
-  let dest_len = destination^.len;
-  let in_idx = 0_u64;
-  let out_idx = 0_u64;
-  loop (
-    invariant in_bound: in_idx <= input_len,
-    invariant out_bound: out_idx <= dest_len
-  ) {
-    if in_idx == input_len {
-      break;
-    }
-    let current = input^[in_idx];
-    if current == 37_u8 {
-      let next_idx = in_idx + 1_u64;
-      let second_idx = next_idx + 1_u64;
-      let has_two = second_idx < input_len;
-      if has_two {
-        let first_hex = input^[next_idx];
-        let second_hex = input^[second_idx];
-        let first_valid = is_hex_digit(byte: first_hex);
-        let second_valid = is_hex_digit(byte: second_hex);
-        let both_valid = band(first_valid, second_valid);
-        if both_valid {
-          let first_val = hex_to_value(byte: first_hex);
-          let second_val = hex_to_value(byte: second_hex);
-          let decoded = first_val *wrap 16_u8 +wrap second_val;
-          if out_idx < dest_len {
-            set destination^[out_idx] = decoded;
-            set out_idx = out_idx + 1_u64;
+fn escape_value(source: &[u8], index: u64) -> result: Option<u8> reads(source) {
+  let length = source^.len;
+  if index < length {
+    let lead = source^[index];
+    if lead == 37_u8 {
+      let first_index = index +sat 1_u64;
+      if first_index < length {
+        let second_index = index +sat 2_u64;
+        if second_index < length {
+          let high_byte = source^[first_index];
+          let low_byte = source^[second_index];
+          let high_value = hex_value(byte: high_byte);
+          let low_value = hex_value(byte: low_byte);
+          match high_value {
+            Some(value: high_digit) => {
+              match low_value {
+                Some(value: low_digit) => {
+                  let scaled = high_digit *wrap 16_u8;
+                  let combined = scaled +wrap low_digit;
+                  return Some<u8>(value: combined);
+                }
+                None() => {
+                  return None<u8>();
+                }
+              }
+            }
+            None() => {
+              return None<u8>();
+            }
           }
-          set in_idx = second_idx + 1_u64;
-        } else {
-          if out_idx < dest_len {
-            set destination^[out_idx] = current;
-            set out_idx = out_idx + 1_u64;
-          }
-          set in_idx = next_idx;
         }
-      } else {
-        if out_idx < dest_len {
-          set destination^[out_idx] = current;
-          set out_idx = out_idx + 1_u64;
-        }
-        set in_idx = next_idx;
       }
-    } else {
-      if out_idx < dest_len {
-        set destination^[out_idx] = current;
-        set out_idx = out_idx + 1_u64;
-      }
-      set in_idx = in_idx + 1_u64;
     }
   }
-  return out_idx;
+  return None<u8>();
+}
+
+fn decode(source: &[u8], destination: &[u8]) -> result: Result<u64, DecodeError> reads(source), writes(destination) {
+  let length = source^.len;
+  let capacity = destination^.len;
+  let index = 0_u64;
+  let produced = 0_u64;
+  loop @scan {
+    if index < length {
+      let escaped = escape_value(source: source, index: index);
+      match escaped {
+        Some(value: decoded) => {
+          if produced < capacity {
+            set destination^[produced] = decoded;
+            set produced = produced +sat 1_u64;
+            set index = index +sat 3_u64;
+            continue @scan;
+          }
+          let short_escape = DecodeError::Short();
+          return Err<u64, DecodeError>(error: short_escape);
+        }
+        None() => {
+          if produced < capacity {
+            let plain = source^[index];
+            set destination^[produced] = plain;
+            set produced = produced +sat 1_u64;
+            set index = index +sat 1_u64;
+            continue @scan;
+          }
+          let short_plain = DecodeError::Short();
+          return Err<u64, DecodeError>(error: short_plain);
+        }
+      }
+    } else {
+      break @scan;
+    }
+  }
+  return Ok<u64, DecodeError>(value: produced);
+}
+
+fn publish_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], length: u64) -> result: Result<unit, IoError> reads(source), writes(factory), writes(output) waits contract {
+  define source_length = source^.len;
+  requires length <= source_length;
+} {
+  let sent = 0_u64;
+  loop @publish {
+    let pending = sent < length;
+    if pending {
+    } else {
+      break @publish;
+    }
+    let no_deadline = None<std::time::Instant>();
+    let cancel = std::time::cancel_never();
+    let outcome = std::io::write_once(factory: factory, output: output, source: source, start: sent, end: length, deadline: no_deadline, cancel: &cancel);
+    std::time::close_cancel_watch(watch: move cancel);
+    match outcome {
+      Ok(value: next) => {
+        set sent = next;
+      }
+      Err(error: problem) => {
+        return Err<unit, IoError>(error: problem);
+      }
+    }
+  }
+  return Ok<unit, IoError>(value: unit);
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(cwd: cwd_directory, handles: factory, stdout: stdout_stream, ..) = move inputs;
+  let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: output_stream, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
   let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
-  let write_close = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
-  let read_close = std::fs::close_directory(factory: &factory, directory: move cwd_read);
-  let status_code = 0_u8;
-  match write_close {
-    Ok(value: unused_write_ok) => {
+  let write_closed = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
+  let read_closed = std::fs::close_directory(factory: &factory, directory: move cwd_read);
+  match write_closed {
+    Ok(value: unused_write_closed) => {
     }
-    Err(error: unused_write_err) => {
-      set status_code = 250_u8;
+    Err(error: unused_write_error) => {
     }
   }
-  match read_close {
-    Ok(value: unused_read_ok) => {
+  match read_closed {
+    Ok(value: unused_read_closed) => {
     }
-    Err(error: unused_read_err) => {
-      set status_code = 250_u8;
-    }
-  }
-  if status_code == 0_u8 {
-    let destination = array_filled::<u8, 11>(value: 204_u8);
-    let input_view = &input_bytes[0_u64..11_u64];
-    let dest_view = &destination[0_u64..11_u64];
-    let produced = decode_percent(input: input_view, destination: dest_view);
-    if produced != 7_u64 {
-      set status_code = 1_u8;
-    }
-    if status_code == 0_u8 {
-      let next_byte = destination[produced];
-      if next_byte != 204_u8 {
-        set status_code = 1_u8;
-      }
-    }
-    if status_code == 0_u8 {
-      let output_buf = array_filled::<u8, 16>(value: 0_u8);
-      for (i in 0_u64..7_u64) {
-        set output_buf[i] = destination[i];
-      }
-      set output_buf[7_u64] = 7_u8;
-      set output_buf[8_u64] = 0_u8;
-      set output_buf[9_u64] = 0_u8;
-      set output_buf[10_u64] = 0_u8;
-      set output_buf[11_u64] = 0_u8;
-      set output_buf[12_u64] = 0_u8;
-      set output_buf[13_u64] = 0_u8;
-      set output_buf[14_u64] = 0_u8;
-      set output_buf[15_u64] = 204_u8;
-      let output_view = &output_buf[0_u64..16_u64];
-      let sent = 0_u64;
-      loop @write {
-        let need_more = sent < 16_u64;
-        if need_more {
-        } else {
-          break @write;
-        }
-        let no_deadline = None<Instant>();
-        let cancel = std::time::cancel_never();
-        let outcome = std::io::write_once(factory: &factory, output: &stdout_stream, source: output_view, start: sent, end: 16_u64, deadline: no_deadline, cancel: &cancel);
-        std::time::close_cancel_watch(watch: move cancel);
-        match outcome {
-          Ok(value: next) => {
-            set sent = next;
-          }
-          Err(error: problem) => {
-            set status_code = 250_u8;
-            break @write;
-          }
-        }
-      }
+    Err(error: unused_read_error) => {
     }
   }
-  return exit_status(code: status_code);
+  let sample_view = &sample[0_u64..11_u64];
+  let destination = array_filled::<u8, 11>(value: 204_u8);
+  let window = &destination[0_u64..11_u64];
+  let outcome = decode(source: sample_view, destination: window);
+  let produced = 0_u64;
+  match outcome {
+    Ok(value: count) => {
+      set produced = count;
+    }
+    Err(error: problem) => {
+      return exit_status(code: 2_u8);
+    }
+  }
+  let wrong = False();
+  if produced != 7_u64 {
+    set wrong = True();
+  }
+  if destination[7_u64] != 204_u8 {
+    set wrong = True();
+  }
+  for (i in 0_u64..7_u64) {
+    if destination[i] != expected[i] {
+      set wrong = True();
+    }
+  }
+  let output = array_filled::<u8, 16>(value: 0_u8);
+  for (i in 0_u64..7_u64) {
+    set output[i] = destination[i];
+  }
+  set output[7_u64] = cvt.wrap::<u64, u8>(produced);
+  let shift_1 = ishr.wrap(produced, 8_u32);
+  set output[8_u64] = cvt.wrap::<u64, u8>(shift_1);
+  let shift_2 = ishr.wrap(produced, 16_u32);
+  set output[9_u64] = cvt.wrap::<u64, u8>(shift_2);
+  let shift_3 = ishr.wrap(produced, 24_u32);
+  set output[10_u64] = cvt.wrap::<u64, u8>(shift_3);
+  let shift_4 = ishr.wrap(produced, 32_u32);
+  set output[11_u64] = cvt.wrap::<u64, u8>(shift_4);
+  let shift_5 = ishr.wrap(produced, 40_u32);
+  set output[12_u64] = cvt.wrap::<u64, u8>(shift_5);
+  let shift_6 = ishr.wrap(produced, 48_u32);
+  set output[13_u64] = cvt.wrap::<u64, u8>(shift_6);
+  let shift_7 = ishr.wrap(produced, 56_u32);
+  set output[14_u64] = cvt.wrap::<u64, u8>(shift_7);
+  set output[15_u64] = destination[7_u64];
+  let output_view = &output[0_u64..16_u64];
+  let published = publish_all(factory: &factory, output: &output_stream, source: output_view, length: 16_u64);
+  match published {
+    Ok(value: unused_published) => {
+    }
+    Err(error: unused_publish_error) => {
+      return exit_status(code: 250_u8);
+    }
+  }
+  if wrong {
+    return exit_status(code: 1_u8);
+  }
+  return exit_status(code: 0_u8);
 }

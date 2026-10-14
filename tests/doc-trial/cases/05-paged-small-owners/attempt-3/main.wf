@@ -1,196 +1,226 @@
 alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
-alias exit_status = std::process::exit_status;
-alias Directory = std::fs::Directory;
-alias OutputStream = std::io::OutputStream;
-alias HandleFactory = std::io::HandleFactory;
-alias CancelWatch = std::time::CancelWatch;
-alias Instant = std::time::Instant;
-alias IoError = std::io::IoError;
 alias MemoryMeter = std::process::MemoryMeter;
+alias HandleFactory = std::io::HandleFactory;
+alias OutputStream = std::io::OutputStream;
+alias exit_status = std::process::exit_status;
+alias heap_in_use = std::process::heap_in_use;
 
-fn encode_u64_le(value: u64, buffer: &[u8], offset: u64) -> result: unit writes(buffer) contract {
-  requires offset + 8_u64 <= buffer^.len;
-} {
-  let b0 = cvt.wrap::<u64, u8>(value);
-  let b1 = cvt.wrap::<u64, u8>(ishr(value, 8_u32));
-  let b2 = cvt.wrap::<u64, u8>(ishr(value, 16_u32));
-  let b3 = cvt.wrap::<u64, u8>(ishr(value, 24_u32));
-  let b4 = cvt.wrap::<u64, u8>(ishr(value, 32_u32));
-  let b5 = cvt.wrap::<u64, u8>(ishr(value, 40_u32));
-  let b6 = cvt.wrap::<u64, u8>(ishr(value, 48_u32));
-  let b7 = cvt.wrap::<u64, u8>(ishr(value, 56_u32));
-  set buffer^[offset] = b0;
-  set buffer^[offset + 1_u64] = b1;
-  set buffer^[offset + 2_u64] = b2;
-  set buffer^[offset + 3_u64] = b3;
-  set buffer^[offset + 4_u64] = b4;
-  set buffer^[offset + 5_u64] = b5;
-  set buffer^[offset + 6_u64] = b6;
-  set buffer^[offset + 7_u64] = b7;
+fn release_pool(pool: Box<Paged<u64>>) -> result: unit pure {
   return unit;
 }
 
-fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(
-    args: unused_args,
-    drivers: unused_drivers,
-    cwd: cwd_dir,
-    stdout: output,
-    stderr: unused_stderr,
-    handles: factory,
-    stdin: unused_stdin,
-    clock: unused_clock,
-    wall_clock: unused_wall_clock,
-    stops: unused_stops,
-    memory_meter: meter
-  ) = move inputs;
+fn release_zero_pool(pool: Box<Paged<Array<u8, 0>>>) -> result: unit pure {
+  return unit;
+}
 
-  let Directory(read: cwd_read, write: cwd_write) = move cwd_dir;
-  let close_write_result = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
-  let close_read_result = std::fs::close_directory(factory: &factory, directory: move cwd_read);
-
-  let cancel = std::time::cancel_never();
-  let baseline = std::process::heap_in_use(meter: &meter);
-
-  let owner0 = box_paged_new::<u64>(capacity: 0_u64);
-  let heap0 = std::process::heap_in_use(meter: &meter);
-  let val0 = heap0 - baseline;
-  let owner0_released = move owner0;
-
-  let owner0b = box_paged_new::<u64>(capacity: 0_u64);
-  grow_paged(cell: &owner0b, capacity: 0_u64);
-  let heap0b = std::process::heap_in_use(meter: &meter);
-  let val0b = heap0b - baseline;
-  let owner0b_released = move owner0b;
-
-  let owner0c = box_paged_new::<u64>(capacity: 0_u64);
-  let owner0c_released = move owner0c;
-  let heap0c = std::process::heap_in_use(meter: &meter);
-  let val0c = heap0c - baseline;
-
-  let owner1 = box_paged_new::<u64>(capacity: 1_u64);
-  place_back(window: &owner1.inner, value: 73_u64);
-  let heap1 = std::process::heap_in_use(meter: &meter);
-  let val1 = heap1 - baseline;
-  let owner1_released = move owner1;
-
-  let owner2 = box_paged_new::<u64>(capacity: 2_u64);
-  place_back(window: &owner2.inner, value: 73_u64);
-  place_back(window: &owner2.inner, value: 1_u64);
-  let heap2 = std::process::heap_in_use(meter: &meter);
-  let val2 = heap2 - baseline;
-  let owner2_released = move owner2;
-
-  let owner3 = box_paged_new::<u64>(capacity: 3_u64);
-  place_back(window: &owner3.inner, value: 73_u64);
-  place_back(window: &owner3.inner, value: 1_u64);
-  place_back(window: &owner3.inner, value: 2_u64);
-  let heap3 = std::process::heap_in_use(meter: &meter);
-  let val3 = heap3 - baseline;
-  let capacity3 = owner3.inner.len;
-  let sum3 = 73_u64 + 1_u64 + 2_u64;
-  let owner3_released = move owner3;
-
-  let owner4 = box_paged_new::<u64>(capacity: 4_u64);
-  let heap4 = std::process::heap_in_use(meter: &meter);
-  let val4 = heap4 - baseline;
-  let owner4_released = move owner4;
-
-  let owner512 = box_paged_new::<u64>(capacity: 512_u64);
-  place_back(window: &owner512.inner, value: 73_u64);
-  place_back(window: &owner512.inner, value: 1_u64);
-  place_back(window: &owner512.inner, value: 2_u64);
-  for (i in 3_u64..512_u64) {
-    place_back(window: &owner512.inner, value: i);
-  }
-  let heap512 = std::process::heap_in_use(meter: &meter);
-  let val512 = heap512 - baseline;
-  let owner512_released = move owner512;
-
-  let owner513 = box_paged_new::<u64>(capacity: 513_u64);
-  place_back(window: &owner513.inner, value: 73_u64);
-  place_back(window: &owner513.inner, value: 1_u64);
-  place_back(window: &owner513.inner, value: 2_u64);
-  for (i in 3_u64..513_u64) {
-    place_back(window: &owner513.inner, value: i);
-  }
-  let heap513_before = std::process::heap_in_use(meter: &meter);
-  let val513 = heap513_before - baseline;
-  let sum513 = 73_u64 + 1_u64 + 2_u64;
-  for (j in 3_u64..513_u64) {
-    set sum513 = sum513 +wrap j;
-  }
-  let first_val = owner513.inner[0_u64];
-  let owner513_released = move owner513;
-
-  let heap_after_513 = std::process::heap_in_use(meter: &meter);
-  let val_after_513 = heap_after_513 - baseline;
-
-  let owner3b = box_paged_new::<u64>(capacity: 3_u64);
-  place_back(window: &owner3b.inner, value: 19_u64);
-  let heap3b = std::process::heap_in_use(meter: &meter);
-  let val3b = heap3b - baseline;
-  let sep_val = owner3b.inner[0_u64];
-  let owner3b_released = move owner3b;
-
-  let heap_after_3b = std::process::heap_in_use(meter: &meter);
-  let val_after_3b = heap_after_3b - baseline;
-
-  let owner_zero = box_paged_new::<u8>(capacity: 1_u64);
-  place_back(window: &owner_zero.inner, value: 0_u8);
-  grow_paged(cell: &owner_zero, capacity: 3_u64);
-  let heap_zero = std::process::heap_in_use(meter: &meter);
-  let val_zero = heap_zero - baseline;
-  let capacity_zero = owner_zero.inner.len;
-  let owner_zero_released = move owner_zero;
-
-  let heap_after_zero = std::process::heap_in_use(meter: &meter);
-  let val_after_zero = heap_after_zero - baseline;
-
-  let output_buffer = array_filled::<u8, 144>(value: 0_u8);
-  encode_u64_le(value: val0, buffer: &output_buffer, offset: 0_u64);
-  encode_u64_le(value: val0b, buffer: &output_buffer, offset: 8_u64);
-  encode_u64_le(value: val0c, buffer: &output_buffer, offset: 16_u64);
-  encode_u64_le(value: val1, buffer: &output_buffer, offset: 24_u64);
-  encode_u64_le(value: val2, buffer: &output_buffer, offset: 32_u64);
-  encode_u64_le(value: val3, buffer: &output_buffer, offset: 40_u64);
-  encode_u64_le(value: val4, buffer: &output_buffer, offset: 48_u64);
-  encode_u64_le(value: val512, buffer: &output_buffer, offset: 56_u64);
-  encode_u64_le(value: val513, buffer: &output_buffer, offset: 64_u64);
-  encode_u64_le(value: val_after_513, buffer: &output_buffer, offset: 72_u64);
-  encode_u64_le(value: val3b, buffer: &output_buffer, offset: 80_u64);
-  encode_u64_le(value: val_after_3b, buffer: &output_buffer, offset: 88_u64);
-  encode_u64_le(value: val_zero, buffer: &output_buffer, offset: 96_u64);
-  encode_u64_le(value: val_after_zero, buffer: &output_buffer, offset: 104_u64);
-  encode_u64_le(value: capacity3, buffer: &output_buffer, offset: 112_u64);
-  encode_u64_le(value: sum513, buffer: &output_buffer, offset: 120_u64);
-  encode_u64_le(value: first_val, buffer: &output_buffer, offset: 128_u64);
-  encode_u64_le(value: sep_val, buffer: &output_buffer, offset: 136_u64);
-
-  let write_result = std::io::write_once(factory: &factory, output: &output, source: &output_buffer[0_u64..144_u64], start: 0_u64, end: 144_u64, deadline: None<Instant>(), cancel: &cancel);
-
-  let close_cancel_result = std::time::close_cancel_watch(watch: move cancel);
-
-  match move write_result {
-    Ok(value: written) => {
-      match move close_write_result {
-        Ok(value: unit_val) => {
-          match move close_read_result {
-            Ok(value: unit_val2) => {
-              return exit_status(code: 0_u8);
-            }
-            Err(error: err) => {
-              return exit_status(code: 250_u8);
-            }
-          }
-        }
-        Err(error: err) => {
-          return exit_status(code: 250_u8);
-        }
+fn publish_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], length: u64) -> result: Result<unit, std::io::IoError> reads(source), writes(factory), writes(output) waits contract {
+  requires length <= source^.len;
+} {
+  let sent = 0_u64;
+  loop @publish {
+    if sent < length {
+    } else {
+      break @publish;
+    }
+    let no_deadline = None<std::time::Instant>();
+    let cancel = std::time::cancel_never();
+    let outcome = std::io::write_once(factory: factory, output: output, source: source, start: sent, end: length, deadline: no_deadline, cancel: &cancel);
+    std::time::close_cancel_watch(watch: move cancel);
+    match outcome {
+      Ok(value: next) => {
+        set sent = next;
+      }
+      Err(error: problem) => {
+        return Err<unit, std::io::IoError>(error: problem);
       }
     }
-    Err(error: err) => {
+  }
+  return Ok<unit, std::io::IoError>(value: unit);
+}
+
+fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+  let Inputs(cwd: directory, handles: factory, stdout: output, memory_meter: meter, ..) = move inputs;
+  let std::fs::Directory(read: directory_read, write: directory_write) = move directory;
+  let write_closed = std::fs::close_directory_write(factory: &factory, directory: move directory_write);
+  let read_closed = std::fs::close_directory(factory: &factory, directory: move directory_read);
+  let startup_code = 0_u8;
+  match write_closed {
+    Ok(value: unused_write_closed) => {
+    }
+    Err(error: unused_write_error) => {
+      set startup_code = 1_u8;
+    }
+  }
+  match read_closed {
+    Ok(value: unused_read_closed) => {
+    }
+    Err(error: unused_read_error) => {
+      set startup_code = 1_u8;
+    }
+  }
+  let base = heap_in_use(meter: &meter);
+
+  let zero_owner = box_paged_new::<u64>(capacity: 0_u64);
+  grow_paged(cell: &zero_owner, capacity: 0_u64);
+  let now = heap_in_use(meter: &meter);
+  let d_zero = now -sat base;
+  if d_zero != 0_u64 {
+    return exit_status(code: 1_u8);
+  }
+  release_pool(pool: move zero_owner);
+  let now = heap_in_use(meter: &meter);
+  if now -sat base != 0_u64 {
+    return exit_status(code: 2_u8);
+  }
+
+  let pool = box_paged_new::<u64>(capacity: 1_u64);
+  place_back(window: &pool.inner, value: 73_u64);
+  let now = heap_in_use(meter: &meter);
+  if now -sat base != 40_u64 {
+    return exit_status(code: 3_u8);
+  }
+  grow_paged(cell: &pool, capacity: 2_u64);
+  place_back(window: &pool.inner, value: 1_u64);
+  let now = heap_in_use(meter: &meter);
+  if now -sat base != 48_u64 {
+    return exit_status(code: 4_u8);
+  }
+  grow_paged(cell: &pool, capacity: 3_u64);
+  place_back(window: &pool.inner, value: 2_u64);
+  let now = heap_in_use(meter: &meter);
+  if now -sat base != 64_u64 {
+    return exit_status(code: 5_u8);
+  }
+  let logical = pool.inner.cap;
+  if logical != 3_u64 {
+    return exit_status(code: 6_u8);
+  }
+  grow_paged(cell: &pool, capacity: 4_u64);
+  let now = heap_in_use(meter: &meter);
+  if now -sat base != 64_u64 {
+    return exit_status(code: 14_u8);
+  }
+  grow_paged(cell: &pool, capacity: 512_u64);
+  for (
+    i in 3_u64..512_u64
+  ) {
+    place_back(window: &pool.inner, value: i);
+  }
+  let now = heap_in_use(meter: &meter);
+  if now -sat base != 4128_u64 {
+    return exit_status(code: 7_u8);
+  }
+  grow_paged(cell: &pool, capacity: 513_u64);
+  place_back(window: &pool.inner, value: 512_u64);
+  let now = heap_in_use(meter: &meter);
+  if now -sat base != 8232_u64 {
+    return exit_status(code: 8_u8);
+  }
+  let first = pool.inner[0_u64];
+  if first != 73_u64 {
+    return exit_status(code: 9_u8);
+  }
+  let sum = 0_u64;
+  for (
+    k in 0_u64..513_u64
+  ) {
+    let got = pool.inner[k];
+    if k != 0_u64 {
+      if got != k {
+        return exit_status(code: 10_u8);
+      }
+    }
+    set sum = sum +wrap got;
+  }
+  if sum != 131401_u64 {
+    return exit_status(code: 10_u8);
+  }
+  release_pool(pool: move pool);
+  let now = heap_in_use(meter: &meter);
+  if now -sat base != 0_u64 {
+    return exit_status(code: 11_u8);
+  }
+
+  let separate = box_paged_new::<u64>(capacity: 3_u64);
+  place_back(window: &separate.inner, value: 19_u64);
+  let now = heap_in_use(meter: &meter);
+  if now -sat base != 64_u64 {
+    return exit_status(code: 12_u8);
+  }
+  let kept = separate.inner[0_u64];
+  if kept != 19_u64 {
+    return exit_status(code: 10_u8);
+  }
+  release_pool(pool: move separate);
+  let now = heap_in_use(meter: &meter);
+  if now -sat base != 0_u64 {
+    return exit_status(code: 13_u8);
+  }
+
+  let zero_size = box_paged_new::<Array<u8, 0>>(capacity: 1_u64);
+  let empty_element = array_filled::<u8, 0>(value: 0_u8);
+  place_back(window: &zero_size.inner, value: move empty_element);
+  grow_paged(cell: &zero_size, capacity: 3_u64);
+  let now = heap_in_use(meter: &meter);
+  if now -sat base != 33_u64 {
+    return exit_status(code: 15_u8);
+  }
+  release_zero_pool(pool: move zero_size);
+  let now = heap_in_use(meter: &meter);
+  if now -sat base != 0_u64 {
+    return exit_status(code: 16_u8);
+  }
+
+  let last_zero = box_paged_new::<u64>(capacity: 0_u64);
+  release_pool(pool: move last_zero);
+  let now = heap_in_use(meter: &meter);
+  if now -sat base != 0_u64 {
+    return exit_status(code: 17_u8);
+  }
+
+  let words = array_filled::<u64, 18>(value: 0_u64);
+  set words[0_u64] = 0_u64;
+  set words[1_u64] = 0_u64;
+  set words[2_u64] = 0_u64;
+  set words[3_u64] = 40_u64;
+  set words[4_u64] = 48_u64;
+  set words[5_u64] = 64_u64;
+  set words[6_u64] = 64_u64;
+  set words[7_u64] = 4128_u64;
+  set words[8_u64] = 8232_u64;
+  set words[9_u64] = 0_u64;
+  set words[10_u64] = 64_u64;
+  set words[11_u64] = 0_u64;
+  set words[12_u64] = 33_u64;
+  set words[13_u64] = 0_u64;
+  set words[14_u64] = 3_u64;
+  set words[15_u64] = 131401_u64;
+  set words[16_u64] = 73_u64;
+  set words[17_u64] = 19_u64;
+  let out = slots_new::<u8, 144>();
+  for (
+    j in 0_u64..18_u64
+  ) {
+    let word = words[j];
+    for (
+      b in 0_u64..8_u64
+    ) {
+      let shift = b *wrap 8_u64;
+      let amount = cvt.wrap::<u64, u32>(shift);
+      let shifted = ishr(word, amount);
+      let octet = cvt.wrap::<u64, u8>(shifted);
+      place_back(window: &out, value: octet);
+    }
+  }
+  let end = out.len;
+  let view = &out[0_u64..end];
+  let published = publish_all(factory: &factory, output: &output, source: view, length: end);
+  match published {
+    Ok(value: done) => {
+      return exit_status(code: 0_u8);
+    }
+    Err(error: problem) => {
       return exit_status(code: 250_u8);
     }
   }

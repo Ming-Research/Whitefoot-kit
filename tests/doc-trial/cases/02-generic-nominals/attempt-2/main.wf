@@ -1,7 +1,9 @@
 alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
 alias exit_status = std::process::exit_status;
-alias Directory = std::fs::Directory;
+alias HandleFactory = std::io::HandleFactory;
+alias IoError = std::io::IoError;
+alias OutputStream = std::io::OutputStream;
 
 struct Pair<T> {
   left: T;
@@ -13,146 +15,248 @@ enum Choice<T> {
   Present(value: T);
 }
 
-struct Packet {
-  byte1: u8;
-  byte2: u8;
+struct Wrapper<T> {
+  choice: Choice<T>;
 }
 
-fn write_u64_le(buffer: &[u8], offset: u64, value: u64) -> result: unit writes(buffer) {
-  set buffer^[offset] = cvt::<u64, u8>(value);
-  let sh8 = ishr(value, 8_u32);
-  set buffer^[offset + 1_u64] = cvt::<u64, u8>(sh8);
-  let sh16 = ishr(value, 16_u32);
-  set buffer^[offset + 2_u64] = cvt::<u64, u8>(sh16);
-  let sh24 = ishr(value, 24_u32);
-  set buffer^[offset + 3_u64] = cvt::<u64, u8>(sh24);
-  let sh32 = ishr(value, 32_u32);
-  set buffer^[offset + 4_u64] = cvt::<u64, u8>(sh32);
-  let sh40 = ishr(value, 40_u32);
-  set buffer^[offset + 5_u64] = cvt::<u64, u8>(sh40);
-  let sh48 = ishr(value, 48_u32);
-  set buffer^[offset + 6_u64] = cvt::<u64, u8>(sh48);
-  let sh56 = ishr(value, 56_u32);
-  set buffer^[offset + 7_u64] = cvt::<u64, u8>(sh56);
+struct Owned<T> {
+  payload: T;
+}
+
+nocopy struct Packet {
+  bytes: Array<u8, 2>;
+}
+
+struct Report {
+  failures: u64;
+  words: Array<u64, 9>;
+}
+
+fn pair_of<T: copy>(value: T) -> result: Pair<T> pure {
+  return Pair<T>(left: value, right: value);
+}
+
+fn wrap_choice<T: copy>(choice: Choice<T>) -> result: Wrapper<T> pure {
+  return Wrapper<T>(choice: choice);
+}
+
+fn recover<T: copy>(wrapper: Wrapper<T>) -> result: Choice<T> pure {
+  let chosen = wrapper.choice;
+  return chosen;
+}
+
+fn choice_or<T: copy>(choice: Choice<T>, fallback: T) -> result: T pure {
+  let chosen = match choice {
+    Present(value: found) => {
+      give found;
+    }
+    Absent() => {
+      give fallback;
+    }
+  }
+  return chosen;
+}
+
+fn hold<T>(value: T) -> result: Owned<T> pure {
+  return Owned<T>(payload: move value);
+}
+
+fn unwrap_owned<T>(owner: Owned<T>) -> result: T pure {
+  let Owned(payload: value) = move owner;
+  return move value;
+}
+
+fn discard_owned<T: drop>(owner: Owned<T>) -> result: unit pure {
+  let Owned(payload: unused_payload) = move owner;
   return unit;
 }
 
-fn write_i64_le(buffer: &[u8], offset: u64, value: i64) -> result: unit writes(buffer) {
-  let as_u64 = reinterpret::<i64, u64>(value);
-  return write_u64_le(buffer: buffer, offset: offset, value: as_u64);
+fn checked_u8_sum(left: u8, right: u8) -> result: Result<u8, Overflow> pure {
+  return left +checked right;
+}
+
+fn checked_i64_sum(left: i64, right: i64) -> result: Result<i64, Overflow> pure {
+  return left +checked right;
+}
+
+fn word_bytes(value: u64) -> result: Array<u8, 8> pure {
+  let bytes = array_filled::<u8, 8>(value: 0_u8);
+  let rest = value;
+  for (i in 0_u64..8_u64) {
+    let low = cvt.wrap::<u64, u8>(rest);
+    set bytes[i] = low;
+    set rest = ishr(rest, 8_u32);
+  }
+  return bytes;
+}
+
+fn publish_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], length: u64) -> result: Result<unit, IoError> reads(source), writes(factory), writes(output) waits contract {
+  define source_length = source^.len;
+  requires length <= source_length;
+} {
+  let sent = 0_u64;
+  loop @publish {
+    let pending = sent < length;
+    if pending {
+    } else {
+      break @publish;
+    }
+    let no_deadline = None<std::time::Instant>();
+    let cancel = std::time::cancel_never();
+    let outcome = std::io::write_once(factory: factory, output: output, source: source, start: sent, end: length, deadline: no_deadline, cancel: &cancel);
+    std::time::close_cancel_watch(watch: move cancel);
+    match outcome {
+      Ok(value: next) => {
+        set sent = next;
+      }
+      Err(error: problem) => {
+        return Err<unit, IoError>(error: problem);
+      }
+    }
+  }
+  return Ok<unit, IoError>(value: unit);
+}
+
+fn publish_word(factory: &HandleFactory, output: &OutputStream, value: u64) -> result: Result<unit, IoError> writes(factory), writes(output) waits {
+  let bytes = word_bytes(value: value);
+  let window = &bytes[0_u64..8_u64];
+  return publish_all(factory: factory, output: output, source: window, length: 8_u64);
+}
+
+fn observe() -> result: Report pure {
+  let failures = 0_u64;
+  let pair_byte = pair_of::<u8>(value: 7_u8);
+  let left_byte = pair_byte.left;
+  if left_byte != 7_u8 {
+    set failures = failures +wrap 1_u64;
+  }
+  let pair_signed = pair_of::<i64>(value: -9_i64);
+  let right_signed = pair_signed.right;
+  if right_signed != -9_i64 {
+    set failures = failures +wrap 1_u64;
+  }
+  let present_byte = Choice<u8>::Present(value: 3_u8);
+  let choice_byte = choice_or::<u8>(choice: present_byte, fallback: 0_u8);
+  if choice_byte != 3_u8 {
+    set failures = failures +wrap 1_u64;
+  }
+  let present_signed = Choice<i64>::Present(value: -5_i64);
+  let choice_signed = choice_or::<i64>(choice: present_signed, fallback: 0_i64);
+  if choice_signed != -5_i64 {
+    set failures = failures +wrap 1_u64;
+  }
+  let sum_result = checked_u8_sum(left: 1_u8, right: 2_u8);
+  let byte_total = 0_u8;
+  match sum_result {
+    Ok(value: total_byte) => {
+      set byte_total = total_byte;
+    }
+    Err(error: unused_sum_error) => {
+    }
+  }
+  if byte_total != 3_u8 {
+    set failures = failures +wrap 1_u64;
+  }
+  let overflow_result = checked_u8_sum(left: 255_u8, right: 1_u8);
+  let overflow_marker = 0_u64;
+  match overflow_result {
+    Ok(value: unused_overflow_value) => {
+    }
+    Err(error: unused_overflow_error) => {
+      set overflow_marker = 1_u64;
+    }
+  }
+  if overflow_marker != 1_u64 {
+    set failures = failures +wrap 1_u64;
+  }
+  let signed_result = checked_i64_sum(left: -4_i64, right: 9_i64);
+  let signed_total = 0_i64;
+  match signed_result {
+    Ok(value: total_signed) => {
+      set signed_total = total_signed;
+    }
+    Err(error: unused_signed_error) => {
+    }
+  }
+  if signed_total != 5_i64 {
+    set failures = failures +wrap 1_u64;
+  }
+  let nineteen = Choice<u8>::Present(value: 19_u8);
+  let wrapped = wrap_choice::<u8>(choice: nineteen);
+  let wrapped_choice = recover::<u8>(wrapper: wrapped);
+  let recovered_byte = choice_or::<u8>(choice: wrapped_choice, fallback: 0_u8);
+  if recovered_byte != 19_u8 {
+    set failures = failures +wrap 1_u64;
+  }
+  let eleven = array_filled::<u8, 2>(value: 11_u8);
+  let packet = Packet(bytes: eleven);
+  let owned_packet = hold::<Packet>(value: move packet);
+  let spare = Packet(bytes: eleven);
+  let spare_owner = hold::<Packet>(value: move spare);
+  discard_owned::<Packet>(owner: move spare_owner);
+  let packet_back = unwrap_owned::<Packet>(owner: move owned_packet);
+  let second_byte = packet_back.bytes[1_u64];
+  if second_byte != 11_u8 {
+    set failures = failures +wrap 1_u64;
+  }
+  let words = array_filled::<u64, 9>(value: 0_u64);
+  let word_left = cvt.wrap::<u8, u64>(left_byte);
+  set words[0_u64] = word_left;
+  let word_right = cvt.wrap::<i64, u64>(right_signed);
+  set words[1_u64] = word_right;
+  let word_choice = cvt.wrap::<u8, u64>(choice_byte);
+  set words[2_u64] = word_choice;
+  let word_choice_signed = cvt.wrap::<i64, u64>(choice_signed);
+  set words[3_u64] = word_choice_signed;
+  let word_sum = cvt.wrap::<u8, u64>(byte_total);
+  set words[4_u64] = word_sum;
+  set words[5_u64] = overflow_marker;
+  let word_signed_sum = cvt.wrap::<i64, u64>(signed_total);
+  set words[6_u64] = word_signed_sum;
+  let word_recovered = cvt.wrap::<u8, u64>(recovered_byte);
+  set words[7_u64] = word_recovered;
+  let word_second = cvt.wrap::<u8, u64>(second_byte);
+  set words[8_u64] = word_second;
+  return Report(failures: failures, words: words);
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(cwd: cwd_directory, stdout: stdout_stream, handles: factory, ..) = move inputs;
-  let Directory(read: cwd, write: cwd_write) = move cwd_directory;
-  let close_write_result = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
-  let close_read_result = std::fs::close_directory(factory: &factory, directory: move cwd);
-
-  let byte_pair = Pair<u8>(left: 7_u8, right: 7_u8);
-  let signed_pair = Pair<i64>(left: -9_i64, right: -9_i64);
-
-  let choice_byte = Choice<u8>::Present(value: 3_u8);
-  let choice_signed = Choice<i64>::Present(value: -5_i64);
-
-  let byte_sum_result = 1_u8 +checked 2_u8;
-  let byte_sum = match byte_sum_result {
-    Ok(value: s) => {
-      give s;
+  let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: output_stream, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let std::fs::Directory(read: cwd, write: cwd_write) = move cwd_directory;
+  let write_closed = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
+  let read_closed = std::fs::close_directory(factory: &factory, directory: move cwd);
+  let close_code = 0_u8;
+  match write_closed {
+    Ok(value: unused_write_closed) => {
     }
-    Err(error: problem) => {
-      return exit_status(code: 1_u8);
+    Err(error: unused_write_error) => {
+      set close_code = 1_u8;
     }
   }
-
-  let byte_overflow_result = 255_u8 +checked 1_u8;
-  let overflow_marker = match byte_overflow_result {
-    Ok(value: s) => {
-      return exit_status(code: 1_u8);
+  match read_closed {
+    Ok(value: unused_read_closed) => {
     }
-    Err(error: problem) => {
-      give 1_u8;
+    Err(error: unused_read_error) => {
+      set close_code = 1_u8;
     }
   }
-
-  let signed_sum_result = -4_i64 +checked 9_i64;
-  let signed_sum = match signed_sum_result {
-    Ok(value: s) => {
-      give s;
-    }
-    Err(error: problem) => {
-      return exit_status(code: 1_u8);
-    }
+  let report = observe();
+  if close_code != 0_u8 {
+    return exit_status(code: 1_u8);
   }
-
-  let optional_byte_choice = Choice<u8>::Present(value: 19_u8);
-  let optional_byte = match optional_byte_choice {
-    Present(value: b) => {
-      give b;
-    }
-    Absent() => {
-      return exit_status(code: 1_u8);
-    }
+  if report.failures != 0_u64 {
+    return exit_status(code: 1_u8);
   }
-
-  let packet = Packet(byte1: 11_u8, byte2: 11_u8);
-  let packet_box = box_new::<Packet>(value: move packet);
-  let recovered_byte = packet_box.inner.byte1;
-
-  let output = array_filled::<u8, 72>(value: 0_u8);
-
-  let p1_left_u64 = cvt::<u8, u64>(byte_pair.left);
-  write_u64_le(buffer: &output[0_u64..72_u64], offset: 0_u64, value: p1_left_u64);
-
-  write_i64_le(buffer: &output[0_u64..72_u64], offset: 8_u64, value: signed_pair.right);
-
-  let choice1_val = match move choice_byte {
-    Present(value: v) => {
-      give v;
-    }
-    Absent() => {
-      return exit_status(code: 1_u8);
-    }
-  }
-  let choice1_u64 = cvt::<u8, u64>(choice1_val);
-  write_u64_le(buffer: &output[0_u64..72_u64], offset: 16_u64, value: choice1_u64);
-
-  let choice_signed_val = match move choice_signed {
-    Present(value: v) => {
-      give v;
-    }
-    Absent() => {
-      return exit_status(code: 1_u8);
-    }
-  }
-  write_i64_le(buffer: &output[0_u64..72_u64], offset: 24_u64, value: choice_signed_val);
-
-  let byte_sum_u64 = cvt::<u8, u64>(byte_sum);
-  write_u64_le(buffer: &output[0_u64..72_u64], offset: 32_u64, value: byte_sum_u64);
-
-  let overflow_u64 = cvt::<u8, u64>(overflow_marker);
-  write_u64_le(buffer: &output[0_u64..72_u64], offset: 40_u64, value: overflow_u64);
-
-  write_i64_le(buffer: &output[0_u64..72_u64], offset: 48_u64, value: signed_sum);
-
-  let optional_u64 = cvt::<u8, u64>(optional_byte);
-  write_u64_le(buffer: &output[0_u64..72_u64], offset: 56_u64, value: optional_u64);
-
-  let recovered_u64 = cvt::<u8, u64>(recovered_byte);
-  write_u64_le(buffer: &output[0_u64..72_u64], offset: 64_u64, value: recovered_u64);
-
-  let none_instant = None<std::time::Instant>();
-  let cancel = std::time::cancel_never();
-  let write_result = std::io::write_once(factory: &factory, output: &stdout_stream, source: &output[0_u64..72_u64], start: 0_u64, end: 72_u64, deadline: none_instant, cancel: &cancel);
-
-  match write_result {
-    Ok(value: written) => {
-      if written == 72_u64 {
-        return exit_status(code: 0_u8);
+  for (i in 0_u64..9_u64) {
+    let word = report.words[i];
+    let published = publish_word(factory: &factory, output: &output_stream, value: word);
+    match published {
+      Ok(value: unused_published) => {
       }
-      return exit_status(code: 250_u8);
-    }
-    Err(error: problem) => {
-      return exit_status(code: 250_u8);
+      Err(error: unused_publish_error) => {
+        return exit_status(code: 250_u8);
+      }
     }
   }
+  return exit_status(code: 0_u8);
 }

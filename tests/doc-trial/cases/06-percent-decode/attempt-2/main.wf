@@ -4,123 +4,119 @@ alias exit_status = std::process::exit_status;
 alias HandleFactory = std::io::HandleFactory;
 alias OutputStream = std::io::OutputStream;
 alias IoError = std::io::IoError;
-alias Instant = std::time::Instant;
-alias CancelWatch = std::time::CancelWatch;
+
+const input_bytes: Array<u8, 11> = "A%42%4a%zz%";
+
+const expected_bytes: Array<u8, 7> = "ABJ%zz%";
+
+enum DecodeStop {
+  TooShort();
+}
 
 fn hex_digit(byte: u8) -> result: Option<u8> pure {
-  let is_digit = band(byte >= 48_u8, byte <= 57_u8);
-  if is_digit {
-    let value = byte - 48_u8;
-    return Some<u8>(value: value);
+  let decimal_low = byte >= 48_u8;
+  let decimal_high = byte <= 57_u8;
+  let decimal = band(decimal_low, decimal_high);
+  let lower_low = byte >= 97_u8;
+  let lower_high = byte <= 102_u8;
+  let lower = band(lower_low, lower_high);
+  let upper_low = byte >= 65_u8;
+  let upper_high = byte <= 70_u8;
+  let upper = band(upper_low, upper_high);
+  if decimal {
+    let decimal_digit = byte - 48_u8;
+    return Some<u8>(value: decimal_digit);
   }
-  let is_lower = band(byte >= 97_u8, byte <= 102_u8);
-  if is_lower {
-    let value = byte - 97_u8 +wrap 10_u8;
-    return Some<u8>(value: value);
+  if lower {
+    let lower_digit = byte - 87_u8;
+    return Some<u8>(value: lower_digit);
   }
-  let is_upper = band(byte >= 65_u8, byte <= 70_u8);
-  if is_upper {
-    let value = byte - 65_u8 +wrap 10_u8;
-    return Some<u8>(value: value);
+  if upper {
+    let upper_digit = byte - 55_u8;
+    return Some<u8>(value: upper_digit);
   }
   return None<u8>();
 }
 
-fn percent_decode(source: &[u8], destination: &[u8]) -> result: u64 reads(source), writes(destination) contract {
-  requires destination^.len >= source^.len;
-} {
-  let source_len = source^.len;
-  let dest_len = destination^.len;
-  let produced = 0_u64;
-  let i = 0_u64;
-  loop @decode {
-    if i < source_len {
-    } else {
-      break @decode;
+fn hex_pair(first: u8, second: u8) -> result: Option<u8> pure {
+  let high_digit = hex_digit(byte: first);
+  match high_digit {
+    Some(value: high) => {
+      let low_digit = hex_digit(byte: second);
+      match low_digit {
+        Some(value: low) => {
+          let scaled = high *wrap 16_u8;
+          let decoded = scaled +wrap low;
+          return Some<u8>(value: decoded);
+        }
+        None() => {
+          return None<u8>();
+        }
+      }
     }
-    let byte = source^[i];
-    if byte == 37_u8 {
-      let next_i = i + 1_u64;
-      if next_i < source_len {
-        let second_i = next_i + 1_u64;
-        if second_i < source_len {
-          let high = source^[next_i];
-          let low = source^[second_i];
-          let high_opt = hex_digit(byte: high);
-          match high_opt {
-            Some(value: h) => {
-              let low_opt = hex_digit(byte: low);
-              match low_opt {
-                Some(value: l) => {
-                  let h16 = cvt::<u8, u16>(h);
-                  let shifted = ishl(h16, 4_u32);
-                  let l16 = cvt::<u8, u16>(l);
-                  let combined16 = ior(shifted, l16);
-                  let decoded = cvt::<u16, u8>(combined16);
-                  if produced < dest_len {
-                    set destination^[produced] = decoded;
-                    set produced = produced + 1_u64;
-                  }
-                  set i = second_i + 1_u64;
-                  continue @decode;
-                }
-                None() => {
-                  if produced < dest_len {
-                    set destination^[produced] = 37_u8;
-                    set produced = produced + 1_u64;
-                  }
-                  set i = i + 1_u64;
-                  continue @decode;
-                }
-              }
-            }
-            None() => {
-              if produced < dest_len {
-                set destination^[produced] = 37_u8;
-                set produced = produced + 1_u64;
-              }
-              set i = i + 1_u64;
-              continue @decode;
-            }
-          }
-        } else {
-          if produced < dest_len {
-            set destination^[produced] = 37_u8;
-            set produced = produced + 1_u64;
-          }
-          set i = i + 1_u64;
-          continue @decode;
-        }
-      } else {
-        if produced < dest_len {
-          set destination^[produced] = 37_u8;
-          set produced = produced + 1_u64;
-        }
-        set i = i + 1_u64;
-        continue @decode;
-      }
-    } else {
-      if produced < dest_len {
-        set destination^[produced] = byte;
-        set produced = produced + 1_u64;
-      }
-      set i = i + 1_u64;
-      continue @decode;
+    None() => {
+      return None<u8>();
     }
   }
-  return produced;
 }
 
-fn write_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], length: u64) -> result: Result<unit, IoError> reads(source), writes(factory), writes(output) waits contract {
-  requires length <= source^.len;
+fn store(destination: &[u8], written: u64, value: u8) -> result: Result<u64, DecodeStop> writes(destination) {
+  if written < destination^.len {
+    set destination^[written] = value;
+    let next = written +wrap 1_u64;
+    return Ok<u64, DecodeStop>(value: next);
+  }
+  let problem = DecodeStop::TooShort();
+  return Err<u64, DecodeStop>(error: problem);
+}
+
+fn decode(source: &[u8], destination: &[u8]) -> result: Result<u64, DecodeStop> reads(source), writes(destination) {
+  let length = source^.len;
+  let skip = 0_u64;
+  let written = 0_u64;
+  for (i in 0_u64..length) {
+    if skip > 0_u64 {
+      set skip = skip - 1_u64;
+      continue;
+    }
+    let emitted = source^[i];
+    let advance = 0_u64;
+    if emitted == 37_u8 {
+      let high_index = i +wrap 1_u64;
+      let low_index = i +wrap 2_u64;
+      if high_index < source^.len {
+        if low_index < source^.len {
+          let decoded = hex_pair(first: source^[high_index], second: source^[low_index]);
+          match decoded {
+            Some(value: byte_value) => {
+              set emitted = byte_value;
+              set advance = 2_u64;
+            }
+            None() => {
+            }
+          }
+        }
+      }
+    }
+    set skip = advance;
+    let next = propagate store(destination: destination, written: written, value: emitted);
+    set written = next;
+  }
+  return Ok<u64, DecodeStop>(value: written);
+}
+
+fn publish_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], length: u64) -> result: Result<unit, IoError> reads(source), writes(factory), writes(output) waits contract {
+  define source_length = source^.len;
+  requires length <= source_length;
 } {
   let sent = 0_u64;
   loop @publish {
-    if sent < length {
+    let pending = sent < length;
+    if pending {
     } else {
       break @publish;
     }
-    let no_deadline = None<Instant>();
+    let no_deadline = None<std::time::Instant>();
     let cancel = std::time::cancel_never();
     let outcome = std::io::write_once(factory: factory, output: output, source: source, start: sent, end: length, deadline: no_deadline, cancel: &cancel);
     std::time::close_cancel_watch(watch: move cancel);
@@ -137,68 +133,86 @@ fn write_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], leng
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(cwd: cwd_directory, handles: factory, stdout: output, ..) = move inputs;
-  let std::fs::Directory(read: directory_read, write: directory_write) = move cwd_directory;
-  std::fs::close_directory_write(factory: &factory, directory: move directory_write);
-  std::fs::close_directory(factory: &factory, directory: move directory_read);
-  let input = array_filled::<u8, 11>(value: 0_u8);
-  set input[0_u64] = 65_u8;
-  set input[1_u64] = 37_u8;
-  set input[2_u64] = 52_u8;
-  set input[3_u64] = 50_u8;
-  set input[4_u64] = 37_u8;
-  set input[5_u64] = 52_u8;
-  set input[6_u64] = 97_u8;
-  set input[7_u64] = 37_u8;
-  set input[8_u64] = 122_u8;
-  set input[9_u64] = 122_u8;
-  set input[10_u64] = 37_u8;
-  let destination = array_filled::<u8, 11>(value: 204_u8);
-  let produced = percent_decode(source: &input[0_u64..11_u64], destination: &destination[0_u64..11_u64]);
-  if produced != 7_u64 {
-    return exit_status(code: 1_u8);
-  }
-  let sentinel = destination[7_u64];
-  if sentinel != 204_u8 {
-    return exit_status(code: 1_u8);
-  }
-  let output_buffer = array_filled::<u8, 16>(value: 0_u8);
-  for (i in 0_u64..7_u64) {
-    set output_buffer[i] = destination[i];
-  }
-  let p = produced;
-  let b0 = cvt::<u64, u8>(p);
-  let p_shifted1 = ishr(p, 8_u32);
-  let b1 = cvt::<u64, u8>(p_shifted1);
-  let p_shifted2 = ishr(p, 16_u32);
-  let b2 = cvt::<u64, u8>(p_shifted2);
-  let p_shifted3 = ishr(p, 24_u32);
-  let b3 = cvt::<u64, u8>(p_shifted3);
-  let p_shifted4 = ishr(p, 32_u32);
-  let b4 = cvt::<u64, u8>(p_shifted4);
-  let p_shifted5 = ishr(p, 40_u32);
-  let b5 = cvt::<u64, u8>(p_shifted5);
-  let p_shifted6 = ishr(p, 48_u32);
-  let b6 = cvt::<u64, u8>(p_shifted6);
-  let p_shifted7 = ishr(p, 56_u32);
-  let b7 = cvt::<u64, u8>(p_shifted7);
-  set output_buffer[7_u64] = b0;
-  set output_buffer[8_u64] = b1;
-  set output_buffer[9_u64] = b2;
-  set output_buffer[10_u64] = b3;
-  set output_buffer[11_u64] = b4;
-  set output_buffer[12_u64] = b5;
-  set output_buffer[13_u64] = b6;
-  set output_buffer[14_u64] = b7;
-  set output_buffer[15_u64] = sentinel;
-  let output_slice = &output_buffer[0_u64..16_u64];
-  let write_result = write_all(factory: &factory, output: &output, source: output_slice, length: 16_u64);
-  match write_result {
-    Ok(value: unused) => {
-      return exit_status(code: 0_u8);
+  let Inputs(cwd: directory, stdout: output_stream, handles: factory, ..) = move inputs;
+  let std::fs::Directory(read: directory_read, write: directory_write) = move directory;
+  let write_closed = std::fs::close_directory_write(factory: &factory, directory: move directory_write);
+  let read_closed = std::fs::close_directory(factory: &factory, directory: move directory_read);
+  match write_closed {
+    Ok(value: unused_write_closed) => {
     }
-    Err(error: unused) => {
+    Err(error: unused_write_error) => {
+    }
+  }
+  match read_closed {
+    Ok(value: unused_read_closed) => {
+    }
+    Err(error: unused_read_error) => {
+    }
+  }
+  let destination = array_filled::<u8, 11>(value: 204_u8);
+  let decoded = decode(source: &input_bytes[0_u64..11_u64], destination: &destination[0_u64..11_u64]);
+  let produced = 0_u64;
+  let too_short = False();
+  match decoded {
+    Ok(value: count) => {
+      set produced = count;
+    }
+    Err(error: unused_stop) => {
+      set too_short = True();
+    }
+  }
+  if too_short {
+    return exit_status(code: 2_u8);
+  }
+  let observed = 0_u8;
+  if produced < 11_u64 {
+    set observed = destination[produced];
+  }
+  let correct = True();
+  if produced != 7_u64 {
+    set correct = False();
+  }
+  for (k in 0_u64..7_u64) {
+    if destination[k] != expected_bytes[k] {
+      set correct = False();
+    }
+  }
+  if observed != 204_u8 {
+    set correct = False();
+  }
+  let length_bytes = array_filled::<u8, 8>(value: 0_u8);
+  let rest = produced;
+  for (k in 0_u64..8_u64) {
+    set length_bytes[k] = cvt.wrap::<u64, u8>(rest);
+    set rest = ishr.wrap(rest, 8_u32);
+  }
+  let tail = array_filled::<u8, 1>(value: observed);
+  let first_publish = publish_all(factory: &factory, output: &output_stream, source: &destination[0_u64..7_u64], length: 7_u64);
+  match first_publish {
+    Ok(value: unused_first) => {
+    }
+    Err(error: unused_first_error) => {
       return exit_status(code: 250_u8);
     }
   }
+  let second_publish = publish_all(factory: &factory, output: &output_stream, source: &length_bytes[0_u64..8_u64], length: 8_u64);
+  match second_publish {
+    Ok(value: unused_second) => {
+    }
+    Err(error: unused_second_error) => {
+      return exit_status(code: 250_u8);
+    }
+  }
+  let third_publish = publish_all(factory: &factory, output: &output_stream, source: &tail[0_u64..1_u64], length: 1_u64);
+  match third_publish {
+    Ok(value: unused_third) => {
+    }
+    Err(error: unused_third_error) => {
+      return exit_status(code: 250_u8);
+    }
+  }
+  if correct {
+    return exit_status(code: 0_u8);
+  }
+  return exit_status(code: 1_u8);
 }

@@ -1,99 +1,145 @@
 alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
+alias HandleFactory = std::io::HandleFactory;
+alias IoError = std::io::IoError;
+alias OutputStream = std::io::OutputStream;
 alias exit_status = std::process::exit_status;
-alias Instant = std::time::Instant;
 
-fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(cwd: cwd_dir, handles: factory, stdout: output, ..) = move inputs;
-  let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_dir;
-  std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
-  std::fs::close_directory(factory: &factory, directory: move cwd_read);
-  let outputs = array_filled::<f64, 64>(value: 0.0_f64);
-  let history = slots_new::<f64, 8>();
-  for (i in 0_u64..64_u64) {
-    let sample = if i == 0_u64 {
-      give 8.0_f64;
-    } else {
-      give 0.0_f64;
-    }
-    if history.len == 8_u64 {
-      let removed = take_front(window: &history);
-    }
-    place_back(window: &history, value: sample);
-    let sum = 0.0_f64;
-    for (j in 0_u64..history.len) {
-      set sum = sum +strict history[j];
-    }
-    let coeff = 0.125_f64;
-    let output_val = fmul.strict(sum, coeff);
-    set outputs[i] = output_val;
-  }
+fn encode_word(output: &Slots<u8, 520>, word: u64) -> result: unit writes(output) contract {
+  requires output^.len + 8_u64 <= 520_u64;
+  ensures output^.len == entry(output)^.len + 8_u64;
+} {
+  let w1 = ishr(word, 8_u32);
+  let w2 = ishr(word, 16_u32);
+  let w3 = ishr(word, 24_u32);
+  let w4 = ishr(word, 32_u32);
+  let w5 = ishr(word, 40_u32);
+  let w6 = ishr(word, 48_u32);
+  let w7 = ishr(word, 56_u32);
+  let b0 = cvt.wrap::<u64, u8>(word);
+  let b1 = cvt.wrap::<u64, u8>(w1);
+  let b2 = cvt.wrap::<u64, u8>(w2);
+  let b3 = cvt.wrap::<u64, u8>(w3);
+  let b4 = cvt.wrap::<u64, u8>(w4);
+  let b5 = cvt.wrap::<u64, u8>(w5);
+  let b6 = cvt.wrap::<u64, u8>(w6);
+  let b7 = cvt.wrap::<u64, u8>(w7);
+  place_back(window: output, value: b0);
+  place_back(window: output, value: b1);
+  place_back(window: output, value: b2);
+  place_back(window: output, value: b3);
+  place_back(window: output, value: b4);
+  place_back(window: output, value: b5);
+  place_back(window: output, value: b6);
+  place_back(window: output, value: b7);
+  return unit;
+}
+
+fn filter_all(output: &Slots<u8, 520>) -> result: Bool writes(output) {
+  let samples = array_filled::<f64, 64>(value: 0.0_f64);
+  set samples[0_u64] = 8.0_f64;
+  let eighth = 0.125_f64;
+  let upper_limit = 8.0_f64;
+  let lower_limit = -8.0_f64;
+  let bounds_ok = True();
   let total = 0.0_f64;
-  for (i in 0_u64..64_u64) {
-    set total = total +strict outputs[i];
+  let w0 = 0.0_f64;
+  let w1 = 0.0_f64;
+  let w2 = 0.0_f64;
+  let w3 = 0.0_f64;
+  let w4 = 0.0_f64;
+  let w5 = 0.0_f64;
+  let w6 = 0.0_f64;
+  let w7 = 0.0_f64;
+  for (
+    n in 0_u64..64_u64,
+    invariant emitted: output^.len == n * 8_u64
+  ) {
+    let sample = samples[n];
+    set w7 = w6;
+    set w6 = w5;
+    set w5 = w4;
+    set w4 = w3;
+    set w3 = w2;
+    set w2 = w1;
+    set w1 = w0;
+    set w0 = sample;
+    let t0 = fmul.strict(w0, eighth);
+    let t1 = fmul.strict(w1, eighth);
+    let t2 = fmul.strict(w2, eighth);
+    let t3 = fmul.strict(w3, eighth);
+    let t4 = fmul.strict(w4, eighth);
+    let t5 = fmul.strict(w5, eighth);
+    let t6 = fmul.strict(w6, eighth);
+    let t7 = fmul.strict(w7, eighth);
+    let s1 = fadd.strict(t0, t1);
+    let s2 = fadd.strict(s1, t2);
+    let s3 = fadd.strict(s2, t3);
+    let s4 = fadd.strict(s3, t4);
+    let s5 = fadd.strict(s4, t5);
+    let s6 = fadd.strict(s5, t6);
+    let y = fadd.strict(s6, t7);
+    let below = fle(y, upper_limit);
+    let above = fge(y, lower_limit);
+    let inside = band(below, above);
+    set bounds_ok = band(bounds_ok, inside);
+    set total = fadd.strict(total, y);
+    let word = reinterpret::<f64, u64>(y);
+    encode_word(output: output, word: word);
   }
-  if feq(total, 8.0_f64) {
-  } else {
-    return exit_status(code: 1_u8);
-  }
-  let buffer = array_filled::<u8, 520>(value: 0_u8);
-  for (i in 0_u64..64_u64) {
-    let offset = i * 8_u64;
-    let value = outputs[i];
-    let bits = reinterpret::<f64, u64>(value);
-    let b0 = iand(bits, 255_u64);
-    let b1 = iand(ishr(bits, 8_u32), 255_u64);
-    let b2 = iand(ishr(bits, 16_u32), 255_u64);
-    let b3 = iand(ishr(bits, 24_u32), 255_u64);
-    let b4 = iand(ishr(bits, 32_u32), 255_u64);
-    let b5 = iand(ishr(bits, 40_u32), 255_u64);
-    let b6 = iand(ishr(bits, 48_u32), 255_u64);
-    let b7 = iand(ishr(bits, 56_u32), 255_u64);
-    set buffer[offset] = cvt::<u64, u8>(b0);
-    set buffer[offset + 1_u64] = cvt::<u64, u8>(b1);
-    set buffer[offset + 2_u64] = cvt::<u64, u8>(b2);
-    set buffer[offset + 3_u64] = cvt::<u64, u8>(b3);
-    set buffer[offset + 4_u64] = cvt::<u64, u8>(b4);
-    set buffer[offset + 5_u64] = cvt::<u64, u8>(b5);
-    set buffer[offset + 6_u64] = cvt::<u64, u8>(b6);
-    set buffer[offset + 7_u64] = cvt::<u64, u8>(b7);
-  }
-  let bits = reinterpret::<f64, u64>(total);
-  let b0 = iand(bits, 255_u64);
-  let b1 = iand(ishr(bits, 8_u32), 255_u64);
-  let b2 = iand(ishr(bits, 16_u32), 255_u64);
-  let b3 = iand(ishr(bits, 24_u32), 255_u64);
-  let b4 = iand(ishr(bits, 32_u32), 255_u64);
-  let b5 = iand(ishr(bits, 40_u32), 255_u64);
-  let b6 = iand(ishr(bits, 48_u32), 255_u64);
-  let b7 = iand(ishr(bits, 56_u32), 255_u64);
-  set buffer[512_u64] = cvt::<u64, u8>(b0);
-  set buffer[513_u64] = cvt::<u64, u8>(b1);
-  set buffer[514_u64] = cvt::<u64, u8>(b2);
-  set buffer[515_u64] = cvt::<u64, u8>(b3);
-  set buffer[516_u64] = cvt::<u64, u8>(b4);
-  set buffer[517_u64] = cvt::<u64, u8>(b5);
-  set buffer[518_u64] = cvt::<u64, u8>(b6);
-  set buffer[519_u64] = cvt::<u64, u8>(b7);
-  let full_buffer = &buffer[0_u64..520_u64];
+  let total_word = reinterpret::<f64, u64>(total);
+  encode_word(output: output, word: total_word);
+  let sum_ok = feq(total, 8.0_f64);
+  let passed = band(bounds_ok, sum_ok);
+  return passed;
+}
+
+fn publish_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], length: u64) -> result: Result<unit, IoError> reads(source), writes(factory), writes(output) waits contract {
+  define source_length = source^.len;
+  requires length <= source_length;
+} {
   let sent = 0_u64;
   loop @publish {
-    if sent < 520_u64 {
+    let pending = sent < length;
+    if pending {
     } else {
       break @publish;
     }
-    let no_deadline = None<Instant>();
+    let no_deadline = None<std::time::Instant>();
     let cancel = std::time::cancel_never();
-    let outcome = std::io::write_once(factory: &factory, output: &output, source: full_buffer, start: sent, end: 520_u64, deadline: no_deadline, cancel: &cancel);
+    let outcome = std::io::write_once(factory: factory, output: output, source: source, start: sent, end: length, deadline: no_deadline, cancel: &cancel);
     std::time::close_cancel_watch(watch: move cancel);
     match outcome {
       Ok(value: next) => {
         set sent = next;
       }
       Err(error: problem) => {
+        return Err<unit, IoError>(error: problem);
+      }
+    }
+  }
+  return Ok<unit, IoError>(value: unit);
+}
+
+fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+  let Inputs(cwd: directory, stdout: output_stream, handles: factory, ..) = move inputs;
+  let std::fs::Directory(read: directory_read, write: directory_write) = move directory;
+  std::fs::close_directory_write(factory: &factory, directory: move directory_write);
+  std::fs::close_directory(factory: &factory, directory: move directory_read);
+  let output = slots_new::<u8, 520>();
+  let checks_passed = filter_all(output: &output);
+  if checks_passed {
+    let length = output.len;
+    let payload = &output[0_u64..length];
+    let published = publish_all(factory: &factory, output: &output_stream, source: payload, length: length);
+    match published {
+      Ok(value: unused_published) => {
+        return exit_status(code: 0_u8);
+      }
+      Err(error: unused_publish_error) => {
         return exit_status(code: 250_u8);
       }
     }
   }
-  return exit_status(code: 0_u8);
+  return exit_status(code: 1_u8);
 }

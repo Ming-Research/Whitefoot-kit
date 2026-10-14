@@ -1,64 +1,66 @@
 alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
 alias exit_status = std::process::exit_status;
+alias HandleFactory = std::io::HandleFactory;
+alias IoError = std::io::IoError;
+alias OutputStream = std::io::OutputStream;
 
-enum Instruction {
-  Add(value: u64);
-  Dec();
-  Jnz(target: u64);
+enum Op {
+  Add(amount: u64);
+  Decrement();
+  JumpIfNonzero(target: u64);
   Halt();
 }
 
-fn run(code: &[Instruction], counter: u64) -> result: u64 reads(code) {
-  let n = code^.len;
+fn execute(instructions: &Slots<Op, 4>, counter: u64) -> result: u64 reads(instructions) {
+  let n = instructions^.len;
   if n == 0_u64 {
     return 0_u64;
   }
   let pc = 0_u64;
   let acc = 0_u64;
-  let current_counter = counter;
+  let remaining = counter;
   loop (
     invariant inb: pc < n
   ) {
-    match code^[pc] {
-      Add(value: v) => {
+    match instructions^[pc] {
+      Add(amount: step) => {
+        set acc = acc +wrap step^;
         let next = pc + 1_u64;
         if next < n {
-          set acc = acc +wrap v^;
           set pc = next;
           continue;
         } else {
           return 0_u64;
         }
       }
-      Dec() => {
+      Decrement() => {
+        set remaining = remaining -wrap 1_u64;
         let next = pc + 1_u64;
         if next < n {
-          set current_counter = current_counter -wrap 1_u64;
           set pc = next;
           continue;
         } else {
           return 0_u64;
         }
       }
-      Jnz(target: t) => {
-        let is_nonzero = current_counter != 0_u64;
-        if is_nonzero {
-          let jump_target = t^;
-          if jump_target < n {
-            set pc = jump_target;
+      JumpIfNonzero(target: destination) => {
+        let jump = remaining != 0_u64;
+        if jump {
+          let destination_index = destination^;
+          if destination_index < n {
+            set pc = destination_index;
             continue;
           } else {
             return 0_u64;
           }
+        }
+        let next = pc + 1_u64;
+        if next < n {
+          set pc = next;
+          continue;
         } else {
-          let next = pc + 1_u64;
-          if next < n {
-            set pc = next;
-            continue;
-          } else {
-            return 0_u64;
-          }
+          return 0_u64;
         }
       }
       Halt() => {
@@ -68,63 +70,79 @@ fn run(code: &[Instruction], counter: u64) -> result: u64 reads(code) {
   }
 }
 
-fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(args: unused_args, drivers: unused_drivers, cwd: directory, stdout: output, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
-  let std::fs::Directory(read: dir_read, write: dir_write) = move directory;
-  std::fs::close_directory_write(factory: &factory, directory: move dir_write);
-  std::fs::close_directory(factory: &factory, directory: move dir_read);
-  let instructions = box_slots_new::<Instruction>(capacity: 4_u64);
-  let add3 = Instruction::Add(value: 3_u64);
-  place_back(window: &instructions.inner, value: move add3);
-  let dec_inst = Instruction::Dec();
-  place_back(window: &instructions.inner, value: move dec_inst);
-  let jnz_inst = Instruction::Jnz(target: 0_u64);
-  place_back(window: &instructions.inner, value: move jnz_inst);
-  let halt_inst = Instruction::Halt();
-  place_back(window: &instructions.inner, value: move halt_inst);
-  let view = &instructions.inner[0_u64..instructions.inner.len];
-  let accumulator = run(code: view, counter: 1000_u64);
-  let output_buffer = array_filled::<u8, 8>(value: 0_u8);
-  let byte0 = accumulator;
-  let byte1_val = ishr(accumulator, 8_u32);
-  let byte2_val = ishr(accumulator, 16_u32);
-  let byte3_val = ishr(accumulator, 24_u32);
-  let byte4_val = ishr(accumulator, 32_u32);
-  let byte5_val = ishr(accumulator, 40_u32);
-  let byte6_val = ishr(accumulator, 48_u32);
-  let byte7_val = ishr(accumulator, 56_u32);
-  set output_buffer[0_u64] = cvt::<u64, u8>(byte0);
-  set output_buffer[1_u64] = cvt::<u64, u8>(byte1_val);
-  set output_buffer[2_u64] = cvt::<u64, u8>(byte2_val);
-  set output_buffer[3_u64] = cvt::<u64, u8>(byte3_val);
-  set output_buffer[4_u64] = cvt::<u64, u8>(byte4_val);
-  set output_buffer[5_u64] = cvt::<u64, u8>(byte5_val);
-  set output_buffer[6_u64] = cvt::<u64, u8>(byte6_val);
-  set output_buffer[7_u64] = cvt::<u64, u8>(byte7_val);
+fn little_endian(value: u64) -> result: Array<u8, 8> pure {
+  let bytes = array_filled::<u8, 8>(value: 0_u8);
+  set bytes[0_u64] = cvt.wrap::<u64, u8>(value);
+  let shift_one = ishr(value, 8_u32);
+  set bytes[1_u64] = cvt.wrap::<u64, u8>(shift_one);
+  let shift_two = ishr(value, 16_u32);
+  set bytes[2_u64] = cvt.wrap::<u64, u8>(shift_two);
+  let shift_three = ishr(value, 24_u32);
+  set bytes[3_u64] = cvt.wrap::<u64, u8>(shift_three);
+  let shift_four = ishr(value, 32_u32);
+  set bytes[4_u64] = cvt.wrap::<u64, u8>(shift_four);
+  let shift_five = ishr(value, 40_u32);
+  set bytes[5_u64] = cvt.wrap::<u64, u8>(shift_five);
+  let shift_six = ishr(value, 48_u32);
+  set bytes[6_u64] = cvt.wrap::<u64, u8>(shift_six);
+  let shift_seven = ishr(value, 56_u32);
+  set bytes[7_u64] = cvt.wrap::<u64, u8>(shift_seven);
+  return bytes;
+}
+
+fn publish_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], length: u64) -> result: Result<unit, IoError> reads(source), writes(factory), writes(output) waits contract {
+  requires length <= source^.len;
+} {
   let sent = 0_u64;
-  let end = 8_u64;
   loop @publish {
-    if sent < end {
+    let pending = sent < length;
+    if pending {
     } else {
       break @publish;
     }
     let no_deadline = None<std::time::Instant>();
     let cancel = std::time::cancel_never();
-    let write_result = std::io::write_once(factory: &factory, output: &output, source: &output_buffer[0_u64..8_u64], start: sent, end: end, deadline: no_deadline, cancel: &cancel);
+    let outcome = std::io::write_once(factory: factory, output: output, source: source, start: sent, end: length, deadline: no_deadline, cancel: &cancel);
     std::time::close_cancel_watch(watch: move cancel);
-    match write_result {
+    match outcome {
       Ok(value: next) => {
         set sent = next;
       }
       Err(error: problem) => {
-        return exit_status(code: 2_u8);
+        return Err<unit, IoError>(error: problem);
       }
     }
   }
-  let expected = 3000_u64;
-  if accumulator == expected {
-    return exit_status(code: 0_u8);
-  } else {
-    return exit_status(code: 1_u8);
+  return Ok<unit, IoError>(value: unit);
+}
+
+fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+  let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: stdout_stream, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let std::fs::Directory(read: directory_read, write: directory_write) = move cwd_directory;
+  let instructions = slots_new::<Op, 4>();
+  let add = Op::Add(amount: 3_u64);
+  let decrement = Op::Decrement();
+  let jump = Op::JumpIfNonzero(target: 0_u64);
+  let halt = Op::Halt();
+  place_back(window: &instructions, value: add);
+  place_back(window: &instructions, value: decrement);
+  place_back(window: &instructions, value: jump);
+  place_back(window: &instructions, value: halt);
+  let acc = execute(instructions: &instructions, counter: 1000_u64);
+  let bytes = little_endian(value: acc);
+  let view = &bytes[0_u64..8_u64];
+  let published = publish_all(factory: &factory, output: &stdout_stream, source: view, length: 8_u64);
+  std::fs::close_directory_write(factory: &factory, directory: move directory_write);
+  std::fs::close_directory(factory: &factory, directory: move directory_read);
+  match published {
+    Ok(value: unused_published) => {
+      if acc == 3000_u64 {
+        return exit_status(code: 0_u8);
+      }
+      return exit_status(code: 1_u8);
+    }
+    Err(error: unused_error) => {
+      return exit_status(code: 2_u8);
+    }
   }
 }

@@ -1,0 +1,29 @@
+fn rect_from_pixels(x: i32, y: i32, width: i32, height: i32) -> result: Rect pure {
+  let left = coord_from_pixels(pixels: x);
+  let top = coord_from_pixels(pixels: y);
+  let size_x = coord_from_pixels(pixels: width);
+  let size_y = coord_from_pixels(pixels: height);
+  let far_x = coord_add(left: left, right: size_x);
+  let far_y = coord_add(left: top, right: size_y);
+  return Rect(left: left, top: top, right: far_x, bottom: far_y);
+}
+
+fn rect_contains(rect: Rect, x: Coord, y: Coord) -> result: Bool pure {
+  let after_left = x.raw >= rect.left.raw;
+  let before_right = x.raw < rect.right.raw;
+  let inside_x = band(after_left, before_right);
+  let after_top = y.raw >= rect.top.raw;
+  let before_bottom = y.raw < rect.bottom.raw;
+  let inside_y = band(after_top, before_bottom);
+  return band(inside_x, inside_y);
+}
+
+fn rect_intersects(first: Rect, second: Rect) -> result: Bool pure {
+  let x_before = first.left.raw < second.right.raw;
+  let x_after = second.left.raw < first.right.raw;
+  let x_overlap = band(x_before, x_after);
+  let y_before = first.top.raw < second.bottom.raw;
+  let y_after = second.top.raw < first.bottom.raw;
+  let y_overlap = band(y_before, y_after);
+  return band(x_overlap, y_overlap);
+}

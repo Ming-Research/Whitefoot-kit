@@ -1,0 +1,4 @@
+--graph
+modules.wfg
+--entry
+main

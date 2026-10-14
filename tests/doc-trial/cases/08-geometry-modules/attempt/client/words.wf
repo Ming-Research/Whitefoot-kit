@@ -1,0 +1,33 @@
+alias Coord = pkg::geometry::Coord;
+
+fn raw_word(value: Coord) -> result: u64 pure {
+  let wide = cvt::<i32, i64>(value.raw);
+  return reinterpret::<i64, u64>(wide);
+}
+
+fn bool_word(flag: Bool) -> result: u64 pure {
+  let word = if flag {
+    give 1_u64;
+  } else {
+    give 0_u64;
+  }
+  return word;
+}
+
+fn f64_word(value: f64) -> result: u64 pure {
+  return reinterpret::<f64, u64>(value);
+}
+
+fn put_word(bytes: &[u8], base: u64, word: u64) -> result: unit writes(bytes) contract {
+  requires base + 8_u64 <= bytes^.len;
+} {
+  let shift = 0_u32;
+  for (k in 0_u64..8_u64) {
+    let at = base + k;
+    let part = ishr.wrap(word, shift);
+    let byte = cvt.wrap::<u64, u8>(part);
+    set bytes^[at] = byte;
+    set shift = shift +sat 8_u32;
+  }
+  return unit;
+}

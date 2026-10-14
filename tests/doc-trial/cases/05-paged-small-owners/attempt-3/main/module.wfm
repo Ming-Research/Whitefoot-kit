@@ -1,4 +1,0 @@
-alias ExitStatus = std::process::ExitStatus;
-alias Inputs = std::process::Inputs;
-
-public fn main(inputs: Inputs) -> status: ExitStatus pure waits doc "Exercises paged collections and writes measurements to stdout.";

@@ -1,0 +1,29 @@
+fn rect_new(left: Coord, top: Coord, width: Coord, height: Coord) -> result: Rect pure {
+  let right = coord_add(left: left, right: width);
+  let bottom = coord_add(left: top, right: height);
+  return Rect(left: left, top: top, right: right, bottom: bottom);
+}
+
+fn rect_contains(rect: Rect, x: Coord, y: Coord) -> result: Bool pure {
+  let px = x.raw;
+  let py = y.raw;
+  let left_ok = rect.left.raw <= px;
+  let before_right = px < rect.right.raw;
+  let top_ok = rect.top.raw <= py;
+  let before_bottom = py < rect.bottom.raw;
+  let horizontal = band(left_ok, before_right);
+  let vertical = band(top_ok, before_bottom);
+  let inside = band(horizontal, vertical);
+  return inside;
+}
+
+fn rect_intersects(first: Rect, second: Rect) -> result: Bool pure {
+  let x_before = first.left.raw < second.right.raw;
+  let x_after = second.left.raw < first.right.raw;
+  let y_before = first.top.raw < second.bottom.raw;
+  let y_after = second.top.raw < first.bottom.raw;
+  let x_overlap = band(x_before, x_after);
+  let y_overlap = band(y_before, y_after);
+  let both = band(x_overlap, y_overlap);
+  return both;
+}

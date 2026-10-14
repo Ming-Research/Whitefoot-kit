@@ -1,0 +1,29 @@
+fn rect_from_origin_size(origin: Point, size: Point) -> result: Rect pure {
+  let far_x = coord_add(left: origin.x, right: size.x);
+  let far_y = coord_add(left: origin.y, right: size.y);
+  return Rect(left: origin.x, top: origin.y, right: far_x, bottom: far_y);
+}
+
+fn span_contains(low: i32, high: i32, value: i32) -> result: Bool pure {
+  let starts = low <= value;
+  let ends = value < high;
+  return band(starts, ends);
+}
+
+fn spans_overlap(first_low: i32, first_high: i32, second_low: i32, second_high: i32) -> result: Bool pure {
+  let first_before = first_low < second_high;
+  let second_before = second_low < first_high;
+  return band(first_before, second_before);
+}
+
+fn rect_contains(rect: Rect, point: Point) -> result: Bool pure {
+  let across = span_contains(low: rect.left.raw, high: rect.right.raw, value: point.x.raw);
+  let down = span_contains(low: rect.top.raw, high: rect.bottom.raw, value: point.y.raw);
+  return band(across, down);
+}
+
+fn rect_intersects(first: Rect, second: Rect) -> result: Bool pure {
+  let across = spans_overlap(first_low: first.left.raw, first_high: first.right.raw, second_low: second.left.raw, second_high: second.right.raw);
+  let down = spans_overlap(first_low: first.top.raw, first_high: first.bottom.raw, second_low: second.top.raw, second_high: second.bottom.raw);
+  return band(across, down);
+}

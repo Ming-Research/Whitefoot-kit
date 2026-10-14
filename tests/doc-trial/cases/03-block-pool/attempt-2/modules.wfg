@@ -1,3 +1,0 @@
-pkg::client: [std::process, std::io, std::fs, std::time];
-
-entry main = pkg::client::main;

@@ -1,3 +1,4 @@
 alias ExitStatus = std::process::ExitStatus;
+alias Inputs = std::process::Inputs;
 
-public fn main(inputs: std::process::Inputs) -> status: ExitStatus pure waits doc "Runs geometry observations and writes output.";
+public fn main(inputs: Inputs) -> status: ExitStatus pure waits doc "Writes the fourteen geometry observations as little-endian words.";
