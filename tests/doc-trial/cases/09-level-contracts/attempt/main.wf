@@ -45,7 +45,7 @@ fn emit_word(factory: &HandleFactory, output: &OutputStream, value: u64) -> resu
     }
     let no_deadline = None<std::time::Instant>();
     let cancel = std::time::cancel_never();
-    let outcome = write_once(factory: factory, output: output, source: slice, start: sent, end: 8_u64, deadline: no_deadline, cancel: &cancel);
+    let outcome = std::io::write_once(factory: factory, output: output, source: slice, start: sent, end: 8_u64, deadline: no_deadline, cancel: &cancel);
     std::time::close_cancel_watch(watch: move cancel);
     match outcome {
       Ok(value: next) => {

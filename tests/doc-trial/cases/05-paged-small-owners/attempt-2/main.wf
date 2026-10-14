@@ -3,6 +3,9 @@ alias Inputs = std::process::Inputs;
 alias exit_status = std::process::exit_status;
 alias MemoryMeter = std::process::MemoryMeter;
 alias heap_in_use = std::process::heap_in_use;
+alias HandleFactory = std::io::HandleFactory;
+alias OutputStream = std::io::OutputStream;
+alias IoError = std::io::IoError;
 
 fn heap_difference(meter: &MemoryMeter, baseline: u64) -> difference: u64 writes(meter) {
   let now = heap_in_use(meter: meter);
@@ -39,4 +42,237 @@ fn word_bytes(word: u64) -> result: Array<u8, 8> pure {
   set bytes[6_u64] = b6;
   set bytes[7_u64] = b7;
   return bytes;
+}
+
+fn publish_all(factory: &HandleFactory, output: &OutputStream, source: &[u8], length: u64) -> result: Result<unit, IoError> reads(source), writes(factory), writes(output) waits contract {
+  define source_length = source^.len;
+  requires length <= source_length;
+} {
+  let sent = 0_u64;
+  loop @publish {
+    let pending = sent < length;
+    if pending {
+    } else {
+      break @publish;
+    }
+    let no_deadline = None<std::time::Instant>();
+    let cancel = std::time::cancel_never();
+    let outcome = std::io::write_once(factory: factory, output: output, source: source, start: sent, end: length, deadline: no_deadline, cancel: &cancel);
+    std::time::close_cancel_watch(watch: move cancel);
+    match outcome {
+      Ok(value: next) => {
+        set sent = next;
+      }
+      Err(error: problem) => {
+        return Err<unit, IoError>(error: problem);
+      }
+    }
+  }
+  return Ok<unit, IoError>(value: unit);
+}
+
+fn publish_word(factory: &HandleFactory, output: &OutputStream, word: u64) -> result: Result<unit, IoError> writes(factory), writes(output) waits {
+  let bytes = word_bytes(word: word);
+  return publish_all(factory: factory, output: output, source: &bytes[0_u64..8_u64], length: 8_u64);
+}
+
+fn publish_words(factory: &HandleFactory, output: &OutputStream, words: &Array<u64, 18>) -> result: Result<unit, IoError> reads(words), writes(factory), writes(output) waits {
+  let word0 = words^[0_u64];
+  let done0 = propagate publish_word(factory: factory, output: output, word: word0);
+  let word1 = words^[1_u64];
+  let done1 = propagate publish_word(factory: factory, output: output, word: word1);
+  let word2 = words^[2_u64];
+  let done2 = propagate publish_word(factory: factory, output: output, word: word2);
+  let word3 = words^[3_u64];
+  let done3 = propagate publish_word(factory: factory, output: output, word: word3);
+  let word4 = words^[4_u64];
+  let done4 = propagate publish_word(factory: factory, output: output, word: word4);
+  let word5 = words^[5_u64];
+  let done5 = propagate publish_word(factory: factory, output: output, word: word5);
+  let word6 = words^[6_u64];
+  let done6 = propagate publish_word(factory: factory, output: output, word: word6);
+  let word7 = words^[7_u64];
+  let done7 = propagate publish_word(factory: factory, output: output, word: word7);
+  let word8 = words^[8_u64];
+  let done8 = propagate publish_word(factory: factory, output: output, word: word8);
+  let word9 = words^[9_u64];
+  let done9 = propagate publish_word(factory: factory, output: output, word: word9);
+  let word10 = words^[10_u64];
+  let done10 = propagate publish_word(factory: factory, output: output, word: word10);
+  let word11 = words^[11_u64];
+  let done11 = propagate publish_word(factory: factory, output: output, word: word11);
+  let word12 = words^[12_u64];
+  let done12 = propagate publish_word(factory: factory, output: output, word: word12);
+  let word13 = words^[13_u64];
+  let done13 = propagate publish_word(factory: factory, output: output, word: word13);
+  let word14 = words^[14_u64];
+  let done14 = propagate publish_word(factory: factory, output: output, word: word14);
+  let word15 = words^[15_u64];
+  let done15 = propagate publish_word(factory: factory, output: output, word: word15);
+  let word16 = words^[16_u64];
+  let done16 = propagate publish_word(factory: factory, output: output, word: word16);
+  let word17 = words^[17_u64];
+  let done17 = propagate publish_word(factory: factory, output: output, word: word17);
+  return Ok<unit, IoError>(value: unit);
+}
+
+fn main(inputs: Inputs) -> status: ExitStatus pure waits {
+  let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: output, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: meter) = move inputs;
+  let std::fs::Directory(read: cwd_read, write: cwd_write) = move cwd_directory;
+  let write_closed = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
+  let read_closed = std::fs::close_directory(factory: &factory, directory: move cwd_read);
+  match write_closed {
+    Ok(value: unused_write_closed) => {
+    }
+    Err(error: unused_write_error) => {
+    }
+  }
+  match read_closed {
+    Ok(value: unused_read_closed) => {
+    }
+    Err(error: unused_read_error) => {
+    }
+  }
+  let baseline = heap_in_use(meter: &meter);
+  let zero_owner = box_paged_new::<u64>(capacity: 0_u64);
+  let first = heap_difference(meter: &meter, baseline: baseline);
+  if first != 0_u64 {
+    return exit_status(code: 1_u8);
+  }
+  grow_paged(cell: &zero_owner, capacity: 0_u64);
+  let second = heap_difference(meter: &meter, baseline: baseline);
+  if second != 0_u64 {
+    return exit_status(code: 2_u8);
+  }
+  let separate_zero = box_paged_new::<u64>(capacity: 0_u64);
+  release::<Box<Paged<u64>>>(value: move separate_zero);
+  let third = heap_difference(meter: &meter, baseline: baseline);
+  if third != 0_u64 {
+    return exit_status(code: 17_u8);
+  }
+  release::<Box<Paged<u64>>>(value: move zero_owner);
+
+  let chain = box_paged_new::<u64>(capacity: 1_u64);
+  place_back(window: &chain.inner, value: 73_u64);
+  let fourth = heap_difference(meter: &meter, baseline: baseline);
+  if fourth != 40_u64 {
+    return exit_status(code: 3_u8);
+  }
+  grow_paged(cell: &chain, capacity: 2_u64);
+  place_back(window: &chain.inner, value: 1_u64);
+  let fifth = heap_difference(meter: &meter, baseline: baseline);
+  if fifth != 48_u64 {
+    return exit_status(code: 4_u8);
+  }
+  grow_paged(cell: &chain, capacity: 3_u64);
+  place_back(window: &chain.inner, value: 2_u64);
+  let sixth = heap_difference(meter: &meter, baseline: baseline);
+  if sixth != 64_u64 {
+    return exit_status(code: 5_u8);
+  }
+  let logical = chain.inner.cap;
+  if logical != 3_u64 {
+    return exit_status(code: 6_u8);
+  }
+  grow_paged(cell: &chain, capacity: 4_u64);
+  let cap_four = heap_difference(meter: &meter, baseline: baseline);
+  if cap_four != 64_u64 {
+    return exit_status(code: 14_u8);
+  }
+  grow_paged(cell: &chain, capacity: 512_u64);
+  for (i in 3_u64..512_u64) {
+    place_back(window: &chain.inner, value: i);
+  }
+  let eighth = heap_difference(meter: &meter, baseline: baseline);
+  if eighth != 4128_u64 {
+    return exit_status(code: 7_u8);
+  }
+  grow_paged(cell: &chain, capacity: 513_u64);
+  place_back(window: &chain.inner, value: 512_u64);
+  let ninth = heap_difference(meter: &meter, baseline: baseline);
+  if ninth != 8232_u64 {
+    return exit_status(code: 8_u8);
+  }
+  let first_value = chain.inner[0_u64];
+  if first_value != 73_u64 {
+    return exit_status(code: 9_u8);
+  }
+  let count = chain.inner.len;
+  let sum = 0_u64;
+  for (k in 0_u64..count) {
+    let retained = chain.inner[k];
+    if k != 0_u64 {
+      if retained != k {
+        return exit_status(code: 10_u8);
+      }
+    }
+    set sum = sum +wrap retained;
+  }
+  if sum != 131401_u64 {
+    return exit_status(code: 10_u8);
+  }
+  release::<Box<Paged<u64>>>(value: move chain);
+  let tenth = heap_difference(meter: &meter, baseline: baseline);
+  if tenth != 0_u64 {
+    return exit_status(code: 11_u8);
+  }
+
+  let separate = box_paged_new::<u64>(capacity: 3_u64);
+  place_back(window: &separate.inner, value: 19_u64);
+  let eleventh = heap_difference(meter: &meter, baseline: baseline);
+  if eleventh != 64_u64 {
+    return exit_status(code: 12_u8);
+  }
+  let observed_19 = separate.inner[0_u64];
+  if observed_19 != 19_u64 {
+    return exit_status(code: 10_u8);
+  }
+  release::<Box<Paged<u64>>>(value: move separate);
+  let twelfth = heap_difference(meter: &meter, baseline: baseline);
+  if twelfth != 0_u64 {
+    return exit_status(code: 13_u8);
+  }
+
+  let zero_size = box_paged_new::<Array<u8, 0>>(capacity: 1_u64);
+  let empty = array_filled::<u8, 0>(value: 0_u8);
+  place_back(window: &zero_size.inner, value: empty);
+  grow_paged(cell: &zero_size, capacity: 3_u64);
+  let thirteenth = heap_difference(meter: &meter, baseline: baseline);
+  if thirteenth != 33_u64 {
+    return exit_status(code: 15_u8);
+  }
+  release::<Box<Paged<Array<u8, 0>>>>(value: move zero_size);
+  let fourteenth = heap_difference(meter: &meter, baseline: baseline);
+  if fourteenth != 0_u64 {
+    return exit_status(code: 16_u8);
+  }
+
+  let words = array_filled::<u64, 18>(value: 0_u64);
+  set words[0_u64] = first;
+  set words[1_u64] = second;
+  set words[2_u64] = third;
+  set words[3_u64] = fourth;
+  set words[4_u64] = fifth;
+  set words[5_u64] = sixth;
+  set words[6_u64] = cap_four;
+  set words[7_u64] = eighth;
+  set words[8_u64] = ninth;
+  set words[9_u64] = tenth;
+  set words[10_u64] = eleventh;
+  set words[11_u64] = twelfth;
+  set words[12_u64] = thirteenth;
+  set words[13_u64] = fourteenth;
+  set words[14_u64] = logical;
+  set words[15_u64] = sum;
+  set words[16_u64] = first_value;
+  set words[17_u64] = observed_19;
+  let published = publish_words(factory: &factory, output: &output, words: &words);
+  match published {
+    Ok(value: unused_published) => {
+    }
+    Err(error: unused_publish_error) => {
+      return exit_status(code: 250_u8);
+    }
+  }
+  return exit_status(code: 0_u8);
 }

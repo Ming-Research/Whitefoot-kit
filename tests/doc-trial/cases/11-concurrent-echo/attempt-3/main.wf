@@ -164,7 +164,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   std::fs::close_directory_write(factory: &factory, directory: move directory_write);
   std::fs::close_directory(factory: &factory, directory: move directory_read);
   let port = read_port(args: &program_args);
-  match move port {
+  match port {
     Some(value: listen_port) => {
       return run(factory: move factory, port: listen_port);
     }

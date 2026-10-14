@@ -2,10 +2,180 @@ alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
 alias exit_status = std::process::exit_status;
 
+const base_parents: Array<u32, 6> =[6_u32, 0_u32, 0_u32, 1_u32, 1_u32, 2_u32];
+
+const base_depths: Array<u32, 6> =[0_u32, 1_u32, 1_u32, 2_u32, 2_u32, 2_u32];
+
+fn accept(parents: &Array<u32, 6>, depths: &Array<u32, 6>) -> result: Bool reads(parents), reads(depths) {
+  let ok = True();
+  for (i in 0_u64..6_u64) {
+    let depth = cvt::<u32, u64>(depths^[i]);
+    let parent = cvt::<u32, u64>(parents^[i]);
+    if depths^[i] > 4096_u32 {
+      set ok = False();
+    }
+    if parent < 6_u64 {
+      if parent < i {
+        let parent_depth = cvt::<u32, u64>(depths^[parent]);
+        let wanted = parent_depth +wrap 1_u64;
+        if depth != wanted {
+          set ok = False();
+        }
+      } else {
+        set ok = False();
+      }
+    } else {
+      if parent != 6_u64 {
+        set ok = False();
+      }
+    }
+  }
+  return ok;
+}
+
+fn store_word(words: &Array<u64, 21>, at: u64, value: u64) -> result: unit writes(words) {
+  if at < 21_u64 {
+    set words^[at] = value;
+  }
+  return unit;
+}
+
+fn emit_groups(depths: &Array<u32, 6>, words: &Array<u64, 21>) -> result: unit reads(depths), writes(words) {
+  let counts = array_filled::<u64, 4097>(value: 0_u64);
+  let top = 0_u64;
+  for (i in 0_u64..6_u64) {
+    let d = cvt::<u32, u64>(depths^[i]);
+    if d < 4097_u64 {
+      set counts[d] = counts[d] +wrap 1_u64;
+      if d > top {
+        set top = d;
+      }
+    }
+  }
+  let starts = array_filled::<u64, 4097>(value: 0_u64);
+  let running = 0_u64;
+  for (d in 0_u64..4097_u64) {
+    set starts[d] = running;
+    set running = running +wrap counts[d];
+  }
+  let taken = array_filled::<u64, 4097>(value: 0_u64);
+  let order = array_filled::<u64, 6>(value: 0_u64);
+  let positions = array_filled::<u64, 6>(value: 0_u64);
+  for (i in 0_u64..6_u64) {
+    let d = cvt::<u32, u64>(depths^[i]);
+    if d < 4097_u64 {
+      let within = taken[d];
+      set positions[i] = within;
+      let at = starts[d] +wrap within;
+      if at < 6_u64 {
+        set order[at] = i;
+      }
+      set taken[d] = within +wrap 1_u64;
+    }
+  }
+  let w = 0_u64;
+  store_word(words: words, at: w, value: 1_u64);
+  set w = w +wrap 1_u64;
+  let groups = top +wrap 1_u64;
+  store_word(words: words, at: w, value: groups);
+  set w = w +wrap 1_u64;
+  for (d in 0_u64..4097_u64) {
+    if d < groups {
+      let length = counts[d];
+      store_word(words: words, at: w, value: length);
+      set w = w +wrap 1_u64;
+      for (k in 0_u64..length) {
+        let src = starts[d] +wrap k;
+        if src < 6_u64 {
+          let member = order[src];
+          store_word(words: words, at: w, value: member);
+          set w = w +wrap 1_u64;
+        }
+      }
+    }
+  }
+  store_word(words: words, at: w, value: 6_u64);
+  set w = w +wrap 1_u64;
+  for (i in 0_u64..6_u64) {
+    store_word(words: words, at: w, value: positions[i]);
+    set w = w +wrap 1_u64;
+  }
+  return unit;
+}
+
+fn encode(words: &Array<u64, 21>, bytes: &Array<u8, 168>) -> result: unit reads(words), writes(bytes) {
+  for (k in 0_u64..21_u64) {
+    let value = words^[k];
+    for (b in 0_u64..8_u64) {
+      let shift = b *wrap 8_u64;
+      let shift_amount = cvt.wrap::<u64, u32>(shift);
+      let shifted = ishr.wrap(value, shift_amount);
+      let octet = cvt.wrap::<u64, u8>(shifted);
+      let base = k *wrap 8_u64;
+      let at = base +wrap b;
+      if at < 168_u64 {
+        set bytes^[at] = octet;
+      }
+    }
+  }
+  return unit;
+}
+
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(cwd: directory, handles: factory, ..) = move inputs;
+  let Inputs(cwd: directory, handles: factory, stdout: output, ..) = move inputs;
   let std::fs::Directory(read: directory_read, write: directory_write) = move directory;
   std::fs::close_directory_write(factory: &factory, directory: move directory_write);
   std::fs::close_directory(factory: &factory, directory: move directory_read);
+  let changed_parents = base_parents;
+  set changed_parents[1_u64] = 2_u32;
+  let changed_depths = base_depths;
+  set changed_depths[3_u64] = 1_u32;
+  let deep_depths = base_depths;
+  set deep_depths[0_u64] = 4097_u32;
+  let valid = accept(parents: &base_parents, depths: &base_depths);
+  let parent_ok = accept(parents: &changed_parents, depths: &base_depths);
+  let depth_ok = accept(parents: &base_parents, depths: &changed_depths);
+  let root_ok = accept(parents: &base_parents, depths: &deep_depths);
+  let words = array_filled::<u64, 21>(value: 0_u64);
+  if valid {
+    emit_groups(depths: &base_depths, words: &words);
+  }
+  if parent_ok {
+    set words[18_u64] = 1_u64;
+  }
+  if depth_ok {
+    set words[19_u64] = 1_u64;
+  }
+  if root_ok {
+    set words[20_u64] = 1_u64;
+  }
+  let bytes = array_filled::<u8, 168>(value: 0_u8);
+  encode(words: &words, bytes: &bytes);
+  let window = &bytes[0_u64..168_u64];
+  let sent = 0_u64;
+  let failed = False();
+  loop @publish {
+    let pending = sent < 168_u64;
+    if pending {
+    } else {
+      break @publish;
+    }
+    let no_deadline = None<std::time::Instant>();
+    let cancel = std::time::cancel_never();
+    let outcome = std::io::write_once(factory: &factory, output: &output, source: window, start: sent, end: 168_u64, deadline: no_deadline, cancel: &cancel);
+    std::time::close_cancel_watch(watch: move cancel);
+    match outcome {
+      Ok(value: next) => {
+        set sent = next;
+      }
+      Err(error: unused_write_error) => {
+        set failed = True();
+        break @publish;
+      }
+    }
+  }
+  if failed {
+    return exit_status(code: 1_u8);
+  }
   return exit_status(code: 0_u8);
 }

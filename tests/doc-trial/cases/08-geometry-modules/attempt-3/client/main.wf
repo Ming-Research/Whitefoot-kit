@@ -82,7 +82,7 @@ fn emit_words(factory: &HandleFactory, output: &OutputStream, words: &[u64]) -> 
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(cwd: directory, handles: factory, stdout: output, ..) = move inputs;
+  let Inputs(cwd: directory, stdout: output, handles: factory, ..) = move inputs;
   let std::fs::Directory(read: directory_read, write: directory_write) = move directory;
   std::fs::close_directory_write(factory: &factory, directory: move directory_write);
   std::fs::close_directory(factory: &factory, directory: move directory_read);

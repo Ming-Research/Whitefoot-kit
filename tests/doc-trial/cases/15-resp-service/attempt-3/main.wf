@@ -1,3 +1,40 @@
+alias Args = std::text::Args;
 alias ExitStatus = std::process::ExitStatus;
+alias HostString = std::text::HostString;
 alias Inputs = std::process::Inputs;
 alias exit_status = std::process::exit_status;
+alias host_bytes_len = std::text::host_bytes_len;
+alias host_copy_bytes = std::text::host_copy_bytes;
+
+fn digit_value(byte: u8) -> result: Option<u64> pure {
+  let low = byte >= 48_u8;
+  let high = byte <= 57_u8;
+  let valid = band(low, high);
+  if valid {
+    let digit = byte - 48_u8;
+    return Some<u64>(value: cvt::<u8, u64>(digit));
+  }
+  return None<u64>();
+}
+
+fn port_from_text(text: &HostString) -> result: u64 reads(text) {
+  let length = host_bytes_len(value: text);
+  let port = 0_u64;
+  if length <= 5_u64 {
+    let bytes = array_filled::<u8, 5>(value: 0_u8);
+    let window = &bytes[0_u64..5_u64];
+    let copied = host_copy_bytes(value: text, destination: window, start: 0_u64, end: length);
+    for (i in 0_u64..length) {
+      let found = digit_value(byte: bytes[i]);
+      match found {
+        Some(value: digit) => {
+          let scaled = port *wrap 10_u64;
+          set port = scaled +wrap digit;
+        }
+        None() => {
+        }
+      }
+    }
+  }
+  return port;
+}

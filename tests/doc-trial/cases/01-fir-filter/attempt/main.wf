@@ -35,7 +35,9 @@ fn encode_word(output: &Slots<u8, 520>, word: u64) -> result: unit writes(output
   return unit;
 }
 
-fn filter_all(output: &Slots<u8, 520>) -> result: Bool writes(output) {
+fn filter_all(output: &Slots<u8, 520>) -> result: Bool writes(output) contract {
+  requires output^.len == 0_u64;
+} {
   let samples = array_filled::<f64, 64>(value: 0.0_f64);
   set samples[0_u64] = 8.0_f64;
   let eighth = 0.125_f64;

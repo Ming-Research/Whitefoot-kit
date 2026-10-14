@@ -108,7 +108,11 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
   }
   grow_paged(cell: &pool, capacity: 512_u64);
   for (i in 3_u64..512_u64) {
-    place_back(window: &pool.inner, value: i);
+    if pool.inner.len < pool.inner.cap {
+      place_back(window: &pool.inner, value: i);
+    } else {
+      return std::process::exit_status(code: 7_u8);
+    }
   }
   let wide = heap_delta(meter: &meter, baseline: baseline);
   if wide != 4128_u64 {

@@ -104,7 +104,7 @@ fn serve_all(factory: &HandleFactory, listener: &TcpListener, failures: &Shared<
   for (index in 0_u64..12_u64) {
     let no_deadline = None<std::time::Instant>();
     let accepted = std::net::tcp_accept(factory: factory, listener: listener, deadline: no_deadline, cancel: &accept_cancel);
-    match accepted {
+    match move accepted {
       Ok(value: pair) => {
         let std::net::AcceptedConnection(connection: link, ..) = move pair;
         let std::net::TcpConnection(receive: receive, send: send) = move link;
@@ -205,7 +205,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     Ok(value: port) => {
       let address = std::net::socket_address_v4(a: 127_u8, b: 0_u8, c: 0_u8, d: 1_u8, port: port);
       let listened = std::net::tcp_listen(factory: &factory, address: &address);
-      match listened {
+      match move listened {
         Ok(value: listener) => {
           let failures = shared_new::<u64>(value: 0_u64);
           let served = serve_all(factory: &factory, listener: &listener, failures: &failures);

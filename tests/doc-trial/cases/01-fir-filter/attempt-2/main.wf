@@ -78,7 +78,7 @@ fn publish_word(factory: &HandleFactory, output: &OutputStream, value: f64) -> r
   return Ok<unit, IoError>(value: unit);
 }
 
-fn publish_outputs(factory: &HandleFactory, output: &OutputStream, outputs: &Array<f64, 64>, total: f64) -> result: Result<unit, IoError> writes(factory), writes(output) waits {
+fn publish_outputs(factory: &HandleFactory, output: &OutputStream, outputs: &Array<f64, 64>, total: f64) -> result: Result<unit, IoError> reads(outputs), writes(factory), writes(output) waits {
   for (k in 0_u64..64_u64) {
     let published = publish_word(factory: factory, output: output, value: outputs^[k]);
     match published {

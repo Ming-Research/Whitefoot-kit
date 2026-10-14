@@ -173,7 +173,7 @@ fn main(inputs: Inputs) -> status: ExitStatus pure waits {
     Leased(pool: held_pool, lease: held_lease) => {
       let held_count = held_pool.blocks.len;
       let outcome_status = finish_leased(factory: &factory, output: &output_stream, initial: initial, held_count: held_count, pool: move held_pool, lease: move held_lease);
-      return outcome_status;
+      return move outcome_status;
     }
     Exhausted(pool: empty_pool) => {
       return exit_status(code: 3_u8);

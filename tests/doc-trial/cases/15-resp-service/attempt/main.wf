@@ -41,10 +41,10 @@ fn find_slot(table: &Array<Entry, 32>, key: &[u8]) -> result: u64 reads(table), 
   let length = key^.len;
   let found = 32_u64;
   for (i in 0_u64..32_u64) {
-    let entry = table^[i];
-    if entry.present {
-      if entry.key_len == length {
-        let same = same_key(stored: entry.key, key: key);
+    let slot_entry = table^[i];
+    if slot_entry.present {
+      if slot_entry.key_len == length {
+        let same = same_key(stored: slot_entry.key, key: key);
         if same {
           set found = i;
         }
@@ -59,8 +59,8 @@ fn find_free(table: &Array<Entry, 32>) -> result: u64 reads(table) contract {
 } {
   let free = 32_u64;
   for (i in 0_u64..32_u64) {
-    let entry = table^[i];
-    if entry.present {
+    let slot_entry = table^[i];
+    if slot_entry.present {
     } else {
       set free = i;
     }
@@ -102,15 +102,15 @@ fn store_set(table: &Array<Entry, 32>, key: &[u8], payload: &[u8]) -> result: Bo
   requires key^.len <= 64_u64;
   requires payload^.len <= 64_u64;
 } {
-  let entry = make_entry(key: key, payload: payload);
+  let new_entry = make_entry(key: key, payload: payload);
   let slot = find_slot(table: table, key: key);
   if slot < 32_u64 {
-    set table^[slot] = entry;
+    set table^[slot] = new_entry;
     return True();
   }
   let free = find_free(table: table);
   if free < 32_u64 {
-    set table^[free] = entry;
+    set table^[free] = new_entry;
     return True();
   }
   return False();
@@ -479,12 +479,12 @@ fn run_get(buffer: &[u8], request: Command, table: &Array<Entry, 32>, out: &Arra
   }
   let slot = find_slot(table: table, key: &buffer^[key_start..key_end]);
   if slot < 32_u64 {
-    let entry = table^[slot];
-    if entry.value_len <= 64_u64 {
+    let found_entry = table^[slot];
+    if found_entry.value_len <= 64_u64 {
     } else {
       return put_text(out: out, at: at, text: &reply_protocol[0_u64..21_u64]);
     }
-    return put_bulk(out: out, at: at, value: &entry.value, length: entry.value_len);
+    return put_bulk(out: out, at: at, value: &found_entry.value, length: found_entry.value_len);
   }
   return put_text(out: out, at: at, text: &reply_nil[0_u64..5_u64]);
 }
@@ -614,12 +614,12 @@ fn run_incr(buffer: &[u8], request: Command, table: &Array<Entry, 32>, out: &Arr
   }
   let slot = find_slot(table: table, key: &buffer^[key_start..key_end]);
   if slot < 32_u64 {
-    let entry = table^[slot];
-    if entry.value_len <= 64_u64 {
+    let found_entry = table^[slot];
+    if found_entry.value_len <= 64_u64 {
     } else {
       return put_text(out: out, at: at, text: &reply_not_int[0_u64..46_u64]);
     }
-    let parsed = parse_value(stored: entry.value, length: entry.value_len);
+    let parsed = parse_value(stored: found_entry.value, length: found_entry.value_len);
     match parsed {
       Some(value: current) => {
         let bumped = current +checked 1_i64;

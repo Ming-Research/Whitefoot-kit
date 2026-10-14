@@ -71,7 +71,7 @@ fn parse_port(args: &Args) -> result: Option<u16> reads(args) {
   return None<u16>();
 }
 
-fn echo_peer(receive: TcpReceive, send: TcpSend, factory: HandleFactory) -> result: unit waits {
+fn echo_peer(receive: TcpReceive, send: TcpSend, factory: HandleFactory) -> result: unit pure waits {
   let buffer = array_filled::<u8, 64>(value: 0_u8);
   let watch = std::time::cancel_never();
   loop @echoing {
