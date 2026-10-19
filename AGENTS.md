@@ -2,8 +2,7 @@
 
 This file is for agents that maintain the kit. Agents that write Whitefoot
 programs read [README.md](README.md) and [docs/writing.md](docs/writing.md)
-instead. The owner-wide rules in the owner's global instructions apply; this
-file adds only what is the kit's own.
+instead. This file holds only what is the kit's own.
 
 ## Goal
 
@@ -38,24 +37,21 @@ the trial set covers; it stays within its length limit.
 All checks run in CI ([check.yml](.github/workflows/check.yml)), never on a
 developer's machine: `make check` on Linux and macOS, and on Linux the
 guide's check with the newest release of Whitefoot's `main`. A newer
-release that rejects an example turns the check red even when no
-specification-update item has arrived.
+release that rejects an example turns the check red even before the guide
+follows that change.
 
 ## Keeping the guide current
 
-- **Specification updates.** Whitefoot files an item into this project's
-  inbox when the specification changes. Triage it under the item collecting
-  Whitefoot's needs; read the change; record in the item which guide
-  sections it affects, or that none are; change them in a pull request whose
-  check passes with the release that contains the change; mark the item done
-  and tell Whitefoot.
-- **Reports from projects.** Firn, Halo, Snowghost and later projects file a
-  request when the guide or a rejection did not lead their agent to an
-  accepted form. Classify each: add or correct a guide entry; or, when the
-  rejection should name the fix, file a request into Whitefoot's diagnostics
-  work with the minimal source and its rejection; or, when the language
-  itself lacks the form, file it as a language gap in Whitefoot. Never route
-  around a gap with another spelling in the guide.
+- **Specification updates.** For each specification change in Whitefoot,
+  read the change; decide which guide sections it affects, or that none
+  are; change them in a pull request whose check passes with the release
+  that contains the change.
+- **Reports from projects.** When the guide or a rejection did not lead a
+  project's agent to an accepted form, classify the case: add or correct a
+  guide entry; or, when the rejection should name the fix, it is Whitefoot
+  diagnostics work, with the minimal source and its rejection; or, when the
+  language itself lacks the form, it is a Whitefoot language gap. Never
+  route around a gap with another spelling in the guide.
 
 ## Coverage: the trial
 
@@ -86,13 +82,12 @@ criterion is that every category passes.
 ## Rejections the guide covers for now
 
 Entries of the fourth kind stay in the guide until Whitefoot's rejection
-names the fix; each is covered by a request on the owner's status board in
-Whitefoot's project, and is deleted from the guide when that request is done.
+names the fix; each is covered by Whitefoot work, named below by its board
+item key, and is deleted from the guide when that work is done.
 
-- Every row of the guide's table "When the compiler says…": the request
-  "agents can fix common syntax errors from the compiler's rejections"
-  (board key `kit-req-diag-baseline`, filed 2026-10-13 with the baseline
-  trial's minimal sources and rejections).
+- Every row of the guide's table "When the compiler says…": board item
+  `kit-req-diag-baseline`, filed 2026-10-13 with the baseline trial's
+  minimal sources and rejections.
 - The row "`FN-8` at a call although the preceding call's `ensures` states
   exactly the missing fact": Whitefoot's diagnostics item reporting a
   callee's unproved guarantee at the callee (board key `coord-wfbl-01-15`,
@@ -106,8 +101,8 @@ The completion review marks each item:
   CI shows it.
 - K2. The guide is within 153,600 bytes.
 - K3. Each new or changed entry belongs to one of the four kinds above; an
-  entry of the fourth kind is covered by a request listed under "Rejections
-  the guide covers for now".
+  entry of the fourth kind is covered by Whitefoot work listed under
+  "Rejections the guide covers for now".
 - K4. No statement contradicts the specification at the release CI used;
   current compiler behavior that the specification only permits is marked
   as such.
