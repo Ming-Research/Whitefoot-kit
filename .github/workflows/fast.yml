@@ -1,0 +1,125 @@
+# The kit's fast workflow (`ci.fast` of wf-agents.toml): what an agent's
+# `run_tests` waits for while a work is under way. It runs only by hand, which
+# only someone who may write to the repository can ask for. The engine of
+# wf-agents always asks for it on main, so that this file as main holds it
+# runs, with the commit to test, a value only its request knows, which the
+# run's name holds, the tests to run and how long one test may run.
+#
+# A test is a target of the Makefile that its TESTS lists, as the full
+# workflow (check.yml) names it. Each named test runs on each host the full
+# workflow runs it on, by itself, through ci/run-tests.py; a name no test has
+# is said in the log and reported as nothing, which the engine reads as a test
+# that did not run. What became of each test is JUnit XML in the artifact
+# `test-results`.
+name: fast
+run-name: fast ${{ inputs.call }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: The commit to check out and test, pushed to a branch of the repository already
+        required: true
+      call:
+        description: A value only the request that asks for this run knows, which the run's name holds
+        required: true
+      tests:
+        description: The tests to run, each name followed by a line break
+        required: false
+        default: ''
+      test_stop:
+        description: How long one test may run before it is stopped, in whole seconds; empty for no stop but the job's limit
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+# No concurrency group: each run is a request an agent waits for, which
+# another request must not cancel.
+
+jobs:
+  tests:
+    name: tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        # As in check.yml: the tests each host runs.
+        include:
+          - os: ubuntu-24.04
+            tests: mk-check ci-check doc-check doc-check-fixtures
+          - os: macos-15
+            tests: mk-check ci-check
+    env:
+      TESTS_JUNIT: ${{ github.workspace }}/build/test-results/tests (${{ matrix.os }}).xml
+      TESTS_SUITE: tests (${{ matrix.os }})
+      TESTS_STOP: ${{ inputs.test_stop }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit }}
+
+      # The Linux job takes every name, so that one no test has is said; the
+      # macOS job takes only the names of the tests it runs.
+      - name: Read the names
+        env:
+          GIVEN: ${{ inputs.tests }}
+          HERE: ${{ matrix.tests }}
+        run: |
+          printf '%s\n' "$GIVEN" > "$RUNNER_TEMP/names"
+          if [ "$RUNNER_OS" != Linux ]; then
+            printf '%s\n' $HERE > "$RUNNER_TEMP/here"
+            awk '{ $1 = $1 } NR == FNR { here[$0]; next } $0 in here' "$RUNNER_TEMP/here" "$RUNNER_TEMP/names" \
+              > "$RUNNER_TEMP/kept" || true
+            mv "$RUNNER_TEMP/kept" "$RUNNER_TEMP/names"
+          fi
+          echo "Named here:"
+          cat "$RUNNER_TEMP/names"
+
+      - name: Pick the newest Whitefoot main release
+        if: runner.os == 'Linux'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(gh api repos/Ming-Research/Whitefoot/releases --paginate \
+            --jq '.[] | select(.tag_name | test("^wf-[0-9a-f]{12}$")) | [.published_at, .tag_name] | @tsv' \
+            | LC_ALL=C sort -r | head -n 1 | cut -f 2)
+          test -n "$tag"
+          echo "KIT_DOWNLOAD_RELEASE=$tag" >> "$GITHUB_ENV"
+          echo "newest release: $tag"
+
+      - name: Pin the newest release for the guide's checks
+        if: runner.os == 'Linux'
+        run: printf 'release = %s\n' "$KIT_DOWNLOAD_RELEASE" > docs/whitefoot.pin
+
+      - name: Test
+        run: ci/run-tests.py --names "$RUNNER_TEMP/names"
+
+      - name: Name the job's end in its results
+        if: ${{ !cancelled() }}
+        env:
+          STATUS: ${{ job.status }}
+        run: ci/run-tests.py --end "$STATUS"
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: junit-${{ matrix.os }}
+          path: build/test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # The JUnit of both hosts, in the one artifact the engine reads.
+  results:
+    needs: tests
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/upload-artifact/merge@v4
+        continue-on-error: true
+        with:
+          name: test-results
+          pattern: junit-*

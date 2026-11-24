@@ -16,6 +16,10 @@ the trial set covers; it stays within its length limit.
 - [whitefoot.mk](whitefoot.mk) and [downstream.md](downstream.md): how a
   project gets and pins the compiler. [tests/run.sh](tests/run.sh) checks
   `whitefoot.mk`.
+- [tests.mk](tests.mk) and [ci/run-tests.py](ci/run-tests.py): how a project
+  names its tests and how its CI runs each and reports it as JUnit XML
+  (downstream.md, "Tests in CI"). [tests/ci-check.sh](tests/ci-check.sh)
+  checks them.
 - [docs/writing.md](docs/writing.md): the writing guide, for coding agents
   only. One file, at most 150 KB (153,600 bytes). It holds
   1. design guidance and concepts no rejection can teach;
@@ -35,10 +39,13 @@ the trial set covers; it stays within its length limit.
 ## Checks
 
 All checks run in CI ([check.yml](.github/workflows/check.yml)), never on a
-developer's machine: `make check` on Linux and macOS, and on Linux the
-guide's check with the newest release of Whitefoot's `main`. A newer
+developer's machine: the tests of `make check` (`mk-check`, `ci-check`) on
+Linux and macOS, and on Linux the guide's checks (`doc-check`,
+`doc-check-fixtures`) with the newest release of Whitefoot's `main`. A newer
 release that rejects an example turns the check red even before the guide
-follows that change.
+follows that change. Each test is a target in `TESTS` of the Makefile, which
+CI runs by itself; [fast.yml](.github/workflows/fast.yml) runs only the tests
+it is given.
 
 ## Keeping the guide current
 

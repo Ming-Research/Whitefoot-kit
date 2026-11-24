@@ -95,6 +95,38 @@ project's item it blocks, until Whitefoot resolves it. A problem
 that belongs to the project alone is fixed in the project, not by
 generalizing the language.
 
+## Tests in CI
+
+Each project names its tests the same way, so that its CI, its people and the
+engine of wf-agents ask for a test by one name.
+
+- A test is a target of the project's Makefile, listed in its `TESTS`. The
+  Makefile includes [tests.mk](tests.mk) after `whitefoot.mk`; `make
+  tests-list` then prints the tests, one a line. The download of the
+  compiler and the toolchain are not tests: they are steps a job takes
+  before its tests.
+- CI runs each test by itself, as `make <test>`, through
+  [ci/run-tests.py](ci/run-tests.py), which prints what the test prints and
+  writes what became of it as JUnit XML: a testcase named by the target, with
+  its time, and, where it failed, the end of what it printed. A step of a job
+  calls it with the job's tests, and the environment names the file and the
+  testsuite: `TESTS_JUNIT`, a file named by the job's name; `TESTS_SUITE`,
+  the job's name; `TESTS_STOP`, how long one test may run, in seconds. The
+  job's last step, `ci/run-tests.py --end "$STATUS"` with the job's status,
+  says in the same file a step other than the tests that failed.
+- The workflow that checks a pull request and every push, `check.yml`, is
+  the project's full workflow. It also runs by hand with the inputs `commit`
+  (the commit to test), `call` (a value its run's name holds) and
+  `test_stop`, and gathers every job's file in the artifact `test-results`.
+  A push to a branch the engine makes (`work-…`, `wf-try/…`) runs nothing:
+  the engine runs what it needs by hand.
+- `fast.yml` runs, by hand only, the tests its input `tests` names, one a
+  line, on the given `commit`: each by itself, with only the setup the named
+  tests need. A name no test has is said in the log and runs nothing.
+- The project's `wf-agents.toml` declares these workflows, its tests and its
+  heavy commands to the engine; `project.test_names` says that a test is
+  named by its target.
+
 ## Upgrading Whitefoot
 
 The owner periodically has an agent move every project to the latest
@@ -133,7 +165,19 @@ The project's review checklist includes these:
 
 ## Changing this repository
 
-A change to the shared rules or to `whitefoot.mk` is made here, once, in a
-pull request whose `make check` passes. Each project then moves its
-`whitefoot-kit` submodule to the new commit, together with its next pin move
-or on its own.
+A change to the shared rules, to `whitefoot.mk`, `tests.mk` or
+`ci/run-tests.py` is made here, once, in a pull request whose checks pass.
+Each project then moves its `whitefoot-kit` submodule to the new commit,
+together with its next pin move or on its own:
+
+```sh
+git -C whitefoot-kit fetch origin && git -C whitefoot-kit checkout <commit>
+git add whitefoot-kit
+```
+
+A project's branch that needs a kit change not yet merged points its
+submodule at the commit of the kit's branch, pushed already, and its checks
+run with it. The kit's pull request is merged with a merge commit, never
+squashed or rebased, so that the branch's commit stays in the history of the
+kit's `main` and the project's submodule may keep pointing at it; the
+project's branch merges after the kit's.
