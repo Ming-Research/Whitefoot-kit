@@ -123,6 +123,18 @@ engine of wf-agents ask for a test by one name.
 - `fast.yml` runs, by hand only, the tests its input `tests` names, one a
   line, on the given `commit`: each by itself, with only the setup the named
   tests need. A name no test has is said in the log and runs nothing.
+- `fast.yml` runs on the owner's machine, the self-hosted runner `14900k`
+  (`runs-on: [self-hosted, 14900k]`), because an agent waits for it each time
+  it asks for tests. The machine keeps each runner's checkout between runs:
+  the checkout leaves what the last run built (`clean: false`), a step after
+  it clears the rest with `git clean -ffdxq -e <what it keeps>`, and the
+  results under `build/test-results/` are removed, since `run-tests.py` adds
+  to them. A job there has no root: it runs `make toolchain-check`, never
+  `make toolchain`, and sets up only a tool the machine lacks, under the
+  runner's own directories. A test that needs root, `sudo` or a device only
+  root can make runs in a job of the same workflow on GitHub's
+  `ubuntu-24.04`. `fast.yml` never runs on a pull request: the repositories
+  are public, and that would run anyone's code on the owner's machine.
 - The project's `wf-agents.toml` declares these workflows, its tests and its
   heavy commands to the engine; `project.test_names` says that a test is
   named by its target.

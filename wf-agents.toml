@@ -33,8 +33,10 @@ expected = ["tests/doc-check-fixtures/"]
 [ci.fast]
 # Runs only the tests it is given, each on Linux and on macOS where check.yml runs it there.
 workflow = "fast.yml"
-# GitHub's own machines, ubuntu-24.04 and macos-15, which check.yml has always used.
-runner = "github"
+# The owner's own machine, the self-hosted runner 14900k, for the Linux tests: an agent waits for this workflow each
+# time it asks for tests, and that machine keeps the checkout and the downloaded release between runs. The macOS job
+# stays on GitHub's macos-15, since the owner's machine is Linux.
+runner = "14900k"
 # check.yml gives each of its jobs 10 minutes, and this file 15; a run not complete by then is cancelled.
 too_long = "30m"
 
