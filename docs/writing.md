@@ -129,7 +129,7 @@ let message = "hello";
 
 Write `let name = expression;`; the initializer determines the exact type and mode. There is no local type annotation, `mut` or `_` discard binder. Bind an unused field to an ordinary name such as `unused_clock`, or use an admitted rest marker. Replace a live value with `set place = expression;`; `let` does not imply immutability. [GRAM-4, TYPE-5, SET-1]
 
-`set p = e;` evaluates `e` first and then the target `p` in the state `e` left, so it means `let t = e; set p = move t;` (`set p = t;` for a copy value). A subscript of `p` that `e` changes selects the slot its binding holds afterwards; bind the index with `let` before the `set` to keep selecting the earlier slot. A right-hand side that moves or shrinks the storage the target names is refused at the target, which must still prove its subscripts in bounds, and a payload target whose right-hand side writes the enum is refused. [SET-1, OP-4, REF-1]
+`set p = e;` evaluates `e` first and then the target `p` in the state `e` left, so it means `let t = e; set p = move t;` (`set p = t;` for a copy value). A subscript of `p` that `e` changes selects the slot its binding holds afterwards; bind the index with `let` before the `set` to keep selecting the earlier slot. The target's subscripts are proved in bounds in that later state: a right-hand side that shortens a window the target indexes is refused when the bound no longer holds, and one that grows the window stores into the grown storage. A payload target whose right-hand side writes the enum is refused. [SET-1, OP-4, REF-1]
 
 Rejected: the target's bound is proved after `remove_at` has shortened the window.
 
