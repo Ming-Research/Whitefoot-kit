@@ -1140,7 +1140,7 @@ Effect paths begin at the formal without `^`. Write covers reads/writes below it
 
 `entry(window)` denotes entry storage; bare written-reference terms denote exit storage. Requirements permit larger arithmetic than published `ensures`, whose relation sides admit one supported datum displaced by a constant, plus at most one bare integer parameter with coefficient one on one side, as in `ensures after <= base + limit;`. Pass a scalar final total when publishing a relation to a larger sum [FN-9, MSR-3].
 
-A subscript inside an `ensures` must be in bounds wherever the clause applies: at every return it covers, and for a routed clause only at returns of its variant. Bound a formal used as an index with a requirement, such as `requires i < 4_u64;`; without it the clause is rejected. A formal in a postcondition means its entry value, so rebinding it in the body changes nothing, and the caller substitutes the actual: after `width(rows: rows, i: 2_u64)` the caller holds `r <= rows^[2_u64].len`, and facts of calls with different actuals stay apart. An `entry(rows)^[i]` place is bounded by the entry length, so elements the body appends cannot justify it. (after wf-63b7cbb03820) A returned integer expression proves a postcondition as a `let` of it would: under `requires value <= 999999999999999999_u64;`, `return value + 1_u64;` proves `ensures r <= 1000000000000000000_u64;`. A clause naming the result is still rejected at a return of a call's result: bind the call with `let` first. Older releases need `let r = value + 1_u64; return r;`. [FN-9, ENT-2]
+A subscript inside an `ensures` must be in bounds wherever the clause applies: at every return it covers, and for a routed clause only at returns of its variant. Bound a formal used as an index with a requirement, such as `requires i < 4_u64;`; without it the clause is rejected. A formal in a postcondition means its entry value, so rebinding it in the body changes nothing, and the caller substitutes the actual: after `width(rows: rows, i: 2_u64)` the caller holds `r <= rows^[2_u64].len`, and facts of calls with different actuals stay apart. An `entry(rows)^[i]` place is bounded by the entry length, so elements the body appends cannot justify it. [FN-9, ENT-2]
 
 ```whitefoot
 alias ExitStatus = std::process::ExitStatus;
@@ -1181,6 +1181,20 @@ fn main() -> status: ExitStatus pure {
   return exit_status(code: 0_u8);
 }
 ```
+
+A computed result proves a postcondition through a `let`: bind the expression, then return the binding. [FN-9]
+
+```whitefoot
+fn successor(value: u64) -> r: u64 pure contract {
+  requires value <= 999999999999999999_u64;
+  ensures r <= 1000000000000000000_u64;
+} {
+  let next = value + 1_u64;
+  return next;
+}
+```
+
+(after wf-63b7cbb03820) A returned integer expression proves a postcondition as a `let` of it would, so `return value + 1_u64;` proves the same clause; a returned call result still proves none, so bind the call with `let` first. [FN-9]
 
 A call inside a recursive cycle, to the function itself or to another function of the same call-graph cycle, receives the callee's postconditions, written `ensures` included, as induction hypotheses. A body never assumes its own `ensures` at entry, every exit still proves them, and writes to a reference argument after the call kill its facts as for any call. Split recursion can therefore bound its combination directly instead of using a loop or `+sat`: [DIAG-2, FN-9]
 
@@ -1295,7 +1309,7 @@ fn at_index(cells: &[u64]) -> result: u64 reads(cells) contract {
 }
 ```
 
-Range clauses have one/two binders, half-open ranges, optional guards and conclusions over supported element projections. They execute nothing; an instance claims conclusions only where its element/payload reads are defined. A payload projection alone proves no tag. Ring projections are excluded [RANGE-1]. (after wf-63b7cbb03820) A `define` name in a clause is replaced by its definition before the clause's range terms are checked, so a linear define such as `i + 1_u64` is an exact range term in `requires` and `ensures` clauses alike, and a define that multiplies two variables is rejected in both; older releases reject a define-named subscript in an `ensures` range clause [RANGE-1, FN-8].
+Range clauses have one/two binders, half-open ranges, optional guards and conclusions over supported element projections. They execute nothing; an instance claims conclusions only where its element/payload reads are defined. A payload projection alone proves no tag. Ring projections are excluded [RANGE-1]. Do not use a `define` name as a subscript in a range clause: the release rejects it in an `ensures` range clause and accepts it without effect in a `requires` one; write the range term itself [RANGE-1]. (after wf-63b7cbb03820) A `define` name in a clause is replaced by its definition before the clause's range terms are checked, so a linear define such as `i + 1_u64` is an exact range term in `requires` and `ensures` clauses alike, and a define that multiplies two variables is rejected in both [RANGE-1, FN-8].
 
 Explicit instantiation is `use fact(index);` in binder order, without `times`: after copying `targets^[i]` to t, a local `invariant bounded: t < 4_u64 { use valid(i); }` can use `forall valid(j in 0_u64..4_u64): targets^[j] < 4_u64;`. Use range-postcondition `P unchanged` to preserve untouched elements across a writer without equality capability [RANGE-4].
 
@@ -1384,7 +1398,7 @@ The template decides move spelling: unconstrained/drop T consumes with `move` ev
 
 Interfaces order signatures; bindings supply all members in order. Introduce `interface Identity<T>`, forward `Identity<T>`, instantiate `ByteIdentity`. Raw fn arguments name fully instantiated ordinary functions/parameters. They capture no environment: pass one explicitly. Runtime choice uses enum/match [FN-3, FN-5].
 
-Binding modes/types must match; actual effects may be a subset, requirements weaker and ensures stronger under the finite refinement checker. Waiting actuals need waiting formals. Calls use formal labels/boundaries. Binding proves no algebraic or hash/equality law [FN-4]. (after wf-63b7cbb03820) A formal `ensures` that equates a place's exit and entry values, such as an unchanged length, is met by an actual whose declared row writes no overlapping path: a narrower row, or `pure`, discharges it by frame, with no `ensures` of the actual's own, when the place is rooted at a reference parameter [FN-4].
+Binding modes/types must match; actual effects may be a subset, requirements weaker and ensures stronger under the finite refinement checker. Waiting actuals need waiting formals. Calls use formal labels/boundaries. Binding proves no algebraic or hash/equality law [FN-4]. A formal `ensures` that equates a place's exit and entry values, such as an unchanged length, is met by an actual that writes the place and states that equality in its own `ensures`; a read-only or `pure` actual cannot meet it, and no accepted form exists for one. (after wf-63b7cbb03820) An actual whose declared row writes no overlapping path meets it by frame, with no `ensures` of its own: a narrower row, or `pure`, discharges it when the place is rooted at a reference parameter [FN-4].
 
 Silent cost and check: monomorphization can multiply code/build work despite direct calls. Inspect combinations and output size; `--report` reports build/graph phase reuse, not proof or speed. `--check` verifies capabilities, refinement and instances. Runtime capture/quantified callback contracts/unexpressed algebraic laws are interface gaps.
 
@@ -1574,7 +1588,7 @@ Choose whether a helper borrows a file or consumes it, and put cleanup outside a
 
 `arg_get` in `lib/std/text/module.wfm` yields a `HostString`; `relative_path` consumes it into a `RelativePath` for `open_read` from a `DirectoryRead`. `open_read` is not confined below its root: the host resolves `..` components and symbolic links. To open a path read from the command line or from configuration, take `host_paths` from `Inputs` and call an `open_host_*` function of `lib/std/fs/module.wfm`: it looks the path up as the host does, from the given base directory, creates nothing and follows every link. Byte-name APIs such as `open_file` and `open_append` require one direct child name, neither `.` nor `..`, and refuse a symbolic link at the name [PRE-2].
 
-(after wf-63b7cbb03820) A name given with a root is its name bytes: the UTF-8 bytes of text on every host, WTF-8 on Windows. `host_copy_name_bytes` copies a `HostString`'s name bytes, where `host_copy_bytes` gives UTF-16 on Windows. `directory_next` writes one record for each entry, the kind byte, the byte count of the name as two bytes with the low byte first, then the name bytes, and leaves out `.` and `..`; a nonempty window shorter than the enumeration needs returns `ListFailed`. Decode records, never bare names. [PRE-2]
+A directory listing can include the entries `.` and `..`, so skip those two names yourself, and a name is in the host's native code units, which are UTF-16 on Windows; `host_copy_bytes` copies them [PRE-2]. (after wf-63b7cbb03820) A name given with a root is its name bytes: the UTF-8 bytes of text on every host, WTF-8 on Windows. `host_copy_name_bytes` copies a `HostString`'s name bytes. `directory_next` writes one record for each entry, the kind byte, the byte count of the name as two bytes with the low byte first, then the name bytes, and leaves out `.` and `..`; a nonempty window shorter than the enumeration needs returns `ListFailed`. Decode records, never bare names. [PRE-2]
 
 This file reader gives a close failure precedence over the read outcome.
 ```whitefoot
