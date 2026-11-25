@@ -1,15 +1,42 @@
-# Every push runs make check on both hosts a Whitefoot release serves; the
-# Linux job also downloads and checks the newest release of Whitefoot's main,
-# which compiler-release-cleanup.yml always keeps.
+# The kit's tests on both hosts a Whitefoot release serves; the Linux job also
+# downloads and checks the newest release of Whitefoot's main, which
+# compiler-release-cleanup.yml always keeps, and checks the writing guide with
+# it. Every push runs it, except a push to a branch the engine of wf-agents
+# makes (`work-…`, `wf-try/…`), whose checks the engine asks for by hand.
+#
+# It is also the kit's full workflow (`ci.full` of wf-agents.toml): before
+# the engine merges a work, it runs this file as main holds it, by hand, with
+# the commit to test and a value only its request knows, which the run's name
+# holds. Each test runs by itself through ci/run-tests.py, which writes what
+# became of it as JUnit XML in a file named by the job; the job `results`
+# gathers the files in the artifact `test-results`, which the engine reads.
 name: check
+run-name: ${{ inputs.call && format('check {0}', inputs.call) || '' }}
 
 on:
   push:
+    branches-ignore: ['work-*', 'wf-try/**']
+    tags: ['**']
   workflow_dispatch:
+    inputs:
+      commit:
+        description: The commit to check out and test; empty for the commit the run is asked on
+        required: false
+        default: ''
+      call:
+        description: A value only the request that asks for this run knows, which the run's name holds; empty for a run asked by hand
+        required: false
+        default: ''
+      test_stop:
+        description: How long one test may run before it is stopped, in whole seconds; empty for no stop but the job's limit
+        required: false
+        default: ''
 
+# A newer push to the same branch makes the older run pointless; every run the
+# engine asks for is kept.
 concurrency:
-  group: check-${{ github.ref }}
-  cancel-in-progress: true
+  group: check-${{ inputs.call || github.ref }}
+  cancel-in-progress: ${{ !inputs.call }}
 
 jobs:
   check:
@@ -19,9 +46,23 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-15]
+        # The tests each host runs: the guide's checks need the newest
+        # release, which only the Linux job downloads.
+        include:
+          - os: ubuntu-24.04
+            tests: mk-check ci-check doc-check doc-check-fixtures
+          - os: macos-15
+            tests: mk-check ci-check
+    env:
+      TESTS_JUNIT: ${{ github.workspace }}/build/test-results/make check (${{ matrix.os }}).xml
+      TESTS_SUITE: make check (${{ matrix.os }})
+      TESTS_STOP: ${{ inputs.test_stop }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The commit the engine gives; for any other run, empty, which is
+          # the commit of the event.
+          ref: ${{ inputs.commit }}
 
       - name: Pick the newest Whitefoot main release
         if: runner.os == 'Linux'
@@ -35,12 +76,38 @@ jobs:
           echo "KIT_DOWNLOAD_RELEASE=$tag" >> "$GITHUB_ENV"
           echo "newest release: $tag"
 
-      - name: Check
-        run: make check
-
-      - name: Check the writing guide and its checks
+      - name: Pin the newest release for the guide's checks
         if: runner.os == 'Linux'
-        run: |
-          printf 'release = %s\n' "$KIT_DOWNLOAD_RELEASE" > docs/whitefoot.pin
-          make doc-check
-          make doc-check-fixtures
+        run: printf 'release = %s\n' "$KIT_DOWNLOAD_RELEASE" > docs/whitefoot.pin
+
+      - name: Check
+        run: ci/run-tests.py ${{ matrix.tests }}
+
+      # A step other than the tests that failed is said in the job's results.
+      - name: Name the job's end in its results
+        if: ${{ !cancelled() }}
+        env:
+          STATUS: ${{ job.status }}
+        run: ci/run-tests.py --end "$STATUS"
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: junit-${{ matrix.os }}
+          path: build/test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # The JUnit of every job, in the one artifact the engine reads. It needs
+  # every other job and judges nothing: it never fails the run.
+  results:
+    needs: check
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/upload-artifact/merge@v4
+        continue-on-error: true
+        with:
+          name: test-results
+          pattern: junit-*

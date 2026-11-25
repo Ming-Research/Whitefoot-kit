@@ -1,0 +1,83 @@
+# Whitefoot-kit's declaration for the engine of wf-agents, read from main as the engine starts: what is the kit's own,
+# which the agents of its works are given and the engine runs. A path is from the root of the kit's checkout.
+
+# The directory that holds the kit's design tree. It holds only the constitution yet: the first work that records a
+# principle or a decision of the kit makes principles/ or decisions/ under it, in the tree's format.
+tree = "design/"
+
+# The kit's guide for its agents: what the kit is for, what lives in it, how the guide is kept current and how it is
+# reviewed.
+[files.guide]
+path = "AGENTS.md"
+
+# The kit's constitution, which every agent's session holds after the guide and which decides between designs.
+[files.constitution]
+path = "design/constitution.md"
+
+[project]
+# Where an agent keeps what it makes for research, committed. The kit has kept none in the repository yet (a trial's
+# results are cited in its pull request); the first research a work commits starts it.
+research = "research/"
+# How an agent names a test to `run_tests`, as the kit's workflows name it in their JUnit.
+test_names = "a test of the kit by its target in TESTS of the Makefile: `mk-check`, `ci-check`, `doc-check` or `doc-check-fixtures`, each run on the hosts the full workflow runs it on; one PASS or FAIL line of a test's log names no test"
+
+# Where the kit's tests are, as git pathspecs, which are all a line that changes only the tests may change; and the
+# data its tests expect: the guide's checker's fixtures, whose outcome the checker's test states.
+[tests]
+paths = ["tests/"]
+expected = ["tests/doc-check-fixtures/"]
+
+# The kit's workflows, which the engine runs by hand on main's file with a commit given. Each reports every test as
+# JUnit XML, named by its target, in the artifact `test-results`; each test runs by itself through ci/run-tests.py.
+[ci.fast]
+# Runs only the tests it is given, each on Linux and on macOS where check.yml runs it there.
+workflow = "fast.yml"
+# The owner's own machine, the self-hosted runner 14900k, for the Linux tests: an agent waits for this workflow each
+# time it asks for tests, and that machine keeps the checkout and the downloaded release between runs. The macOS job
+# stays on GitHub's macos-15, since the owner's machine is Linux.
+runner = "14900k"
+# check.yml gives each of its jobs 10 minutes, and this file 15; a run not complete by then is cancelled.
+too_long = "30m"
+
+[ci.full]
+# Every check a merge needs, run once before the merge: the tests of `make check` on both hosts and the guide's checks
+# on Linux. The same file checks every push but those to the engine's branches.
+workflows = ["check.yml"]
+runner = "github"
+too_long = "1h"
+
+# The kit merges its pull requests with a merge commit, as all of them so far: a project's submodule may point at a
+# commit of a branch of the kit before it merges, and a merge commit keeps that commit in main's history. A work's
+# branch is deleted once merged, its commits being in main.
+[pull_request]
+merge_method = "merge"
+delete_branch = true
+
+# The paths that govern the agents of the kit and of every project that uses it, which the owner changes: a work's
+# change to one asks the owner whether it stays. downstream.md holds the rules every project written in Whitefoot
+# follows. The declaration is listed, since it names commands the engine runs.
+[protected]
+paths = ["AGENTS.md", "downstream.md", "design/constitution.md", "design/principles/", ".github/workflows/", "wf-agents.toml"]
+
+# The kit's heavy commands, which no agent runs: its checks run in CI, never on the machine the agents run on
+# (AGENTS.md, "Checks"). `make` reaches every check and the compiler's download; the others are the checks' scripts and
+# the compiler, as the Makefile and CI run them.
+[heavy]
+commands = [
+  "make",
+  "whitefootc",
+  "clang",
+  "bash tests/run.sh",
+  "bash tests/ci-check.sh",
+  "bash tests/doc-check.sh",
+  "bash tests/doc-check-test.sh",
+  "tests/run.sh",
+  "tests/ci-check.sh",
+  "ci/run-tests.py",
+  "python3 ci/run-tests.py",
+]
+
+# The variables every agent's command line of the kit's works is given beside the engine's own: none. No command an
+# agent may run reads a variable that would take it beyond its worktree; the compiler's download, under build/, is
+# reached only through `make`, which is heavy.
+[environment]
