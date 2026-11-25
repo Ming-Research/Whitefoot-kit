@@ -178,13 +178,18 @@ A value conditional initializes a `let` only. It requires else; every continuing
 alias ExitStatus = std::process::ExitStatus;
 alias exit_status = std::process::exit_status;
 
-fn main() -> status: ExitStatus pure {
-  let count = 3_u64;
+fn weight(count: u64) -> result: u64 pure {
   let chosen = if count < 4_u64 {
     give 8_u64;
   } else {
     give 0_u64;
   }
+  return chosen;
+}
+
+fn main() -> status: ExitStatus pure {
+  let count = 3_u64;
+  let chosen = weight(count: count);
   let sum = 0_u64;
   for (i in 0_u64..count) {
     set sum = sum +wrap i;
@@ -785,24 +790,28 @@ Represent vacancy as Option; swap complete owners instead of leaving subscript h
 alias ExitStatus = std::process::ExitStatus;
 alias exit_status = std::process::exit_status;
 
-fn main() -> status: ExitStatus pure {
+fn vacate(handle: u64) -> result: u8 pure {
   let pool = slots_new::<Option<Box<u8>>, 2>();
   let cell = box_new::<u8>(value: 7_u8);
   let occupied = Some<Box<u8>>(value: move cell);
   place_back(window: &pool, value: move occupied);
-  let handle = 0_u64;
   let removed = None<Box<u8>>();
   if handle < pool.len {
     swap(first: &pool[handle], second: &removed);
   }
   match move removed {
     Some(value: selected) => {
-      return exit_status(code: selected.inner);
+      return selected.inner;
     }
     None() => {
-      return exit_status(code: 0_u8);
+      return 0_u8;
     }
   }
+}
+
+fn main() -> status: ExitStatus pure {
+  let code = vacate(handle: 0_u64);
+  return exit_status(code: code);
 }
 ```
 
@@ -1308,7 +1317,7 @@ alias ExitStatus = std::process::ExitStatus;
 alias Inputs = std::process::Inputs;
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: unused_stdout, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd_directory, stdout: unused_stdout, stderr: unused_stderr, handles: factory, stdin: unused_stdin, clock: unused_clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter, host_paths: unused_host_paths, process_id: unused_process_id) = move inputs;
   let std::fs::Directory(read: cwd, write: cwd_write) = move cwd_directory;
   let write_closed = std::fs::close_directory_write(factory: &factory, directory: move cwd_write);
   let read_closed = std::fs::close_directory(factory: &factory, directory: move cwd);
@@ -1991,7 +2000,7 @@ fn wait_ready(work: Shared<Bool>, deadline: Instant) -> result: Bool pure waits 
 }
 
 fn main(inputs: Inputs) -> status: ExitStatus pure waits {
-  let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd, stdout: unused_stdout, stderr: unused_stderr, handles: handles, stdin: unused_stdin, clock: clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter) = move inputs;
+  let Inputs(args: unused_args, drivers: unused_drivers, cwd: cwd, stdout: unused_stdout, stderr: unused_stderr, handles: handles, stdin: unused_stdin, clock: clock, wall_clock: unused_wall_clock, stops: unused_stops, memory_meter: unused_memory_meter, host_paths: unused_host_paths, process_id: unused_process_id) = move inputs;
   let std::fs::Directory(read: directory, write: writable) = move cwd;
   std::fs::close_directory_write(factory: &handles, directory: move writable);
   std::fs::close_directory(factory: &handles, directory: move directory);
