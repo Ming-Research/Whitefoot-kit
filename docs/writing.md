@@ -1,6 +1,6 @@
 # Writing Whitefoot
 
-This guide is for agents that write Whitefoot programs and is 2129 lines long. Read all of it before writing code. If a file reader shows only part, read the rest in numbered ranges until the final section is received. Before writing concurrent code, read all of Part 3, including child completion and its examples.
+This guide is for agents that write Whitefoot programs. Read all of it before writing code. If a file reader shows only part, read the rest in numbered ranges until the final section is received. Before writing concurrent code, read all of Part 3, including child completion and its examples.
 
 - Part 1, syntax, holds the forms every program needs. Most first rejections come from these forms; write them as shown, not as another language would.
 - Parts 2 and 3 say how to design a sequential and a concurrent program: where data lives, who owns it, what the checker must be told, how contexts share state. Rejections cannot teach these.
@@ -46,7 +46,7 @@ fn main() -> status: ExitStatus pure {
 
 Put aliases first; there is no `use` import. Use `main(inputs: Inputs)` for startup handles or `main()` when none are needed. The invocation supplies declared arguments; main uses an ordinary function header. [MOD-4, PROG-3]
 
-`Inputs` fields, in declaration order, are `args`, `drivers`, `cwd`, `stdout`, `stderr`, `handles`, `stdin`, `clock`, `wall_clock`, `stops`, `memory_meter`. Named fields retain declaration order even when fields are omitted: `stdout` precedes `handles`. Bind all fields, or a subset followed by `, ..`. The rest marker releases omitted droppable fields; it cannot discard a linear field. `cwd` owns two linear directory handles, so consume it and close both halves even when the program does not use its working directory. [GRAM-4, GRAM-10, PROV-6, WIN-3, PRE-2]
+`Inputs` fields, in declaration order, are `args`, `drivers`, `cwd`, `stdout`, `stderr`, `handles`, `stdin`, `clock`, `wall_clock`, `stops`, `memory_meter`, `host_paths`, `process_id`. `host_paths` is `Option<HostPaths>`, the authority for host-path opens, and `process_id` is `Option<u64>`. Named fields retain declaration order even when fields are omitted: `stdout` precedes `handles`. Bind all fields, or a subset followed by `, ..`. The rest marker releases omitted droppable fields; it cannot discard a linear field. `cwd` owns two linear directory handles, so consume it and close both halves even when the program does not use its working directory. [GRAM-4, GRAM-10, PROV-6, WIN-3, PRE-2]
 
 ```whitefoot
 alias ExitStatus = std::process::ExitStatus;
@@ -129,6 +129,14 @@ let message = "hello";
 
 Write `let name = expression;`; the initializer determines the exact type and mode. There is no local type annotation, `mut` or `_` discard binder. Bind an unused field to an ordinary name such as `unused_clock`, or use an admitted rest marker. Replace a live value with `set place = expression;`; `let` does not imply immutability. [GRAM-4, TYPE-5, SET-1]
 
+`set p = e;` evaluates `e` first and then the target `p` in the state `e` left, so it means `let t = e; set p = move t;` (`set p = t;` for a copy value). A subscript of `p` that `e` changes selects the slot its binding holds afterwards; bind the index with `let` before the `set` to keep selecting the earlier slot. The target's subscripts are proved in bounds in that later state: a right-hand side that shortens a window the target indexes is refused when the bound no longer holds, and one that grows the window stores into the grown storage. A payload target whose right-hand side writes the enum is refused. [SET-1, OP-4, REF-1]
+
+Rejected: the target's bound is proved after `remove_at` has shortened the window.
+
+```text
+set v[1_u64] = remove_at(window: &v, index: 0_u64);
+```
+
 Value names, including constants, match `[a-z][a-z0-9_]*`; type names `[A-Z][A-Za-z0-9]*`; labels `@[a-z][a-z0-9_]*`. Before choosing a binder, check the reserved inventory below: `checked`, `wrap` and operation names cannot be lets. Use a fresh nonreserved name; no local declaration still in scope, parameter, alias or competing module declaration may be shadowed. Audit every declaration: no `_` binder or uppercase value name, including constants. Initialize once with `let`, update with `set`. A moved value’s declaration still occupies its name until its block ends. [FORM-3, TYPE-6, OP-1]
 
 Rejected: invalid binders or binding forms.
@@ -204,6 +212,38 @@ fn main() -> status: ExitStatus pure {
 }
 ```
 
+A condition the checker already decides is rejected as redundant source, `RedundantCondition` [OP-5]: every fact the then-block's entry would establish is already derivable, from requirements, earlier tests, an earlier call's `ensures`, operation result intervals or the value a local binds, or the same holds for the else side. Delete the test and its dead branch and keep the branch that runs. A condition no fact bounds stays admitted, and a Bool that is a user function's result is never decided. Write a test only for what the facts leave open. [OP-5, ENT-3]
+
+```whitefoot
+alias ExitStatus = std::process::ExitStatus;
+alias exit_status = std::process::exit_status;
+
+fn index_of(n: u64) -> result: u64 pure contract {
+  requires n < 10_u64;
+  ensures result < 10_u64;
+} {
+  return n;
+}
+
+fn main() -> status: ExitStatus pure {
+  let index = index_of(n: 7_u64);
+  if index == 7_u64 {
+    return exit_status(code: 0_u8);
+  }
+  return exit_status(code: 1_u8);
+}
+```
+
+Rejected: the call's `ensures` already proves the test true.
+
+```text
+let index = index_of(n: 7_u64);
+if index < 10_u64 {
+  return exit_status(code: 0_u8);
+}
+return exit_status(code: 1_u8);
+```
+
 Header invariants are named clauses inside the parentheses. An invariant-bearing header must span lines, with a comma after every header component except the last: [FORM-2, INV-1]
 
 ```whitefoot
@@ -226,7 +266,52 @@ For an invariant-bearing uncounted loop, begin with `loop (` or `loop @scan (` a
 
 ### 9. How do I match an enum?
 
-List every declared variant exactly once, using unqualified variant names in arms. Each payload binding is `declared_field: fresh_binder`, in declaration order; the binder must differ from its field label and all competing names live on arm entry. A final `..` may cover omitted fields, but a consuming match cannot discard linear payloads. There is no wildcard arm. Use `if` for Bool. [ERR-2, GRAM-6, GRAM-10, OWN-13, WIN-3]
+List every declared variant exactly once, using unqualified variant names in arms. Each payload binding is `declared_field: fresh_binder`, in declaration order; the binder must differ from its field label and all competing names live on arm entry. A final `..` may cover omitted fields, but a consuming match cannot discard linear payloads. There is no wildcard arm on an enum. Use `if` for Bool. [ERR-2, GRAM-6, GRAM-10, OWN-13, WIN-3]
+
+Dispatch on an integer code (a command, opcode or status) with one integer `match`, not a chain of `if code == a { ... }` tests. Each arm header is a literal or named constant of the scrutinee's type, all distinct, and a final `else =>` arm is required unless the arms cover every value of the type, and an `else` after arms that cover every value is rejected. An arm knows the scrutinee equals its value; `else` knows it equals none of them. A long `if` chain makes the checker's work grow with the square of its length, because each test carries every earlier "not equal" fact. The scrutinee must be an owned integer value, not a reference or Bool. [GRAM-12, ENT-3, ERR-2]
+
+```whitefoot
+const code_ping: u64 = 10_u64;
+
+const code_echo: u64 = 20_u64;
+
+fn dispatch(code: u64) -> result: u8 pure {
+  match code {
+    code_ping => {
+      return 1_u8;
+    }
+    code_echo => {
+      return 2_u8;
+    }
+    30_u64 => {
+      return 3_u8;
+    }
+    else => {
+      return 0_u8;
+    }
+  }
+}
+
+fn main() -> status: std::process::ExitStatus pure {
+  let ping = dispatch(code: code_ping);
+  let echo = dispatch(code: code_echo);
+  let literal = dispatch(code: 30_u64);
+  let other = dispatch(code: 40_u64);
+  if ping != 1_u8 {
+    return std::process::exit_status(code: 1_u8);
+  }
+  if echo != 2_u8 {
+    return std::process::exit_status(code: 2_u8);
+  }
+  if literal != 3_u8 {
+    return std::process::exit_status(code: 3_u8);
+  }
+  if other != 0_u8 {
+    return std::process::exit_status(code: 4_u8);
+  }
+  return std::process::exit_status(code: 0_u8);
+}
+```
 
 ```whitefoot
 alias ExitStatus = std::process::ExitStatus;
@@ -347,6 +432,8 @@ Bare copy values copy; affine or linear values need explicit `move place` to tra
 
 Use UTF-8/LF and two spaces per brace depth. No tabs, trailing spaces or leading blank line. End the last line with one LF, without a trailing blank line. Noncanonical bytes are rejected. [FORM-1, FORM-2]
 
+To write the canonical layout instead of repairing it one FORM-2 rejection at a time, run `whitefootc --format source.wf ...`, or `whitefootc --format --graph modules.wfg` for a module program. It replaces, all or nothing, every source whose bytes differ from the canonical rendering; it writes nothing when a source does not parse, and it works on a program that has semantic errors. Compiling still rejects noncanonical input. [FORM-1, FORM-2]
+
 Audit three regions separately across every compiler input: alias runs and graph package/row runs have no blank separator; other top-level items have one; item bodies have none. Ordinary statements, including destructuring lets, stay on one physical line. Control-flow blocks and value arms use canonical multiline layout. Function headers through `{` each occupy one line. Empty blocks use two lines. Join else as `} else {` or `} else if ... {`, and contract/body as `} {`. Write `Array<u8, 3>`, `f(x: a, y: b)`, `=[...]`, `&a[lo..hi]`, `r^`. Follow the complete files' layout. [FORM-2]
 
 No comments exist. `doc "...";` is declaration documentation, permitted at the start of a declaration body or as an interface declaration's documentation; do not insert it between executable statements. [FORM-4, GRAM-2]
@@ -430,6 +517,8 @@ Dotless operation names: `band bnot bor bxor cvt fabs fceil fcopysign feq ffloor
 
 Modes and operation names are prohibited for source function names, constants, value parameters, result binders, lets, loop binders, atomic binders, contract definitions, fields and payload binders. They remain legal for aliases, const generics, labels, invariant names and interface member signature names; calls use the operation names. [OP-1, FORM-3]
 
+The prelude's function names are taken too: `clear`, `place_back`, `take_back`, `insert_at`, `remove_at`, `append`, `split_off`, `grow`, `swap`, `release`, `free_empty`, `shared_new`, `shared_close` and every other function PRE-1 declares. A top-level function or constant spelled like one is a TYPE-6 `DeclarationCollision`. Each release can add prelude names, so read PRE-1 of the specification before naming a helper, and prefer a specific name such as `empty_buffer` over `clear`. [TYPE-6, PRE-1]
+
 ### When the compiler says…
 
 Use the opening repair workflow; use §3 for atom positions and §12 for layout.
@@ -438,7 +527,7 @@ Use the opening repair workflow; use §3 for atom positions and §12 for layout.
 | --- | --- |
 | `GRAM-3`: header expected list includes `pure`, `reads`, `writes`; found `{` or `waits` | Put `waits` after a required effect row. [GRAM-2, EFF-1] |
 | `GRAM-4`: found `[` after `let name =` | Use `array_filled`/`slots_new`, not a list literal. [GRAM-4, OP-13] |
-| `GRAM-4/5`: found `(` around an expression, `+` inside an argument/subscript, or a nested call | Remove grouping or bind the computed operand first. [GRAM-5, GRAM-6, GRAM-9] |
+| `GRAM-4/5`: found `(` around an expression or `+` inside an argument/subscript; `GRAM-9` at a call or constructor call in an argument, field value, operand, subscript or range endpoint | Remove grouping or bind the computed operand first. [GRAM-5, GRAM-6, GRAM-9] |
 | Found `&`, `\|`, `&&`, `\|\|`, `!`, or `%wrap` as an operation | Use the admitted table operation; division/remainder have no wrap mode. [OP-1, GRAM-5] |
 | `FORM-1` or `FORM-3` at an uppercase constant, `_` binder or reserved name | Use a fresh lowercase nonreserved name. [FORM-3, TYPE-6, OP-1] |
 | Error at `loop ()` | Use `loop {`, or a nonempty named invariant header. [GRAM-4] |
@@ -775,6 +864,24 @@ A safe slot can acquire a different occupant [OP-10].
 | `grow(cell:, capacity:)` | New capacity at least old capacity | Boxed runtime Slots only; whole-cell row, possibly relocate all payloads; re-form references. |
 | `grow_paged(cell:, capacity:)` | New capacity at least old capacity | Boxed Paged only; possible initial-page/directory replacement; whole-cell row invalidates references. |
 | `place_front(window:, value:)`, `take_front(window:)` | Room or nonemptiness | Ring only; shift every logical index and invalidate every reference into it. |
+| `clear(window:)` | Element type is `drop`; a linear element type is refused at the call | Release every element in ascending order and set `len` to 0; storage, `cap`, a Ring's head and a Paged's pages stay. Every element, range and page reference into the window ends; a reference to the window itself stays valid. |
+
+`clear` empties a reused buffer without freeing it; the next `place_back` fills the kept storage. When the element type has no release work it visits no element, so its cost does not depend on `len` or `cap`. A pool resets with `clear` too. The name is the prelude's, so a helper of your own needs another name. [OP-10, PRE-1]
+
+```whitefoot
+alias ExitStatus = std::process::ExitStatus;
+alias exit_status = std::process::exit_status;
+
+fn main() -> status: ExitStatus pure {
+  let buffer = slots_new::<u8, 4>();
+  place_back(window: &buffer, value: 7_u8);
+  place_back(window: &buffer, value: 8_u8);
+  clear(window: &buffer);
+  place_back(window: &buffer, value: 9_u8);
+  let last = take_back(window: &buffer);
+  return exit_status(code: 0_u8);
+}
+```
 
 **Cost and check.** Repeated middle insertion can be quadratic. Profile representative use. Append publishes destination lower bounds/source emptiness, not exact summed length [PRE-1].
 
@@ -1033,6 +1140,62 @@ Effect paths begin at the formal without `^`. Write covers reads/writes below it
 
 `entry(window)` denotes entry storage; bare written-reference terms denote exit storage. Requirements permit larger arithmetic than published `ensures`, whose relation sides admit one supported datum displaced by a constant, plus at most one bare integer parameter with coefficient one on one side, as in `ensures after <= base + limit;`. Pass a scalar final total when publishing a relation to a larger sum [FN-9, MSR-3].
 
+A subscript inside an `ensures` must be in bounds wherever the clause applies: at every return it covers, and for a routed clause only at returns of its variant. Bound a formal used as an index with a requirement, such as `requires i < 4_u64;`; without it the clause is rejected. A formal in a postcondition means its entry value, so rebinding it in the body changes nothing, and the caller substitutes the actual: after `width(rows: rows, i: 2_u64)` the caller holds `r <= rows^[2_u64].len`, and facts of calls with different actuals stay apart. An `entry(rows)^[i]` place is bounded by the entry length, so elements the body appends cannot justify it. [FN-9, ENT-2]
+
+```whitefoot
+alias ExitStatus = std::process::ExitStatus;
+alias exit_status = std::process::exit_status;
+
+fn width(rows: &Array<Slots<u8, 8>, 4>, i: u64) -> r: u64 reads(rows) contract {
+  requires i < 4_u64;
+  ensures r <= rows^[i].len;
+} {
+  doc "Returns a bound on the length of element i.";
+  if rows^[i].len > 5_u64 {
+    return 0_u64;
+  }
+  return rows^[i].len;
+}
+
+fn need(rows: &Array<Slots<u8, 8>, 4>, w: u64) -> r: u64 reads(rows) contract {
+  requires w <= rows^[2_u64].len;
+} {
+  doc "Requires a bound on the length of element two.";
+  if rows^[2_u64].len > 5_u64 {
+    return 0_u64;
+  }
+  return w;
+}
+
+fn second(rows: &Array<Slots<u8, 8>, 4>) -> r: u64 reads(rows) contract {
+  ensures r <= rows^[2_u64].len;
+} {
+  doc "The call at offset two publishes its relation over element two.";
+  let w = width(rows: rows, i: 2_u64);
+  let needed = need(rows: rows, w: w);
+  return w;
+}
+
+fn main() -> status: ExitStatus pure {
+  doc "The declarations alone are judged.";
+  return exit_status(code: 0_u8);
+}
+```
+
+A computed result proves a postcondition through a `let`: bind the expression, then return the binding. [FN-9]
+
+```whitefoot
+fn successor(value: u64) -> r: u64 pure contract {
+  requires value <= 999999999999999999_u64;
+  ensures r <= 1000000000000000000_u64;
+} {
+  let next = value + 1_u64;
+  return next;
+}
+```
+
+(after wf-63b7cbb03820) A returned integer expression proves a postcondition as a `let` of it would, so `return value + 1_u64;` proves the same clause; a returned call result still proves none, so bind the call with `let` first. [FN-9]
+
 A call inside a recursive cycle, to the function itself or to another function of the same call-graph cycle, receives the callee's postconditions, written `ensures` included, as induction hypotheses. A body never assumes its own `ensures` at entry, every exit still proves them, and writes to a reference argument after the call kill its facts as for any call. Split recursion can therefore bound its combination directly instead of using a loop or `+sat`: [DIAG-2, FN-9]
 
 ```whitefoot
@@ -1055,7 +1218,7 @@ Contract `define` abbreviates proof expressions, expands recursively, executes/s
 
 An ordinary mutable integer field below a subscript is not a proof term: copy it to a local first. A `public readonly` integer field can participate directly, but replacement, storage writes or index changes can kill its facts [ENT-2].
 
-Silent cost and check: broad writes kill caller facts and independence; omitted real accesses are rejected. Unused declared effects also reject: rows must cover all body accesses and exhibit every entry, including syntactically unreachable accesses [EFF-2]. Audit the formal boundary at each call. `--check` verifies rows and contracts; no runtime checks are inserted. A callback’s formal row governs callers even if the actual writes less.
+Silent cost and check: broad writes kill caller facts and independence; omitted real accesses are rejected. Unused declared effects also reject: rows must cover all body accesses and exhibit every entry, including syntactically unreachable accesses. A `writes` entry is exhibited only by a write at or below its path, a `reads` entry by a read or a write [EFF-2]. Audit the formal boundary at each call. `--check` verifies rows and contracts; no runtime checks are inserted. A callback’s formal row governs callers even if the actual writes less.
 
 ### Which relation should the checker carry around a loop?
 
@@ -1146,7 +1309,7 @@ fn at_index(cells: &[u64]) -> result: u64 reads(cells) contract {
 }
 ```
 
-Range clauses have one/two binders, half-open ranges, optional guards and conclusions over supported element projections. They execute nothing; an instance claims conclusions only where its element/payload reads are defined. A payload projection alone proves no tag. Ring projections are excluded [RANGE-1].
+Range clauses have one/two binders, half-open ranges, optional guards and conclusions over supported element projections. They execute nothing; an instance claims conclusions only where its element/payload reads are defined. A payload projection alone proves no tag. Ring projections are excluded [RANGE-1]. Do not use a `define` name as a subscript in a range clause: the release rejects it in an `ensures` range clause and accepts it without effect in a `requires` one; write the range term itself [RANGE-1]. (after wf-63b7cbb03820) A `define` name in a clause is replaced by its definition before the clause's range terms are checked, so a linear define such as `i + 1_u64` is an exact range term in `requires` and `ensures` clauses alike, and a define that multiplies two variables is rejected in both [RANGE-1, FN-8].
 
 Explicit instantiation is `use fact(index);` in binder order, without `times`: after copying `targets^[i]` to t, a local `invariant bounded: t < 4_u64 { use valid(i); }` can use `forall valid(j in 0_u64..4_u64): targets^[j] < 4_u64;`. Use range-postcondition `P unchanged` to preserve untouched elements across a writer without equality capability [RANGE-4].
 
@@ -1235,7 +1398,7 @@ The template decides move spelling: unconstrained/drop T consumes with `move` ev
 
 Interfaces order signatures; bindings supply all members in order. Introduce `interface Identity<T>`, forward `Identity<T>`, instantiate `ByteIdentity`. Raw fn arguments name fully instantiated ordinary functions/parameters. They capture no environment: pass one explicitly. Runtime choice uses enum/match [FN-3, FN-5].
 
-Binding modes/types must match; actual effects may be a subset, requirements weaker and ensures stronger under the finite refinement checker. Waiting actuals need waiting formals. Calls use formal labels/boundaries. Binding proves no algebraic or hash/equality law [FN-4].
+Binding modes/types must match; actual effects may be a subset, requirements weaker and ensures stronger under the finite refinement checker. Waiting actuals need waiting formals. Calls use formal labels/boundaries. Binding proves no algebraic or hash/equality law [FN-4]. A formal `ensures` that equates a place's exit and entry values, such as an unchanged length, is met by an actual that writes the place and states that equality in its own `ensures`; a read-only or `pure` actual cannot meet it, and no accepted form exists for one. (after wf-63b7cbb03820) An actual whose declared row writes no overlapping path meets it by frame, with no `ensures` of its own: a narrower row, or `pure`, discharges it when the place is rooted at a reference parameter [FN-4].
 
 Silent cost and check: monomorphization can multiply code/build work despite direct calls. Inspect combinations and output size; `--report` reports build/graph phase reuse, not proof or speed. `--check` verifies capabilities, refinement and instances. Runtime capture/quantified callback contracts/unexpressed algebraic laws are interface gaps.
 
@@ -1423,7 +1586,9 @@ Publish only the successful prefix, then repeat until `ReadEnd` to process all i
 
 Choose whether a helper borrows a file or consumes it, and put cleanup outside any error propagation that would bypass it. A linear handle must be closed or returned on every path; a reference does not transfer that obligation [PRE-2, PROV-6].
 
-`arg_get` in `lib/std/text/module.wfm` yields a `HostString`; `relative_path` consumes it into a `RelativePath` for `open_read` below a `DirectoryRead`. Byte-name APIs such as `open_file` and `open_append` require one direct child name, neither `.` nor `..` [PRE-2].
+`arg_get` in `lib/std/text/module.wfm` yields a `HostString`; `relative_path` consumes it into a `RelativePath` for `open_read` from a `DirectoryRead`. `open_read` is not confined below its root: the host resolves `..` components and symbolic links. To open a path read from the command line or from configuration, take `host_paths` from `Inputs` and call an `open_host_*` function of `lib/std/fs/module.wfm`: it looks the path up as the host does, from the given base directory, creates nothing and follows every link. Byte-name APIs such as `open_file` and `open_append` require one direct child name, neither `.` nor `..`, and refuse a symbolic link at the name [PRE-2].
+
+A directory listing can include the entries `.` and `..`, so skip those two names yourself, and a name is in the host's native code units, which are UTF-16 on Windows; `host_copy_bytes` copies them [PRE-2]. (after wf-63b7cbb03820) A name given with a root is its name bytes: the UTF-8 bytes of text on every host, WTF-8 on Windows. `host_copy_name_bytes` copies a `HostString`'s name bytes. `directory_next` writes one record for each entry, the kind byte, the byte count of the name as two bytes with the low byte first, then the name bytes, and leaves out `.` and `..`; a nonempty window shorter than the enumeration needs returns `ListFailed`. Decode records, never bare names. [PRE-2]
 
 This file reader gives a close failure precedence over the read outcome.
 ```whitefoot
@@ -1454,7 +1619,7 @@ Advance `read_at`'s file offset by the byte count independently of the buffer en
 
 ### How should an interpreter dispatch each operation?
 
-Use a loop whose header ends in one exhaustive `match` over the current operation, and make every looping arm finish with `continue`. This keeps each state transition and its next-header proof visible to the checker and the dispatcher [INV-1].
+Use a loop whose header ends in one exhaustive `match` over the current operation (an enum, or an integer opcode with an integer `match`), and make every looping arm finish with `continue`. This keeps each state transition and its next-header proof visible to the checker and the dispatcher [INV-1].
 ```whitefoot
 enum Op {
   Add(k: u64);
@@ -1494,7 +1659,7 @@ Each `continue` proves `pc < n` again. Guard a decoded jump target unless a veri
 
 **Cost and check:** Current compiler: eligible dispatch loops split into one function per arm with guaranteed tail transfers and no source `musttail`. Excess register demand or unsupported control flow keeps the loop whole. Inspect `whitefootc --dispatch-ledger program.wf` for the decision and `--stack-ledger` for frame/growth costs. Keep carried state compact. Invariants prove safety, not eventual `Halt` or instruction semantics; test results against the interpreted instruction specification.
 
-Use `return musttail` for a direct self call whose stack must remain bounded [FN-10]. Reference arguments must descend from reference parameters, not owned locals or owned parameters whose activation disappears. Unreferenced affine locals are released before transfer; a live reference into a local with nonempty release prevents it. Current compiler also optimizes eligible unmarked self calls; the marker requires a compile-time error if the transfer cannot be guaranteed. It adds no termination proof.
+Use `return musttail` for a direct self call whose stack must remain bounded [FN-10]. Reference arguments must descend from reference parameters, not owned locals or owned parameters whose activation disappears. Unreferenced affine locals are released before transfer; a live reference into a local with nonempty release prevents it. Nonempty release: `Box`, `Paged`, `Shared`, `SharedRead`, `Frozen`, `ConcurrentHashMap`, `KeySet` and `DecisionCell`; a struct or enum owning one; a storage shape of such elements unless its constant extent is zero; a type parameter whose bound lacks `copy` [PROV-6, STOR-3]. End such references before the call, or call without `musttail`. Current compiler also optimizes eligible unmarked self calls; the marker requires a compile-time error if the transfer cannot be guaranteed. It adds no termination proof.
 ```whitefoot
 fn countdown(n: u64) -> result: u64 pure {
   if n == 0_u64 {
@@ -1502,6 +1667,25 @@ fn countdown(n: u64) -> result: u64 pure {
   }
   let next = n - 1_u64;
   return musttail countdown(n: next);
+}
+```
+
+Rejected: `view` borrows a `KeySet` released before the transfer.
+
+```text
+fn walk(n: u64) -> result: u64 pure {
+  let keys = key_set_new(capacity: 2_u64);
+  let view = &keys;
+  return musttail walk(n: n);
+}
+```
+
+Accepted: no reference to the key set is live, so it is released before the transfer.
+
+```whitefoot
+fn walk(n: u64) -> result: u64 pure {
+  let keys = key_set_new(capacity: 2_u64);
+  return musttail walk(n: n);
 }
 ```
 
@@ -1613,6 +1797,51 @@ For known keys, put their entry targets or a `KeySet` target in one statement. A
 facility if required semantics and throughput cannot both be met.
 
 **Check:** list the shared objects each hot operation reaches through direct accesses and helpers. Distinguish entry and whole-map holds; compare throughput across context counts in CI.
+
+### Can a shared object hold a value that must be consumed?
+
+A `Shared<T>` may hold a linear `T`, such as a `nodrop` struct or a file; `SharedRead<T>`, `Frozen<T>` and `ConcurrentHashMap<V>` still require `drop`. Every handle of such an object is linear and ends in `shared_close(shared: move handle)`, a waiting call that returns `Some(state)` for the handle that is the object's last to end and `None` for every other. The caller of that close owns the state and must consume it. Which close is last can depend on how contexts interleave, so handle both outcomes in every context. A linear state type cannot reach its own `Shared` handle at any depth. [SHARE-1, PROV-6, WAIT-2]
+
+```whitefoot
+alias ExitStatus = std::process::ExitStatus;
+alias exit_status = std::process::exit_status;
+
+nodrop struct Lease {
+  id: u8;
+}
+
+fn spend(lease: Lease) -> result: u8 pure {
+  let Lease(id: selected) = move lease;
+  return selected;
+}
+
+fn finish(handle: Shared<Lease>) -> result: u8 pure waits {
+  let state = shared_close::<Lease>(shared: move handle);
+  match move state {
+    Some(value: lease) => {
+      return spend(lease: move lease);
+    }
+    None() => {
+      return 0_u8;
+    }
+  }
+}
+
+fn main() -> status: ExitStatus pure waits {
+  let lease = Lease(id: 7_u8);
+  let first = shared_new::<Lease>(value: move lease);
+  let second = shared_share::<Lease>(shared: &first);
+  let early = finish(handle: move second);
+  let last = finish(handle: move first);
+  if early != 0_u8 {
+    return exit_status(code: 1_u8);
+  }
+  if last != 7_u8 {
+    return exit_status(code: 2_u8);
+  }
+  return exit_status(code: 0_u8);
+}
+```
 
 ### What must take effect together?
 
