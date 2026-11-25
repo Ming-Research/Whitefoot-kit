@@ -1,9 +1,8 @@
 # Whitefoot-kit's declaration for the engine of wf-agents, read from main as the engine starts: what is the kit's own,
 # which the agents of its works are given and the engine runs. A path is from the root of the kit's checkout.
 
-# The directory that would hold the kit's design tree. The kit has none yet: the engine makes no version of a tree the
-# branch does not hold, and the first work that records a decision of the kit makes it, in the tree's format
-# (principles/ and decisions/ under it).
+# The directory that holds the kit's design tree. It holds only the constitution yet: the first work that records a
+# principle or a decision of the kit makes principles/ or decisions/ under it, in the tree's format.
 tree = "design/"
 
 # The kit's guide for its agents: what the kit is for, what lives in it, how the guide is kept current and how it is
@@ -11,9 +10,9 @@ tree = "design/"
 [files.guide]
 path = "AGENTS.md"
 
-# No [files.constitution]: the kit has no constitution yet. The words the engine begins each session with name the
-# project's constitution, so the engine holds the kit, saying the file is missing, until the owner writes
-# design/constitution.md and names it here.
+# The kit's constitution, which every agent's session holds after the guide and which decides between designs.
+[files.constitution]
+path = "design/constitution.md"
 
 [project]
 # Where an agent keeps what it makes for research, committed. The kit has kept none in the repository yet (a trial's
