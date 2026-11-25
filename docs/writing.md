@@ -432,7 +432,7 @@ Bare copy values copy; affine or linear values need explicit `move place` to tra
 
 Use UTF-8/LF and two spaces per brace depth. No tabs, trailing spaces or leading blank line. End the last line with one LF, without a trailing blank line. Noncanonical bytes are rejected. [FORM-1, FORM-2]
 
-To write the canonical layout instead of repairing it one FORM-2 rejection at a time, run `whitefootc --format source.wf ...`, or `whitefootc --format --graph modules.wfg` for a module program. It replaces, all or nothing, every source whose bytes differ from the canonical rendering, and it works on a program that has semantic errors. Compiling still rejects noncanonical input. [FORM-1, FORM-2]
+To write the canonical layout instead of repairing it one FORM-2 rejection at a time, run `whitefootc --format source.wf ...`, or `whitefootc --format --graph modules.wfg` for a module program. It replaces, all or nothing, every source whose bytes differ from the canonical rendering; it writes nothing when a source does not parse, and it works on a program that has semantic errors. Compiling still rejects noncanonical input. [FORM-1, FORM-2]
 
 Audit three regions separately across every compiler input: alias runs and graph package/row runs have no blank separator; other top-level items have one; item bodies have none. Ordinary statements, including destructuring lets, stay on one physical line. Control-flow blocks and value arms use canonical multiline layout. Function headers through `{` each occupy one line. Empty blocks use two lines. Join else as `} else {` or `} else if ... {`, and contract/body as `} {`. Write `Array<u8, 3>`, `f(x: a, y: b)`, `=[...]`, `&a[lo..hi]`, `r^`. Follow the complete files' layout. [FORM-2]
 
