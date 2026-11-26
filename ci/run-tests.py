@@ -14,26 +14,26 @@ name on each line, as the engine of wf-agents gives them to a project's fast wor
 is no test is a fault of the workflow that names it: nothing runs, and the script exits with 2. A name the file gives
 that is no test is said, and skipped: the run reports no test of that name, which tells whoever asked for it.
 
-A test may also be one case of a family: a target that runs a whole suite and can run one case of it. The Makefile
-sets TEST_FAMILIES, words of the form PATTERN=TARGET, which `make tests-families` prints; only `*` is special in
-PATTERN and matches any characters, `/` and `:` among them. A name in TESTS is always that target, run whole. Any other
-name that matches a family's PATTERN runs as `make TARGET TEST_NAME=<the name as given>`, a make of its own for each
-name; the target reads TEST_NAME and runs only that case. A name that matches the patterns of two targets is no test.
+A test may also be one case of a family: a target that runs a whole suite and can run one case of it. The Makefile sets
+TEST_FAMILIES, words of the form PATTERN=TARGET, which `make tests-families` prints; only `*` is special in PATTERN and
+matches any characters, `/` and `:` among them. A name in TESTS is always that target, run whole. Any other name that
+matches a family's PATTERN runs as `make TARGET TEST_NAME=<the name as given>`, a make of its own for each name; the
+target reads TEST_NAME and runs only that case. A name that matches the patterns of two targets is no test.
 
 Each test is a testcase of the testsuite NAME (`--suite`, else TESTS_SUITE, else `tests`) in the JUnit file (`--junit`,
 else TESTS_JUNIT), named exactly as it was given, with its time in seconds; one that did not pass holds a `failure`
-whose text is the end of what it printed. The file is added to when it is there already, so that the steps of one CI
-job report into one file. A test still running after SECONDS (`--stop`, else TESTS_STOP; empty for none) is stopped, with everything it
-started, and fails. SECONDS of --budget (else TESTS_BUDGET; empty for none) is the time all the tests of this call may
-run together, in the order given. When it is used up, the test running then is stopped the same way and is an `error`
-whose message begins "stopped: the fast check's time ran out", and each test not started yet is `skipped` with a
-message that begins "not run: the fast check's time was used up". The script exits with 1 when a test did not pass or
-did not run, and with 0 otherwise.
+whose text is the end of what it printed. The file is added to when it is there already, so that the steps of one CI job
+report into one file. A test still running after SECONDS (`--stop`, else TESTS_STOP; empty for none) is stopped, with
+everything it started, and fails. SECONDS of --budget (else TESTS_BUDGET; empty for none) is the time all the tests of
+this call may run together, in the order given. When it is used up, the test running then is stopped the same way and is
+an `error` whose message begins "stopped: the fast check's time ran out", and each test not started yet is `skipped`
+with a message that begins "not run: the fast check's time was used up". The script exits with 1 when a test did not
+pass or did not run, and with 0 otherwise.
 
 --end STATUS is a CI job's last step: given the job's status, it makes sure the job's file is there, and, where the job
 did not succeed and no test of it failed or was left unrun, adds a testsuite of the job's name with an `error` and no
-testcase, which says that a step of the job other than its tests failed. That is how a unit that was not built is said, so the engine of
-wf-agents does not take the job for a failed test, which it would run again.
+testcase, which says that a step of the job other than its tests failed. That is how a unit that was not built is said,
+so the engine of wf-agents does not take the job for a failed test, which it would run again.
 """
 
 import argparse
