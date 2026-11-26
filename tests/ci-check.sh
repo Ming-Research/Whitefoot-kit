@@ -2,14 +2,15 @@
 # Checks tests.mk and ci/run-tests.py as a project uses them, in a fresh
 # scratch project under build/test/: the list of tests and the default goal;
 # a test that passes and one that fails, as JUnit; the stop of a test that
-# runs too long; names given in a file, one of them no test; a name on the
-# command line that is no test; two runs into one file; and the end of a CI
-# job. Every check prints PASS or FAIL; the script exits 1 when one failed.
+# runs too long; the budget of a whole run, which stops one test and leaves
+# the next unrun; cases of a family, each named as given; names given in a
+# file, one of them no test; a name on the command line that is no test; two
+# runs into one file; and the end of a CI job. Every check prints PASS or FAIL; the script exits 1 when one failed.
 set -u
 kit=$(cd "$(dirname "$0")/.." && pwd)
 # The scratch project's runs read nothing of the CI job that runs this check:
 # not its JUnit file, its stop or the make that started this script.
-unset TESTS_JUNIT TESTS_SUITE TESTS_STOP MAKEFLAGS MFLAGS MAKELEVEL
+unset TESTS_JUNIT TESTS_SUITE TESTS_STOP TESTS_BUDGET TEST_NAME MAKEFLAGS MFLAGS MAKELEVEL
 project="$kit/build/test/ci-$$-$(date +%s)"
 mkdir -p "$project"
 failures=0
@@ -26,12 +27,14 @@ check() {
 
 {
   printf 'TESTS := passes fails slow\n'
+  printf 'TEST_FAMILIES := case::*=one-case unit/*=one-case unit/twice/*=other\n'
   printf 'include %s/tests.mk\n\n' "$kit"
   printf 'first:\n\t@echo first\n\n'
   printf 'passes:\n\t@echo passing output\n\n'
   printf 'fails:\n\t@echo failing output; exit 3\n\n'
   printf 'slow:\n\t@sleep 60\n\n'
-  printf 'other:\n\t@echo not a test\n'
+  printf 'other:\n\t@echo not a test\n\n'
+  printf 'one-case:\n\t@echo "case [$$TEST_NAME]"; test "$$TEST_NAME" != case::bad\n'
 } > "$project/Makefile"
 
 # The script's exit status; what it printed is in last.log.
@@ -42,7 +45,27 @@ cases() {
   python3 - "$1" <<'EOF' | tr '\n' ' ' | sed 's/ $//'
 import sys, xml.etree.ElementTree as ET
 for case in ET.parse(sys.argv[1]).getroot().iter("testcase"):
-    print(case.get("name"), "failed" if case.find("failure") is not None else "passed")
+    said = [kind for kind in ("failure", "error", "skipped") if case.find(kind) is not None]
+    print(case.get("name"), {"failure": "failed", "error": "error", "skipped": "skipped"}[said[0]] if said else "passed")
+EOF
+}
+
+# The message of a testcase's error or skipped, as the third argument names it.
+message() {
+  python3 - "$1" "$2" "$3" <<'EOF'
+import sys, xml.etree.ElementTree as ET
+for case in ET.parse(sys.argv[1]).getroot().iter("testcase"):
+    if case.get("name") == sys.argv[2] and case.find(sys.argv[3]) is not None:
+        print(case.find(sys.argv[3]).get("message"))
+EOF
+}
+
+# The errors and skipped tests a JUnit file's first testsuite counts.
+counts() {
+  python3 - "$1" <<'EOF'
+import sys, xml.etree.ElementTree as ET
+suite = ET.parse(sys.argv[1]).getroot().find("testsuite")
+print(suite.get("errors"), suite.get("skipped"))
 EOF
 }
 
@@ -84,6 +107,40 @@ check "a test past its stop fails" "$(tests --junit "$project/b.xml" --suite job
 check "it is stopped, not waited for" "$([ $(($(date +%s) - start)) -lt 30 ] && echo yes || echo no)" yes
 check "its failure says it was stopped" "$(failure "$project/b.xml" slow | head -n 1 | grep -c '^stopped')" 1
 check "a stop that is no whole number is refused" "$(tests --junit "$project/b2.xml" --stop 1.5 passes)" 2
+
+start=$(date +%s)
+check "a run past its budget fails" "$(tests --junit "$project/h.xml" --suite job --budget 2 passes slow fails)" 1
+check "it is stopped, not waited for, and the rest is not run" \
+  "$([ $(($(date +%s) - start)) -lt 30 ] && echo yes || echo no) $(cases "$project/h.xml")" \
+  "yes passes passed slow error fails skipped"
+check "the stopped test's error says the time ran out" \
+  "$(message "$project/h.xml" slow error | grep -c "^stopped: the fast check's time ran out")" 1
+check "the test not run says the time was used up" \
+  "$(message "$project/h.xml" fails skipped | grep -c "^not run: the fast check's time was used up")" 1
+check "the suite counts the error and the skip" "$(counts "$project/h.xml")" "1 1"
+check "--end of that job adds no error" \
+  "$(tests --junit "$project/h.xml" --suite job --end failure) $(suites "$project/h.xml")" "0 job:3:0"
+check "the budget comes from TESTS_BUDGET" "$(export TESTS_BUDGET=2; tests --junit "$project/h2.xml" slow)" 1
+check "a budget that is no whole number is refused" "$(tests --junit "$project/h3.xml" --budget 0 passes)" 2
+check "a budget not used up changes nothing" \
+  "$(tests --junit "$project/h4.xml" --suite job --budget 60 passes) $(cases "$project/h4.xml")" "0 passes passed"
+
+check "tests-families prints the families" \
+  "$(cd "$project" && make -s --no-print-directory tests-families | tr '\n' ' ')" \
+  "case::*=one-case unit/*=one-case unit/twice/*=other "
+check "cases of a family run by its target" \
+  "$(tests --junit "$project/i.xml" --suite job 'case::one two' unit/type/hash case::bad passes)" 1
+check "each case is a testcase named as given" "$(cases "$project/i.xml" | tr ' ' '_')" \
+  "case::one_two_passed_unit/type/hash_passed_case::bad_failed_passes_passed"
+check "the target is given the name" "$(grep -c '^case \[unit/type/hash\]$' "$project/last.log")" 1
+check "a name with a space reaches it whole" "$(grep -c '^case \[case::one two\]$' "$project/last.log")" 1
+check "a name in TESTS runs whole, as before" "$(grep -c '^passing output$' "$project/last.log")" 1
+check "a name two families take refuses the run" "$(tests --junit "$project/i2.xml" unit/twice/x)" 2
+check "and is said" "$(grep -c 'matches the families of one-case, other' "$project/last.log")" 1
+printf 'case::x\nnope::y\n' > "$project/names2"
+check "a file's case of a family runs" \
+  "$(tests --junit "$project/i3.xml" --suite job --names "$project/names2") $(cases "$project/i3.xml")" "0 case::x passed"
+check "and a name no family takes is said" "$(grep -c 'no test is named nope::y' "$project/last.log")" 1
 
 printf 'passes\n\n  nope  \npasses\n' > "$project/names"
 check "a file's name that is no test is skipped" "$(tests --junit "$project/c.xml" --suite job --names "$project/names")" 0

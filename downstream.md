@@ -105,14 +105,34 @@ engine of wf-agents ask for a test by one name.
   tests-list` then prints the tests, one a line. The download of the
   compiler and the toolchain are not tests: they are steps a job takes
   before its tests.
+- A test may also be one case of a family: a target that runs a whole suite
+  and can run one case of it, such as one test of a cargo test program or
+  one unit of a test suite. The Makefile lists the families in
+  `TEST_FAMILIES`, words of the form `PATTERN=TARGET`, for example
+  `TEST_FAMILIES := network::*=network-case redis-suite/unit/*=redis-unit`.
+  Only `*` is special in a pattern, and it matches any characters, `/` and
+  `:` among them. `make tests-families` prints the families, one per line.
+  A name in `TESTS` is always that test, run whole, so every name that works
+  today keeps working. Any other name that matches one family's pattern runs
+  as `make TARGET TEST_NAME=<the name as given>`, a make of its own for each
+  name. The target reads the name, best as `"$$TEST_NAME"` in its recipe,
+  strips its own prefix, and runs only that case. A name that matches the
+  patterns of two different targets names no test.
 - CI runs each test by itself, as `make <test>`, through
   [ci/run-tests.py](ci/run-tests.py), which prints what the test prints and
-  writes what became of it as JUnit XML: a testcase named by the target, with
-  its time, and, where it failed, the end of what it printed. A step of a job
-  calls it with the job's tests, and the environment names the file and the
-  testsuite: `TESTS_JUNIT`, a file named by the job's name; `TESTS_SUITE`,
-  the job's name; `TESTS_STOP`, how long one test may run, in seconds. The
-  job's last step, `ci/run-tests.py --end "$STATUS"` with the job's status,
+  writes what became of it as JUnit XML: a testcase named exactly as it was
+  asked for, with its time, and, where it failed, the end of what it printed.
+  A step of a job calls it with the job's tests, and the environment names
+  the file and the testsuite: `TESTS_JUNIT`, a file named by the job's name;
+  `TESTS_SUITE`, the job's name; `TESTS_STOP`, how long one test may run, in
+  seconds; `TESTS_BUDGET` (or `--budget`), how long all the tests of the call
+  may run together, in seconds. The tests run in the order given. When the
+  budget is used up, the test running then is stopped like a test past its
+  stop (TERM to its process group, KILL 10 seconds later). It is an `error`
+  whose message begins `stopped: the fast check's time ran out`. Each test
+  not started yet is `skipped`, with a message that begins `not run: the
+  fast check's time was used up`. Either makes the step fail. The job's last
+  step, `ci/run-tests.py --end "$STATUS"` with the job's status,
   says in the same file a step other than the tests that failed.
 - The workflow that checks a pull request and every push, `check.yml`, is
   the project's full workflow. It also runs by hand with the inputs `commit`
@@ -122,7 +142,13 @@ engine of wf-agents ask for a test by one name.
   the engine runs what it needs by hand.
 - `fast.yml` runs, by hand only, the tests its input `tests` names, one a
   line, on the given `commit`: each by itself, with only the setup the named
-  tests need. A name no test has is said in the log and runs nothing.
+  tests need. A name no test has is said in the log and runs nothing. Its
+  input `budget_seconds` is the budget of the named tests; where it is empty,
+  a variable at the top of the workflow gives the default. The Test step and
+  the job each have a `timeout-minutes` of their own, longer than the budget,
+  so a stuck script still ends. The job that only merges the JUnit files,
+  where there is one, runs on GitHub's `ubuntu-24.04`, not on the owner's
+  machine.
 - `fast.yml` runs on the owner's machine, the self-hosted runner `14900k`
   (`runs-on: [self-hosted, 14900k]`), because an agent waits for it each time
   it asks for tests. The machine keeps each runner's checkout between runs:
