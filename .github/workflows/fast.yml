@@ -3,7 +3,8 @@
 # only someone who may write to the repository can ask for. The engine of
 # wf-agents always asks for it on main, so that this file as main holds it
 # runs, with the commit to test, a value only its request knows, which the
-# run's name holds, the tests to run and how long one test may run.
+# run's name holds, the tests to run, how long one test may run and how long
+# the named tests may run together.
 #
 # A test is a target of the Makefile that its TESTS lists, as the full
 # workflow (check.yml) names it. Each named test runs on each host the full
@@ -24,6 +25,11 @@
 # The tests check.yml runs on macOS, mk-check and ci-check, also run on
 # GitHub's macos-15 here, since the owner's machine is Linux. That job starts
 # only when one of them is named.
+#
+# The time limits, each in one place for the owner to set once they are
+# measured: the named tests' budget is the input budget_seconds, else
+# FAST_BUDGET_DEFAULT below; a Test step's limit is its timeout-minutes, and a
+# job's limit is the job's timeout-minutes.
 #
 # It runs only by hand, never on a pull request: the repository is public,
 # and a trigger by a pull request would run anyone's code on the owner's
@@ -48,9 +54,17 @@ on:
         description: How long one test may run before it is stopped, in whole seconds; empty for no stop but the job's limit
         required: false
         default: ''
+      budget_seconds:
+        description: How long the named tests may run together, in whole seconds; empty for this file's default
+        required: false
+        default: ''
 
 permissions:
   contents: read
+
+env:
+  # The named tests' budget when the request gives none, in seconds.
+  FAST_BUDGET_DEFAULT: '600'
 
 # No concurrency group: each run is a request an agent waits for, which
 # another request must not cancel.
@@ -61,7 +75,7 @@ jobs:
   linux:
     name: tests (14900k)
     runs-on: [self-hosted, 14900k]
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       TESTS_JUNIT: ${{ github.workspace }}/build/test-results/tests (14900k).xml
       TESTS_SUITE: tests (14900k)
@@ -129,6 +143,9 @@ jobs:
         run: printf 'release = %s\n' "$KIT_DOWNLOAD_RELEASE" > docs/whitefoot.pin
 
       - name: Test
+        timeout-minutes: 15
+        env:
+          TESTS_BUDGET: ${{ inputs.budget_seconds || env.FAST_BUDGET_DEFAULT }}
         run: ci/run-tests.py --names "$RUNNER_TEMP/names"
 
       - name: Name the job's end in its results
@@ -151,7 +168,7 @@ jobs:
     name: tests (macos-15)
     if: ${{ contains(inputs.tests, 'mk-check') || contains(inputs.tests, 'ci-check') }}
     runs-on: macos-15
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       TESTS_JUNIT: ${{ github.workspace }}/build/test-results/tests (macos-15).xml
       TESTS_SUITE: tests (macos-15)
@@ -174,6 +191,9 @@ jobs:
           cat "$RUNNER_TEMP/names"
 
       - name: Test
+        timeout-minutes: 15
+        env:
+          TESTS_BUDGET: ${{ inputs.budget_seconds || env.FAST_BUDGET_DEFAULT }}
         run: ci/run-tests.py --names "$RUNNER_TEMP/names"
 
       - name: Name the job's end in its results
@@ -190,13 +210,13 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  # The JUnit of both jobs, in the one artifact the engine reads. It runs on
-  # the owner's machine, which picks it up at once, and runs none of the
-  # repository's code.
+  # The JUnit of both jobs, in the one artifact the engine reads. It runs none
+  # of the repository's code, on GitHub's machine, so that it does not wait
+  # for a runner of the owner's machine a second time.
   results:
     needs: [linux, macos]
     if: ${{ !cancelled() }}
-    runs-on: [self-hosted, 14900k]
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/upload-artifact/merge@v4

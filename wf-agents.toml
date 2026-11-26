@@ -36,8 +36,10 @@ workflow = "fast.yml"
 # time it asks for tests, and that machine keeps the checkout and the downloaded release between runs. The macOS job
 # stays on GitHub's macos-15, since the owner's machine is Linux.
 runner = "14900k"
-# check.yml gives each of its jobs 10 minutes, and this file 15; a run not complete by then is cancelled.
-too_long = "30m"
+# The input of fast.yml that the engine gives the named tests' budget in; fast.yml has its own default for an empty one.
+budget_input = "budget_seconds"
+# fast.yml gives each job 20 minutes; a run not complete in 25 is cancelled.
+too_long = "25m"
 
 [ci.full]
 # Every check a merge needs, run once before the merge: the tests of `make check` on both hosts and the guide's checks

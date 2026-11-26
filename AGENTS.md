@@ -17,8 +17,9 @@ the trial set covers; it stays within its length limit.
   project gets and pins the compiler. [tests/run.sh](tests/run.sh) checks
   `whitefoot.mk`.
 - [tests.mk](tests.mk) and [ci/run-tests.py](ci/run-tests.py): how a project
-  names its tests and how its CI runs each and reports it as JUnit XML
-  (downstream.md, "Tests in CI"). [tests/ci-check.sh](tests/ci-check.sh)
+  names its tests and the cases of its test families, and how its CI runs
+  each within a budget and reports it as JUnit XML (downstream.md, "Tests in
+  CI"). [tests/ci-check.sh](tests/ci-check.sh)
   checks them.
 - [docs/writing.md](docs/writing.md): the writing guide, for coding agents
   only. One file, at most 150 KB (153,600 bytes). It holds
